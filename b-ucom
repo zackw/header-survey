@@ -1,5 +1,6 @@
 # These headers were never standardized, but are common enough to be
 # worth probing for anyway.
+:category standard
 :sequence 98
 :label Nonstandard but widespread
 a.out.h

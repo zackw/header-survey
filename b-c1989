@@ -1,5 +1,6 @@
 # These headers were mandated by the original 1989 C standard or the
 # 1995 amendment thereto.
+:category standard
 :sequence 1
 :label ISO C90
 assert.h

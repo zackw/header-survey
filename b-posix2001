@@ -1,10 +1,11 @@
 # These headers were added to the mandatory base component of POSIX
 # in the 2001 revision, and are not also part of C99.
+:category standard
 :sequence 11
 :label POSIX.1-2001 base
+poll.h
 arpa/inet.h
 net/if.h
-poll.h
 sys/select.h
 sys/socket.h
 sys/time.h

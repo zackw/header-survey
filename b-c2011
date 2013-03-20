@@ -1,5 +1,6 @@
 # These headers were added to the C standard in its 2011 revision,
 # or in ISO/IEC TR 18037 (2006).
+:category standard
 :sequence 3
 :label ISO C2011
 stdalign.h

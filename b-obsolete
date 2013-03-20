@@ -1,6 +1,7 @@
 # These headers are officially obsolete in POSIX.1-2008, *should have*
 # been obsoleted in that standard, or are ubiquitous but long since
 # superseded by standard headers.
+:category standard
 :sequence 99
 :label Obsolete
 direct.h
@@ -10,9 +11,9 @@ regexp.h
 sgtty.h
 strings.h
 stropts.h
-trace.h
 termcap.h
 termio.h
+trace.h
 ulimit.h
 utime.h
 utmp.h

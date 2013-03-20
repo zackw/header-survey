@@ -3,6 +3,7 @@
 # (see b-obsolete) have been omitted from this list.
 # POSIX.1-2008 makes many of these headers mandatory, but does not
 # add any entirely new headers.
+:category standard
 :sequence 12
 :label POSIX.1-2001 optional
 aio.h
@@ -21,6 +22,9 @@ sched.h
 search.h
 semaphore.h
 spawn.h
+syslog.h
+ucontext.h
+utmpx.h
 sys/ipc.h
 sys/msg.h
 sys/resource.h
@@ -29,6 +33,3 @@ sys/shm.h
 sys/statvfs.h
 sys/uio.h
 sys/un.h
-syslog.h
-ucontext.h
-utmpx.h
