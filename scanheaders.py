@@ -290,15 +290,18 @@ items in the preceeding sets.
     extra_items_in_deps = \
         functools.reduce(set.union, data.itervalues()) - set(data.iterkeys())
     # Add empty dependences where needed
-    data.update({item:set() for item in extra_items_in_deps})
+    for item in extra_items_in_deps:
+      data[item] = set()
     while True:
         ordered = set(item for item, dep in data.iteritems() if not dep)
         if not ordered:
             break
         yield ordered
-        data = {item: (dep - ordered)
-                for item, dep in data.iteritems()
-                    if item not in ordered}
+        ndata = {}
+        for item, dep in data.iteritems():
+           if item not in ordered:
+               ndata[item] = dep - ordered
+        data = ndata
     if len(data) > 0:
         raise RuntimeError("Cyclic dependencies exist among these items:\n"
                            + "\n".join(repr(x) for x in data.iteritems()))
@@ -314,7 +317,7 @@ def sorted_common_headers():
 
 def gensrc(wd, header, known_headers):
     def include(f, h):
-        f.write("#include <{}>\n".format(os.path.join(*h.split("/"))))
+        f.write("#include <{0}>\n".format(os.path.join(*h.split("/"))))
 
     src = os.path.join(wd, "htest.c")
     with open(src, "w") as f:
@@ -342,7 +345,7 @@ def invoke(wd, devnull, argv):
                              stderr=subprocess.STDOUT,
                              cwd=wd)
         if rc != 0:
-            stdo.write("exit {}\n".format(rc))
+            stdo.write("exit {0}\n".format(rc))
     return (rc, msg)
 
 def probe_one(wd, cc, header, known_headers, devnull):
@@ -354,9 +357,9 @@ def probe_one(wd, cc, header, known_headers, devnull):
 
     (rc, msg) = invoke(wd, devnull, [cc, "-E", src])
     if rc == 0:
-        sys.stderr.write("# {} present but cannot be compiled:\n"
+        sys.stderr.write("# {0} present but cannot be compiled:\n"
                          .format(header))
-        for e in errors.split("\n"): sys.stderr.write("# {}\n".format(e))
+        for e in errors.split("\n"): sys.stderr.write("# {0}\n".format(e))
 
     return False
 
