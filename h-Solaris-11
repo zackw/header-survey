@@ -1,3 +1,7 @@
+GL/gl.h
+GL/glext.h
+GL/glx.h
+GL/glxext.h
 GL/glxint.h
 GL/glxmd.h
 GL/glxproto.h
@@ -1281,8 +1285,12 @@ ipp/ipp.h
 ipp/ipp_config.h
 ipp/ipp_impl.h
 ipp/ippctl.h
+iso/assert_iso.h
 iso/ctype_c99.h
 iso/ctype_iso.h
+iso/errno_iso.h
+iso/float_iso.h
+iso/iso646_iso.h
 iso/limits_iso.h
 iso/locale_iso.h
 iso/math_c99.h
@@ -1500,6 +1508,7 @@ ncurses/etip.h
 ncurses/form.h
 ncurses/menu.h
 ncurses/nc_tparm.h
+ncurses/ncurses.h
 ncurses/ncurses_dll.h
 ncurses/panel.h
 ncurses/term.h
@@ -1878,6 +1887,8 @@ pkginfo.h
 pkglocs.h
 pkgstrct.h
 pkgtrans.h
+png.h
+pngconf.h
 poll.h
 pool.h
 popt.h
