@@ -1,0 +1,34 @@
+# These headers are optional components of POSIX.1-2001.
+# Headers which were or should have been obsoleted in POSIX.1-2008
+# (see b-obsolete) have been omitted from this list.
+# POSIX.1-2008 makes many of these headers mandatory, but does not
+# add any entirely new headers.
+:sequence 5
+:label POSIX.1-2001 optional
+aio.h
+cpio.h
+dlfcn.h
+fmtmsg.h
+ftw.h
+iconv.h
+langinfo.h
+libgen.h
+monetary.h
+mqueue.h
+nl_types.h
+pthread.h
+sched.h
+search.h
+semaphore.h
+spawn.h
+sys/ipc.h
+sys/msg.h
+sys/resource.h
+sys/sem.h
+sys/shm.h
+sys/statvfs.h
+sys/uio.h
+sys/un.h
+syslog.h
+ucontext.h
+utmpx.h

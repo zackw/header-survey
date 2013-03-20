@@ -1,0 +1,9 @@
+# These headers were added to the C standard in its 1999 revision.
+:sequence 2
+:label ISO C99
+complex.h
+fenv.h
+inttypes.h
+stdbool.h
+stdint.h
+tgmath.h
