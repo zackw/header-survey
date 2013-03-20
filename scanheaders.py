@@ -219,7 +219,7 @@ sys/wait.h
 # all known situations where that's the case.
 
 prerequisites = {
-    # from OSX 10.6
+    # osx 10.6
     "net/if.h"           : ["sys/socket.h"],
     "netinet/icmp6.h"    : ["netinet/in.h"],
     "netinet/igmp.h"     : ["netinet/in.h"],
@@ -227,7 +227,6 @@ prerequisites = {
     "netinet/ip_icmp.h"  : ["netinet/in.h", "netinet/in_systm.h",
                             "netinet/ip.h"],
     "protocols/routed.h" : ["sys/socket.h"],
-    "protocols/timed.h"  : ["sys/param.h"],
     "rpc/auth.h"         : ["rpc/rpc.h"],
     "rpc/auth_unix.h"    : ["rpc/rpc.h"],
     "rpc/clnt.h"         : ["rpc/rpc.h"],
@@ -242,9 +241,26 @@ prerequisites = {
     "sys/acct.h"         : ["sys/types.h"],
     "sys/socketvar.h"    : ["sys/socket.h"],
 
-    # from glibc 2.13
-    "rpcsvc/nislib.h"    : ["rpcsvc/nis.h"],
+    # glibc 2.13
     "regexp.h"           : ["SPECIAL_regexp"],
+    "rpcsvc/nislib.h"    : ["rpcsvc/nis.h"],
+
+    # solaris 11
+    "lastlog.h"          : ["time.h"],
+    "arpa/nameser.h"     : ["sys/types.h"],
+    "arpa/tftp.h"        : ["sys/types.h"],
+    "net/ppp_defs.h"     : ["sys/types.h"],
+    "net/route.h"        : ["sys/socket.h"],
+    "netinet/if_ether.h" : ["net/if.h"],
+    "netinet/in_systm.h" : ["sys/types.h"],
+    "netinet/ip.h"       : ["netinet/in.h"],
+    "netinet/ip_icmp.h"  : ["netinet/in.h"],
+    "netinet/tcp.h"      : ["netinet/in.h"],
+    "netinet/udp.h"      : ["netinet/in.h"],
+    "sys/statfs.h"       : ["sys/types.h"],
+
+    # osx 10.6 and solaris 11 (each requires a different header!)
+    "protocols/timed.h"  : ["sys/param.h", "netdb.h"],
 }
 
 # Some headers are ... special, and require more than just the inclusion
