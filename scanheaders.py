@@ -244,7 +244,23 @@ prerequisites = {
 
     # from glibc 2.13
     "rpcsvc/nislib.h"    : ["rpcsvc/nis.h"],
+    "regexp.h"           : ["SPECIAL_regexp"],
 }
+
+# Some headers are ... special, and require more than just the inclusion
+# of other headers.
+
+# The SVID version of the obsolete regexp.h (not to be confused with
+# regex.h) has a bunch of embedded, macro-customizable code in it,
+# which will not compile unless we provide stubs.
+SPECIAL_regexp = r"""
+#define INIT
+#define GETC() 0
+#define PEEKC() 0
+#define UNGETC(c) do { } while (0)
+#define RETURN(p) return p
+#define ERROR(v) return 0
+"""
 
 # from http://code.activestate.com/recipes/578272-topological-sort/
 def toposort(data):
@@ -303,7 +319,9 @@ def gensrc(wd, header, known_headers):
     src = os.path.join(wd, "htest.c")
     with open(src, "w") as f:
         for p in prerequisites.get(header, []):
-            if p in known_headers:
+            if p.startswith("SPECIAL_") and not p.endswith(".h"):
+                f.write(globals()[p])
+            elif p in known_headers:
                 include(f, p)
         include(f, header)
         # End with a global definition, in case some compiler
@@ -349,6 +367,8 @@ def probe(compiler, headers):
         wd = tempfile.mkdtemp()
         with open(os.devnull, "rb") as devnull:
             for h in headers:
+                if h.startswith("SPECIAL_") and not h.endswith(".h"):
+                    continue
                 if probe_one(wd, compiler, h, known_headers, devnull):
                     known_headers.add(h)
     finally:
@@ -362,5 +382,8 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         compiler = sys.argv[1]
     avail_headers = probe(compiler, sorted_common_headers())
+    un = os.uname()
+    sys.stdout.write("# " + un[0] + " " + un[2] + " " + un[4] + "\n")
+    sys.stdout.write(":category unknown\n:label unknown\n")
     for h in sortheaders.hsorted(avail_headers):
         sys.stdout.write(h + "\n")
