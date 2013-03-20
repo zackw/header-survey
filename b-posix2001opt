@@ -3,7 +3,7 @@
 # (see b-obsolete) have been omitted from this list.
 # POSIX.1-2008 makes many of these headers mandatory, but does not
 # add any entirely new headers.
-:sequence 5
+:sequence 12
 :label POSIX.1-2001 optional
 aio.h
 cpio.h

@@ -1,7 +1,7 @@
 # These headers were mandated by POSIX.1-1996 and/or POSIX.2-1992
 # but not by C89, and were not demoted to an optional module in
 # POSIX.1-2001 or obsoleted in POSIX.1-2008.
-:sequence 3
+:sequence 10
 :label POSIX.1-1996
 dirent.h
 fcntl.h
@@ -23,4 +23,3 @@ tar.h
 termios.h
 unistd.h
 wordexp.h
-
