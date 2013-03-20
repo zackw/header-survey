@@ -20,6 +20,7 @@
 
 import os
 import sys
+import sortheaders
 
 success = True
 
@@ -96,8 +97,7 @@ def main(argv):
         sys.stderr.write("{}: header set is empty\n".format(argv[0]))
         sys.exit(1)
 
-    for h in sorted(headers,
-                    key=lambda h: (h.count('/'), h)):
+    for h in sortheaders.hsorted(headers):
         sys.stdout.write(h + '\n')
     sys.exit(0)
 

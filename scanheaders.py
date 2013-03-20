@@ -21,13 +21,18 @@ import subprocess
 import sys
 import tempfile
 
+import sortheaders
+
 common_header_files="""
+a.out.h
 aio.h
+alloca.h
 ar.h
 assert.h
 complex.h
 cpio.h
 ctype.h
+direct.h
 dirent.h
 dlfcn.h
 elf.h
@@ -38,6 +43,8 @@ fenv.h
 float.h
 fmtmsg.h
 fnmatch.h
+fstab.h
+fts.h
 ftw.h
 getopt.h
 glob.h
@@ -47,6 +54,7 @@ ifaddrs.h
 inttypes.h
 iso646.h
 langinfo.h
+lastlog.h
 libgen.h
 limits.h
 link.h
@@ -54,6 +62,7 @@ locale.h
 malloc.h
 math.h
 memory.h
+mntent.h
 monetary.h
 mqueue.h
 ndbm.h
@@ -65,6 +74,7 @@ poll.h
 pthread.h
 pwd.h
 regex.h
+regexp.h
 resolv.h
 sched.h
 search.h
@@ -73,23 +83,32 @@ setjmp.h
 sgtty.h
 signal.h
 spawn.h
+stab.h
+stdalign.h
 stdarg.h
+stdatomic.h
 stdbool.h
 stddef.h
+stdfix.h
 stdint.h
 stdio.h
 stdlib.h
+stdnoreturn.h
 string.h
 strings.h
 stropts.h
 sysexits.h
 syslog.h
 tar.h
+termcap.h
+termio.h
 termios.h
 tgmath.h
 thread_db.h
+threads.h
 time.h
 trace.h
+uchar.h
 ucontext.h
 ulimit.h
 unistd.h
@@ -153,6 +172,7 @@ rpcsvc/yp_prot.h
 rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 sys/acct.h
+sys/dir.h
 sys/errno.h
 sys/fcntl.h
 sys/file.h
@@ -175,6 +195,7 @@ sys/signal.h
 sys/socket.h
 sys/socketvar.h
 sys/stat.h
+sys/statfs.h
 sys/statvfs.h
 sys/syscall.h
 sys/syslog.h
@@ -341,5 +362,5 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         compiler = sys.argv[1]
     avail_headers = probe(compiler, sorted_common_headers())
-    for h in sorted(avail_headers, key=lambda x: (x.count("/"), x)):
+    for h in sortheaders.hsorted(avail_headers):
         sys.stdout.write(h + "\n")
