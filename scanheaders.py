@@ -254,7 +254,6 @@ prerequisites = {
     "netinet/if_ether.h" : ["net/if.h"],
     "netinet/in_systm.h" : ["sys/types.h"],
     "netinet/ip.h"       : ["netinet/in.h"],
-    "netinet/ip_icmp.h"  : ["netinet/in.h"],
     "netinet/tcp.h"      : ["netinet/in.h"],
     "netinet/udp.h"      : ["netinet/in.h"],
     "sys/statfs.h"       : ["sys/types.h"],
