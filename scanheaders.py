@@ -221,12 +221,6 @@ sys/wait.h
 prerequisites = {
     # osx 10.6
     "net/if.h"           : ["sys/socket.h"],
-    "netinet/icmp6.h"    : ["netinet/in.h"],
-    "netinet/igmp.h"     : ["netinet/in.h"],
-    "netinet/ip6.h"      : ["netinet/in.h"],
-    "netinet/ip_icmp.h"  : ["netinet/in.h", "netinet/in_systm.h",
-                            "netinet/ip.h"],
-    "protocols/routed.h" : ["sys/socket.h"],
     "rpc/auth.h"         : ["rpc/rpc.h"],
     "rpc/auth_unix.h"    : ["rpc/rpc.h"],
     "rpc/clnt.h"         : ["rpc/rpc.h"],
@@ -239,7 +233,6 @@ prerequisites = {
     "rpc/xdr.h"          : ["rpc/rpc.h"],
     "rpcsvc/yp_prot.h"   : ["rpc/rpc.h"],
     "sys/acct.h"         : ["sys/types.h"],
-    "sys/socketvar.h"    : ["sys/socket.h"],
 
     # glibc 2.13
     "regexp.h"           : ["SPECIAL_regexp"],
@@ -250,16 +243,35 @@ prerequisites = {
     "arpa/nameser.h"     : ["sys/types.h"],
     "arpa/tftp.h"        : ["sys/types.h"],
     "net/ppp_defs.h"     : ["sys/types.h"],
-    "net/route.h"        : ["sys/socket.h"],
-    "netinet/if_ether.h" : ["net/if.h"],
     "netinet/in_systm.h" : ["sys/types.h"],
-    "netinet/ip.h"       : ["netinet/in.h"],
     "netinet/tcp.h"      : ["netinet/in.h"],
-    "netinet/udp.h"      : ["netinet/in.h"],
     "sys/statfs.h"       : ["sys/types.h"],
 
-    # osx 10.6 and solaris 11 (each requires a different header!)
+    # osx 10.6 and solaris 11 (each requires a different header)
     "protocols/timed.h"  : ["sys/param.h", "netdb.h"],
+
+    # freebsd 9
+    "fts.h"              : ["sys/types.h"],
+    "ifaddrs.h"          : ["sys/types.h"],
+    "resolv.h"           : ["netinet/in.h"],
+    "net/if_arp.h"       : ["sys/types.h", "sys/socket.h"],
+    "protocols/rwhod.h"  : ["sys/types.h"],
+    "rpc/auth_des.h"     : ["rpc/rpc.h", "rpc/auth.h"],
+    "sys/timex.h"        : ["time.h"],
+    "sys/user.h"         : ["sys/types.h"],
+
+    # freebsd 9, osx 10.6, and solaris 11 (freebsd is pickiest)
+    "net/route.h"        : ["sys/types.h", "sys/socket.h"],
+    "netinet/icmp6.h"    : ["sys/types.h", "netinet/in.h"],
+    "netinet/if_ether.h" : ["net/if.h", "netinet/in.h"],
+    "netinet/igmp.h"     : ["sys/types.h", "netinet/in.h"],
+    "netinet/ip.h"       : ["sys/types.h", "netinet/in.h"],
+    "netinet/ip6.h"      : ["sys/types.h", "netinet/in.h"],
+    "netinet/ip_icmp.h"  : ["sys/types.h", "netinet/in.h",
+                            "netinet/in_systm.h", "netinet/ip.h"],
+    "netinet/udp.h"      : ["netinet/in.h"],
+    "protocols/routed.h" : ["sys/types.h", "sys/socket.h"],
+    "sys/socketvar.h"    : ["sys/types.h", "sys/socket.h"],
 }
 
 # Some headers are ... special, and require more than just the inclusion
