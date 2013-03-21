@@ -18,6 +18,7 @@ import contextlib
 import functools
 import itertools
 import os
+import platform
 import shutil
 import sorthdr
 import subprocess
@@ -225,6 +226,7 @@ prerequisites = {
     "lastlog.h"          : ["time.h"],
     "regexp.h"           : ["SPECIAL_regexp"],
     "resolv.h"           : ["netinet/in.h"],
+    "semaphore.h"        : ["sys/types.h"],
     "utmp.h"             : ["sys/types.h"],
     "arpa/nameser.h"     : ["sys/types.h"],
     "arpa/tftp.h"        : ["sys/types.h"],
@@ -437,8 +439,9 @@ if __name__ == '__main__':
     with fs_state() as state:
         smoke(state, cc)
         avail_headers = probe(state, cc, sorted_common_headers())
-    un = os.uname()
-    sys.stdout.write("# " + un[0] + " " + un[2] + " " + un[4] + "\n")
+    sys.stdout.write("# build platform: " + platform.platform() + "\n")
+    if len(sys.argv) > 1:
+        sys.stdout.write("# compiler: " + " ".join(cc) + "\n")
     sys.stdout.write(":category unknown\n:label unknown\n")
     for h in sorthdr.sorthdr(avail_headers):
         sys.stdout.write(h + "\n")
