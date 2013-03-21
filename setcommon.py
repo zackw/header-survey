@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-# This program computes the set of headers that scanheaders.py should
+# This program computes the set of headers that scansys.py should
 # scan for -- that is, header files that you might reasonably expect
 # to find on more than one system.  This is computed from the b- and
 # r- files given on the command line (or, if there is only one command
@@ -15,12 +15,12 @@
 # operating system.  We take the intersection of all r- lists.
 #
 # The output is the union of the above two sets.  It should be edited
-# into the "common_header_files" list in scanheaders.py, after manual
+# into the "common_header_files" list in scansys.py, after manual
 # validation.
 
 import os
 import sys
-import sortheaders
+import sorthdr
 
 success = True
 
@@ -97,7 +97,7 @@ def main(argv):
         sys.stderr.write("{}: header set is empty\n".format(argv[0]))
         sys.exit(1)
 
-    for h in sortheaders.hsorted(headers):
+    for h in sorthdr.sorthdr(headers):
         sys.stdout.write(h + '\n')
     sys.exit(0)
 

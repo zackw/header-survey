@@ -17,11 +17,10 @@ import functools
 import itertools
 import os
 import shutil
+import sorthdr
 import subprocess
 import sys
 import tempfile
-
-import sortheaders
 
 common_header_files="""
 a.out.h
@@ -405,5 +404,5 @@ if __name__ == '__main__':
     un = os.uname()
     sys.stdout.write("# " + un[0] + " " + un[2] + " " + un[4] + "\n")
     sys.stdout.write(":category unknown\n:label unknown\n")
-    for h in sortheaders.hsorted(avail_headers):
+    for h in sorthdr.sorthdr(avail_headers):
         sys.stdout.write(h + "\n")

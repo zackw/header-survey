@@ -14,9 +14,9 @@ def hsortkey(h):
     segs = h.lower().replace("\\", "/").split("/")
     return hsortkey_r(*segs)
 
-def hsorted(hs):
+def sorthdr(hs):
     return sorted(hs, key=hsortkey)
 
 if __name__ == '__main__':
     import sys
-    for h in hsorted(sys.stdin.xreadlines()): sys.stdout.write(h)
+    for h in sorthdr(sys.stdin.xreadlines()): sys.stdout.write(h)
