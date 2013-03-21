@@ -1,5 +1,5 @@
-# SunOS 5.11 i386 (Illumos))
-:category complete Unix
+# SunOS 5.11 i386 (Illumos)
+:category Unix
 :label Solaris 11 (Illumos)
 aio.h
 alloca.h
