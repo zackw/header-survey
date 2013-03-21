@@ -269,7 +269,7 @@ prerequisites = {
     "netinet/ip6.h"      : ["sys/types.h", "netinet/in.h"],
     "netinet/ip_icmp.h"  : ["sys/types.h", "netinet/in.h",
                             "netinet/in_systm.h", "netinet/ip.h"],
-    "netinet/udp.h"      : ["netinet/in.h"],
+    "netinet/udp.h"      : ["sys/types.h", "netinet/in.h"],
     "protocols/routed.h" : ["sys/types.h", "sys/socket.h"],
     "sys/socketvar.h"    : ["sys/types.h", "sys/socket.h"],
 }
