@@ -219,9 +219,32 @@ sys/wait.h
 # all known situations where that's the case.
 
 prerequisites = {
-    # osx 10.6
+    "fts.h"              : ["sys/types.h"],
+    "ifaddrs.h"          : ["sys/types.h"],
+    "lastlog.h"          : ["time.h"],
+    "regexp.h"           : ["SPECIAL_regexp"],
+    "resolv.h"           : ["netinet/in.h"],
+    "utmp.h"             : ["sys/types.h"],
+    "arpa/nameser.h"     : ["sys/types.h"],
+    "arpa/tftp.h"        : ["sys/types.h"],
     "net/if.h"           : ["sys/socket.h"],
+    "net/if_arp.h"       : ["sys/types.h", "sys/socket.h"],
+    "net/ppp_defs.h"     : ["sys/types.h"],
+    "net/route.h"        : ["sys/types.h", "sys/socket.h"],
+    "netinet/icmp6.h"    : ["sys/types.h", "netinet/in.h"],
+    "netinet/if_ether.h" : ["net/if.h", "netinet/in.h"],
+    "netinet/igmp.h"     : ["sys/types.h", "netinet/in.h"],
+    "netinet/in_systm.h" : ["sys/types.h"],
+    "netinet/ip.h"       : ["sys/types.h", "netinet/in.h"],
+    "netinet/ip6.h"      : ["sys/types.h", "netinet/in.h"],
+    "netinet/ip_icmp.h"  : ["sys/types.h", "netinet/in.h", "netinet/in_systm.h", "netinet/ip.h"],
+    "netinet/tcp.h"      : ["sys/types.h", "netinet/in.h"],
+    "netinet/udp.h"      : ["sys/types.h", "netinet/in.h"],
+    "protocols/routed.h" : ["sys/types.h", "sys/socket.h"],
+    "protocols/rwhod.h"  : ["sys/types.h"],
+    "protocols/timed.h"  : ["sys/param.h", "netdb.h"],
     "rpc/auth.h"         : ["rpc/rpc.h"],
+    "rpc/auth_des.h"     : ["rpc/rpc.h", "rpc/auth.h"],
     "rpc/auth_unix.h"    : ["rpc/rpc.h"],
     "rpc/clnt.h"         : ["rpc/rpc.h"],
     "rpc/pmap_clnt.h"    : ["rpc/rpc.h"],
@@ -231,47 +254,14 @@ prerequisites = {
     "rpc/svc.h"          : ["rpc/rpc.h"],
     "rpc/svc_auth.h"     : ["rpc/rpc.h"],
     "rpc/xdr.h"          : ["rpc/rpc.h"],
+    "rpcsvc/nislib.h"    : ["rpcsvc/nis.h"],
     "rpcsvc/yp_prot.h"   : ["rpc/rpc.h"],
     "sys/acct.h"         : ["sys/types.h"],
-
-    # glibc 2.13
-    "regexp.h"           : ["SPECIAL_regexp"],
-    "rpcsvc/nislib.h"    : ["rpcsvc/nis.h"],
-
-    # solaris 11
-    "lastlog.h"          : ["time.h"],
-    "arpa/nameser.h"     : ["sys/types.h"],
-    "arpa/tftp.h"        : ["sys/types.h"],
-    "net/ppp_defs.h"     : ["sys/types.h"],
-    "netinet/in_systm.h" : ["sys/types.h"],
-    "netinet/tcp.h"      : ["netinet/in.h"],
+    "sys/socketvar.h"    : ["sys/types.h", "sys/socket.h"],
     "sys/statfs.h"       : ["sys/types.h"],
-
-    # osx 10.6 and solaris 11 (each requires a different header)
-    "protocols/timed.h"  : ["sys/param.h", "netdb.h"],
-
-    # freebsd 9
-    "fts.h"              : ["sys/types.h"],
-    "ifaddrs.h"          : ["sys/types.h"],
-    "resolv.h"           : ["netinet/in.h"],
-    "net/if_arp.h"       : ["sys/types.h", "sys/socket.h"],
-    "protocols/rwhod.h"  : ["sys/types.h"],
-    "rpc/auth_des.h"     : ["rpc/rpc.h", "rpc/auth.h"],
+    "sys/timeb.h"        : ["time.h"],
     "sys/timex.h"        : ["time.h"],
     "sys/user.h"         : ["sys/types.h"],
-
-    # freebsd 9, osx 10.6, and solaris 11 (freebsd is pickiest)
-    "net/route.h"        : ["sys/types.h", "sys/socket.h"],
-    "netinet/icmp6.h"    : ["sys/types.h", "netinet/in.h"],
-    "netinet/if_ether.h" : ["net/if.h", "netinet/in.h"],
-    "netinet/igmp.h"     : ["sys/types.h", "netinet/in.h"],
-    "netinet/ip.h"       : ["sys/types.h", "netinet/in.h"],
-    "netinet/ip6.h"      : ["sys/types.h", "netinet/in.h"],
-    "netinet/ip_icmp.h"  : ["sys/types.h", "netinet/in.h",
-                            "netinet/in_systm.h", "netinet/ip.h"],
-    "netinet/udp.h"      : ["sys/types.h", "netinet/in.h"],
-    "protocols/routed.h" : ["sys/types.h", "sys/socket.h"],
-    "sys/socketvar.h"    : ["sys/types.h", "sys/socket.h"],
 }
 
 # Some headers are ... special, and require more than just the inclusion
@@ -344,15 +334,15 @@ def sorted_common_headers():
 
 def gensrc(wd, header, known_headers):
     def include(f, h):
-        f.write("#include <{0}>\n".format(os.path.join(*h.split("/"))))
-
-    src = os.path.join(wd, "htest.c")
-    with open(src, "w") as f:
-        for p in prerequisites.get(header, []):
+        for p in prerequisites.get(h, []):
             if p.startswith("SPECIAL_") and not p.endswith(".h"):
                 f.write(globals()[p])
             elif p in known_headers:
                 include(f, p)
+        f.write("#include <{0}>\n".format(os.path.join(*h.split("/"))))
+
+    src = os.path.join(wd, "htest.c")
+    with open(src, "w") as f:
         include(f, header)
         # End with a global definition, in case some compiler
         # doesn't like source files that define nothing.
