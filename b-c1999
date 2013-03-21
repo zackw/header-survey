@@ -2,9 +2,9 @@
 :category standard
 :sequence 2
 :label ISO C99
- complex.h
- fenv.h
- inttypes.h
- stdbool.h
- stdint.h
- tgmath.h
+complex.h
+fenv.h
+inttypes.h
+stdbool.h
+stdint.h
+tgmath.h
