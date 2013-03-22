@@ -1,0 +1,56 @@
+# build platform: Windows-7-6.1.7601-SP1
+# compiler: c:/MinGW/bin/mingw32-cc.exe
+# mingw32-cc (GCC) 4.7.2
+:category Windows
+:label MinGW32
+assert.h
+complex.h
+ctype.h
+direct.h
+dirent.h
+errno.h
+fcntl.h
+fenv.h
+float.h
+getopt.h
+iconv.h
+inttypes.h
+iso646.h
+libgen.h
+limits.h
+locale.h
+malloc.h
+math.h
+memory.h
+omp.h
+pthread.h
+sched.h
+search.h
+semaphore.h
+setjmp.h
+signal.h
+stdalign.h
+stdarg.h
+stdbool.h
+stddef.h
+stdfix.h
+stdint.h
+stdio.h
+stdlib.h
+stdnoreturn.h
+string.h
+strings.h
+tgmath.h
+time.h
+unistd.h
+utime.h
+wchar.h
+wctype.h
+sys/fcntl.h
+sys/file.h
+sys/param.h
+sys/stat.h
+sys/time.h
+sys/timeb.h
+sys/types.h
+sys/unistd.h
