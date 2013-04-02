@@ -1,9 +1,11 @@
 #! /usr/bin/python
+# -*- encoding: utf-8 -*-
 
+import cgi
 import errno
-import functools
 import os
 import re
+import sorthdr
 import sys
 
 # hat tip to http://code.activestate.com/recipes/285264-natural-string-sorting/
@@ -11,14 +13,20 @@ _natsort_split_re = re.compile(r'(\d+|\D+)')
 def natsort_key(s):
     def try_int(s):
         try: return int(s)
-        except: return s
+        except: return s.lower()
     return tuple(try_int(c) for c in _natsort_split_re.findall(s))
 
-@functools.total_ordering
 class Group(object):
-    def __init__(self, items, label, sequence):
+    def __init__(self, items, label, category, sequence):
         self.items = items
         self.label = label
+        self.category = category
+        # "embedded X" sorts immediately after X; otherwise,
+        # categories are case-insensitive alphabetical
+        if category.startswith("embedded "):
+            self.catkey = (category[9:].lower(), 1)
+        else:
+            self.catkey = (category.lower(), 0)
         # numbers within labels are sorted numerically
         self.labelkey = natsort_key(label)
         self.sequence = sequence
@@ -32,6 +40,7 @@ class Group(object):
             label = label[:-4]
         label = label.replace("-", " ")
         sequence = 50
+        category = "Uncategorized"
 
         items = []
         with open(fname, "rU") as fp:
@@ -41,92 +50,193 @@ class Group(object):
                 if line[0] == ":":
                     if line.startswith(":label "):
                         label = line[7:]
+                    elif line.startswith(":category"):
+                        category = line[10:]
                     elif line.startswith(":sequence"):
                         sequence = int(line[10:])
                     else:
-                        raise RuntimeError("unknown directive-line '{0!r}'"
+                        raise RuntimeError("unknown directive-line {0!r}"
                                            .format(line))
                     continue
 
                 items.append(line)
 
         items = frozenset(items)
-        return cls(items, label, sequence)
+        return cls(items, label, category, sequence)
 
-    def __eq__(self, other):
-        return (self.sequence == other.sequence and
-                self.label == other.label and
-                self.items == other.items)
+    def __cmp__(self, other):
+        return (cmp(self.sequence, other.sequence) or
+                cmp(self.catkey, other.catkey) or
+                cmp(self.labelkey, other.labelkey) or
+                cmp(len(self.items), len(other.items)) or
+                cmp(self.items, other.items))
 
-    def __lt__(self, other):
-        if self.sequence < other.sequence: return True
-        if self.labelkey < other.labelkey: return True
-        if self.items < other.items: return True
-        return False
+    # delegate item accessors
+    def __iter__(self):
+        return iter(self.items)
 
-    def output_items(self, fp):
-        for x in sorted(self.items, key=lambda x: (x.count('/'), x)):
-            fp.write(x + '\n')
+    def __len__(self):
+        return len(self.items)
 
-def U(g1, g2, label, sequence=50):
-    return Group(g1.items.union(g2.items), label, sequence)
+    def __contains__(self, x):
+        return x in self.items
 
-def I(g1, g2, label, sequence=50):
-    return Group(g1.items.intersection(g2.items), label, sequence)
-
-def D(g1, g2, label, sequence=50):
-    return Group(g1.items - g2.items, label, sequence)
 
 def load_groups(dirname):
-    hgroups = {}
-    bgroups = {}
+    hgroups = []
+    bgroups = []
+    rv = 0
+    try:
+        files = os.listdir(dirname)
+    except EnvironmentError, e:
+        sys.stderr.write("{}: {}\n".format(e.filename, e.strerror))
+        rv = 1;
+        return rv, hgroups, bgroups
+
     for fname in os.listdir(dirname):
         if not (fname.startswith("b-") or fname.startswith("h-")):
             continue
         try:
             g = Group.from_file(fname)
-        except OSError, e:
+        except EnvironmentError, e:
             # silently skip directories
             # report all other errors and continue
             if e.errno != errno.EISDIR:
-                sys.stderr.write("{}: {}\n".format(e.filename, e.strerror))
+                sys.stderr.write("{}: {}\n".format(e.filename,
+                                                   e.strerror))
+                rv = 1
 
         if fname.startswith("b-"):
-            bgroups[g.label] = g
+            bgroups.append(g)
         elif fname.startswith("h-"):
-            hgroups[g.label] = g
+            hgroups.append(g)
 
-    return hgroups, bgroups
+    hgroups.sort()
+    bgroups.sort()
+    return rv, hgroups, bgroups
+
+def write_header(f, title):
+    title = cgi.escape(title)
+
+    f.write("<!doctype html><html><head><meta charset=\"utf-8\">")
+    f.write("<title>{}</title>".format(title))
+    f.write("<link rel=\"stylesheet\" href=\"tbl.css\">")
+    f.write("</head><body>\n")
+    f.write("<h1>{}</h1>\n".format(title))
+
+def write_trailer(f):
+    f.write("<script src=\"jquery-1.9.1.min.js\"></script>")
+    f.write("<script src=\"jquery.stickytableheaders.js\"></script>")
+    f.write("""<script>window.onload=function(){
+  $('table').stickyTableHeaders();
+}</script>""")
+    # deliberate absence of newline at EOF
+    f.write("\n</body></html>")
+
+def write_thead(f, hgroups, bgroups):
+    f.write("<table><thead>")
+
+    # system-categories row
+    f.write("\n<tr><th colspan=\"2\"></th>")
+    cat = ""
+    span = 0
+    for hg in hgroups:
+        if cat != hg.category:
+            if cat != "":
+                f.write("<th class=\"shift\" colspan=\"{}\">"
+                        "<span class=\"cl\">{}</span></th>"
+                        .format(span, cgi.escape(cat)))
+            cat = hg.category
+            span = 0
+        span += 1
+    f.write("<th class=\"shift\" colspan=\"{}\">"
+            "<span class=\"cl\">{}</span></th>"
+            .format(span, cgi.escape(cat)))
+
+    # systems row
+    f.write("</tr>\n<tr><th>Standard</th><th>Header</th>")
+    cat = ""
+    n = 0
+    for hg in hgroups:
+        n += 1
+        cls = "o" if n%2 else "e"
+        if cat != hg.category:
+            cls += " cl"
+            cat = hg.category
+        f.write("<th class=\"skew\"><span class=\"{}\"><span>{}"
+                "</span></span></th>"
+                .format(cls, cgi.escape(hg.label)))
+
+    f.write("</tr>\n</thead>")
+
+def write_tbody(f, hgroups, bgroups):
+    f.write("<tbody>")
+
+    for bg in bgroups:
+        first = True
+        for h in sorthdr.sorthdr(bg):
+            if first:
+                f.write("\n<tr><th rowspan=\"{}\" class=\"ct std\">{}</th>"
+                        "<th class=\"h ct\">{}</th>"
+                        .format(len(bg), cgi.escape(bg.label),
+                                cgi.escape(h)))
+            else:
+                f.write("</th>\n<tr><th class=\"h\">{}</th>"
+                        .format(cgi.escape(h)))
+
+            n = 0
+            cat = ""
+            for hg in hgroups:
+                if h in hg:
+                    cls = "y"
+                    sym = "⚫"
+                else:
+                    cls = "n"
+                    sym = "⚪"
+
+                n += 1
+                cls += " o" if n%2 else " e"
+
+                if first: cls += " ct"
+                if cat != hg.category:
+                    cls += " cl"
+                    cat = hg.category
+
+                f.write("<td class=\"{}\">{}</td>".format(cls, sym))
+
+            first = False
+
+    f.write("</tr>\n</tbody></table>")
+
+def write_html(f, hgroups, bgroups):
+    write_header(f, "Availability of C header files")
+    write_thead(f, hgroups, bgroups)
+    write_tbody(f, hgroups, bgroups)
+    write_trailer(f)
 
 def main():
-    h, b = load_groups(".")
-    b["ISO C"] = U(b["ISO C90"], b["ISO C99"], "ISO C")
-    b["POSIX.1"] = U(b["POSIX.1-1996"], b["POSIX.1-2001 base"], "POSIX.1")
-    b["POSIX.1 full"] = U(b["POSIX.1"], b["POSIX.1-2001 optional"],
-                          "POSIX.1 full")
-    allstd = U(b["ISO C"], b["POSIX.1 full"], "All standard")
-
-    ucom = None
-    for k, v in h.iteritems():
-        if ("MSVC" in k or "MinGW" in k or "Android" in k):
-            continue
-        sys.stderr.write(k + " ")
-        if ucom is None:
-            ucom = v
+    if len(sys.argv) == 1:
+        dirname = "."
+    elif (len(sys.argv) == 2
+          and sys.argv[1] != "-h" and sys.argv[1] != "--help"):
+        dirname = sys.argv[1]
+    elif (len(sys.argv) == 3 and sys.argv[1] == "--"):
+        dirname = sys.argv[2]
+    else:
+        sys.stderr.write("usage: " + os.basename(argv[0]) + " directory\n"
+                         "Generates a table of header usage from h- and "
+                         "b-files found in DIRECTORY.\n"
+                         "Table is written to stdout.\n\n")
+        if (len(sys.argv) == 2 and (sys.argv[1] == "-h" or
+                                    sys.argv[1] == "--help")):
+            sys.exit(0)
         else:
-            ucom = I(ucom, v, "ucom")
-    sys.stderr.write('\n')
-    sys.stderr.flush()
+            sys.exit(2)
 
-    unonstd = D(ucom, allstd, "unonstd")
-    unonstd = D(unonstd, b["Obsolete"], "unonstd")
-    unonstd.output_items(sys.stdout)
+    rv, hgroups, bgroups = load_groups(dirname)
+    if rv != 0: sys.exit(rv)
 
-    sys.stdout.write('\n')
-
-    stdnonu = D(allstd, ucom, "stdnonu")
-    stdnonu = D(stdnonu, b["Obsolete"], "stdnonu")
-
-    stdnonu.output_items(sys.stdout)
+    write_html(sys.stdout, hgroups, bgroups)
+    sys.exit(0)
 
 if __name__ == '__main__': main()

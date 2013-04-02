@@ -1,0 +1,76 @@
+table {
+  margin: 20px 0 0 20px;
+  border-spacing: 0;
+  border-collapse: separate;
+  border: 0;
+  padding: 0;
+}
+thead, tbody, tr, td, th {
+  text-align: center; padding: 0; margin: 0; border: 0; vertical-align: bottom
+}
+th[rowspan] { vertical-align: middle }
+
+.y /* yes */ { color: green; }
+.n /* no */ { color: gray; }
+.h /* header */ { font-family: monospace; text-align: left; padding: 0 1ex }
+.cl /* category leftmost */ { border-left: 1px solid black; }
+.ct /* category topmost */ { border-top: 1px solid black; }
+.std /* standard */ { width: 8em }
+
+/* background colors */
+thead         { background-color: #ccccff; }
+.shift > span { background-color: #ccccff; }
+.e /* even */ { background-color: #e5e5e5; }
+.o /* odd */  { background-color: #f2f2f2; }
+
+.shift > span.e,
+.skew  > span.e { background-color: #b7b7e5; }
+.shift > span.o,
+.skew  > span.o { background-color: #c2c2f2; }
+
+th { font-size: 12px; font-family: sans-serif; }
+
+.shift {
+  position: relative;
+}
+.shift > span {
+  display: block;
+  position: relative;
+  top: 0px;
+  left: 130px;
+  padding: 3px 0;
+  overflow: visible;
+}
+.skew {
+  height: 130px;
+  width: 30px;
+  position: relative;
+}
+.skew > span {
+  display: block;
+  position: relative;
+  top: 0px;
+  left: 65px;
+  height: 100%;
+  width: 100%;
+  transform:skew(-45deg,0deg);
+  -ms-transform:skew(-45deg,0deg);
+  -moz-transform:skew(-45deg,0deg);
+  -webkit-transform:skew(-45deg,0deg);
+  -o-transform:skew(-45deg,0deg);
+  overflow: visible; /*hidden;*/
+}
+.skew > span > span {
+  transform:skew(45deg,0deg) rotate(315deg);
+  -ms-transform:skew(45deg,0deg) rotate(315deg);
+  -moz-transform:skew(45deg,0deg) rotate(315deg);
+  -webkit-transform:skew(45deg,0deg) rotate(315deg);
+  -o-transform:skew(45deg,0deg) rotate(315deg);
+  position: absolute;
+  bottom: 15px;
+  left: 1px;
+  display: inline-block;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+}
