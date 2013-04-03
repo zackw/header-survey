@@ -67,8 +67,8 @@ class Group(object):
     def __cmp__(self, other):
         return (cmp(self.sequence, other.sequence) or
                 cmp(self.catkey, other.catkey) or
+                -cmp(len(self.items), len(other.items)) or
                 cmp(self.labelkey, other.labelkey) or
-                cmp(len(self.items), len(other.items)) or
                 cmp(self.items, other.items))
 
     # delegate item accessors
