@@ -1,5 +1,4 @@
 # build platform: Windows-7-6.1.7601-SP1
-# compiler: cl (17.00.50727.1)
 :category Windows
 :label MSVC 2012
 assert.h

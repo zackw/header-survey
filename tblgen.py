@@ -8,6 +8,8 @@ import re
 import sorthdr
 import sys
 
+from string import punctuation as _punctuation
+
 # hat tip to http://code.activestate.com/recipes/285264-natural-string-sorting/
 _natsort_split_re = re.compile(r'(\d+|\D+)')
 def natsort_key(s):
@@ -17,9 +19,10 @@ def natsort_key(s):
     return tuple(try_int(c) for c in _natsort_split_re.findall(s))
 
 class Group(object):
-    def __init__(self, items, label, category, sequence):
+    def __init__(self, items, label, category, compiler, sequence):
         self.items = items
         self.label = label
+        self.compiler = compiler
         self.category = category
         # "embedded X" sorts immediately after X; otherwise,
         # categories are case-insensitive alphabetical
@@ -41,8 +44,9 @@ class Group(object):
         label = label.replace("-", " ")
         sequence = 50
         category = "Uncategorized"
+        compiler = "unknown"
 
-        items = []
+        items = {}
         with open(fname, "rU") as fp:
             for line in fp:
                 line = line.strip()
@@ -52,23 +56,47 @@ class Group(object):
                         label = line[7:]
                     elif line.startswith(":category"):
                         category = line[10:]
+                    elif line.startswith(":compiler"):
+                        compiler = line[10:]
                     elif line.startswith(":sequence"):
                         sequence = int(line[10:])
                     else:
-                        raise RuntimeError("unknown directive-line {0!r}"
-                                           .format(line))
+                        raise RuntimeError("{}: unknown directive-line {0!r}"
+                                           .format(fname, line))
                     continue
 
-                items.append(line)
+                line = line.replace('\\', '/')
+                if line[0] in _punctuation:
+                    p = line[0]
+                    l = line[1:]
+                    if p not in "!@":
+                        raise RuntimeError("{}: {}: unsupported tag symbol: {}"
+                                           .format(fname, l, p))
 
-        items = frozenset(items)
-        return cls(items, label, category, sequence)
+                else:
+                    p = '.'
+                    l = line
+                if l in items:
+                    raise RuntimeError("{}: duplicate header-line {0!r}"
+                                       .format(fname, line))
+                items[l] = p
+
+        return cls(items, label, category, compiler, sequence)
+
+    def merge_compiler(self, other):
+        for h in self.items:
+            if h not in other.items:
+                self.items[h] = "@"
+        for h in other.items:
+            if h not in self.items:
+                self.items[h] = "@"
 
     def __cmp__(self, other):
         return (cmp(self.sequence, other.sequence) or
                 cmp(self.catkey, other.catkey) or
                 -cmp(len(self.items), len(other.items)) or
                 cmp(self.labelkey, other.labelkey) or
+                cmp(self.compiler, other.compiler) or
                 cmp(self.items, other.items))
 
     # delegate item accessors
@@ -81,17 +109,21 @@ class Group(object):
     def __contains__(self, x):
         return x in self.items
 
+    def __getitem__(self, x):
+        return self.items[x]
+
+    def get(self, x, d=None):
+        return self.items.get(x, d)
 
 def load_groups(dirname):
-    hgroups = []
-    bgroups = []
+    groups = []
     rv = 0
     try:
         files = os.listdir(dirname)
     except EnvironmentError, e:
         sys.stderr.write("{}: {}\n".format(e.filename, e.strerror))
         rv = 1;
-        return rv, hgroups, bgroups
+        return rv, groups
 
     for fname in os.listdir(dirname):
         if not (fname.startswith("b-") or fname.startswith("h-")):
@@ -106,14 +138,23 @@ def load_groups(dirname):
                                                    e.strerror))
                 rv = 1
 
-        if fname.startswith("b-"):
-            bgroups.append(g)
-        elif fname.startswith("h-"):
-            hgroups.append(g)
+        groups.append(g)
+    return rv, groups
 
-    hgroups.sort()
-    bgroups.sort()
-    return rv, hgroups, bgroups
+def preprocess(groups):
+    oses = {}
+    stds = []
+    for g in groups:
+        if g.category == "standard":
+            stds.append(g)
+        else:
+            other = oses.get(g.label)
+            if other is not None:
+                other.merge_compiler(g)
+            else:
+                oses[g.label] = g
+    stds.sort()
+    return sorted(oses.itervalues()), stds
 
 def write_header(f, title):
     title = cgi.escape(title)
@@ -133,20 +174,24 @@ def write_trailer(f):
     # deliberate absence of newline at EOF
     f.write("\n</body></html>")
 
-def write_thead(f, hgroups, bgroups):
+def write_thead(f, oses):
     f.write("<table><thead>")
 
     # system-categories row
-    f.write("\n<tr><th colspan=\"2\"></th>")
+    f.write("\n<tr><th class=\"key\" colspan=\"2\"><span><span>"
+            "<span class=\"n\">⚪</span>: absent<br>"
+            "<span class=\"y\">⚫</span>: present<br>"
+            "<span class=\"cd\">◗</span>: compiler-dependent<br>"
+            "<span class=\"bug\">✗</span>: unusably buggy</span></span></th>")
     cat = ""
     span = 0
-    for hg in hgroups:
-        if cat != hg.category:
+    for o in oses:
+        if cat != o.category:
             if cat != "":
                 f.write("<th class=\"shift\" colspan=\"{}\">"
                         "<span class=\"cl\">{}</span></th>"
                         .format(span, cgi.escape(cat)))
-            cat = hg.category
+            cat = o.category
             span = 0
         span += 1
     f.write("<th class=\"shift\" colspan=\"{}\">"
@@ -157,28 +202,28 @@ def write_thead(f, hgroups, bgroups):
     f.write("</tr>\n<tr><th>Standard</th><th>Header</th>")
     cat = ""
     n = 0
-    for hg in hgroups:
+    for o in oses:
         n += 1
         cls = "o" if n%2 else "e"
-        if cat != hg.category:
+        if cat != o.category:
             cls += " cl"
-            cat = hg.category
+            cat = o.category
         f.write("<th class=\"skew\"><span class=\"{}\"><span>{}"
                 "</span></span></th>"
-                .format(cls, cgi.escape(hg.label)))
+                .format(cls, cgi.escape(o.label)))
 
     f.write("</tr>\n</thead>")
 
-def write_tbody(f, hgroups, bgroups):
+def write_tbody(f, oses, stds):
     f.write("<tbody>")
 
-    for bg in bgroups:
+    for std in stds:
         first = True
-        for h in sorthdr.sorthdr(bg):
+        for h in sorthdr.sorthdr(std):
             if first:
                 f.write("\n<tr><th rowspan=\"{}\" class=\"ct std\">{}</th>"
                         "<th class=\"h ct\">{}</th>"
-                        .format(len(bg), cgi.escape(bg.label),
+                        .format(len(std), cgi.escape(std.label),
                                 cgi.escape(h)))
             else:
                 f.write("</th>\n<tr><th class=\"h\">{}</th>"
@@ -186,21 +231,30 @@ def write_tbody(f, hgroups, bgroups):
 
             n = 0
             cat = ""
-            for hg in hgroups:
-                if h in hg:
-                    cls = "y"
-                    sym = "⚫"
-                else:
+            for o in oses:
+                x = o.get(h)
+                if x is None:
                     cls = "n"
                     sym = "⚪"
-
+                elif x == ".":
+                    cls = "y"
+                    sym = "⚫"
+                elif x == "@": # compiler dependent
+                    cls = "cd"
+                    sym = "◗"
+                elif x == "!": # buggy
+                    cls = "bug"
+                    sym = "✗"
+                else:
+                    raise RuntimeError("{}: {}: unsupported tag symbol: {}"
+                                       .format(o.label, h, x))
                 n += 1
                 cls += " o" if n%2 else " e"
 
                 if first: cls += " ct"
-                if cat != hg.category:
+                if cat != o.category:
                     cls += " cl"
-                    cat = hg.category
+                    cat = o.category
 
                 f.write("<td class=\"{}\">{}</td>".format(cls, sym))
 
@@ -208,10 +262,10 @@ def write_tbody(f, hgroups, bgroups):
 
     f.write("</tr>\n</tbody></table>")
 
-def write_html(f, hgroups, bgroups):
-    write_header(f, "Availability of C header files")
-    write_thead(f, hgroups, bgroups)
-    write_tbody(f, hgroups, bgroups)
+def write_html(f, oses, stds):
+    write_header(f, "Cross-platform availability of C header files")
+    write_thead(f, oses)
+    write_tbody(f, oses, stds)
     write_trailer(f)
 
 def main():
@@ -233,10 +287,11 @@ def main():
         else:
             sys.exit(2)
 
-    rv, hgroups, bgroups = load_groups(dirname)
+    rv, groups = load_groups(dirname)
     if rv != 0: sys.exit(rv)
 
-    write_html(sys.stdout, hgroups, bgroups)
+    oses, stds = preprocess(groups)
+    write_html(sys.stdout, oses, stds)
     sys.exit(0)
 
 if __name__ == '__main__': main()

@@ -1,6 +1,7 @@
 # build platform: AIX-7.1-000BF95F4C00-powerpc-32bit
 :category Unix
-:label AIX 7.1 (xlc)
+:compiler xlc
+:label AIX 7.1
 a.out.h
 aio.h
 alloca.h

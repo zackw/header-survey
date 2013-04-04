@@ -1,7 +1,7 @@
 # build platform: HP-UX-B.11.31-ia64-32bit
-# compiler: gcc
 :category Unix
-:label HP-UX 11.31 (ia64/gcc)
+:compiler gcc
+:label HP-UX 11.31 (ia64)
 a.out.h
 aio.h
 alloca.h

@@ -1,7 +1,7 @@
 # build platform: Windows-7-6.1.7601-SP1
-# compiler: c:/MinGW/bin/mingw32-cc.exe
 # mingw32-cc (GCC) 4.7.2
 :category Windows
+:compiler gcc
 :label MinGW32
 assert.h
 complex.h

@@ -1,5 +1,6 @@
 # Android SDK gcc 4.7/ARM - API level 3
 :category embedded Unix
+:compiler gcc
 :label Android 1.5
 alloca.h
 assert.h

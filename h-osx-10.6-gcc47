@@ -1,6 +1,7 @@
-# Darwin 10.8.0 i386
+# build platform: Darwin-10.8.0-i386-64bit
 :category Unix
-:label MacOSX 10.6
+:compiler gcc47
+:label MacOSX 10.6–10.8
 aio.h
 alloca.h
 ar.h
@@ -52,12 +53,15 @@ sgtty.h
 signal.h
 spawn.h
 stab.h
+stdalign.h
 stdarg.h
 stdbool.h
 stddef.h
+stdfix.h
 stdint.h
 stdio.h
 stdlib.h
+stdnoreturn.h
 string.h
 strings.h
 sysexits.h

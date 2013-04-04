@@ -1,5 +1,6 @@
 # build platform: SunOS-5.10-sun4u-sparc-32bit-ELF
 :category Unix
+:compiler suncc
 :label Solaris 10
 aio.h
 alloca.h

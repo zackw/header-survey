@@ -1,7 +1,7 @@
 # build platform: SunOS-5.9-sun4u-sparc-32bit-ELF
-# compiler: gcc
 :category Unix
-:label Solaris 9 (gcc)
+:compiler gcc
+:label Solaris 9
 aio.h
 alloca.h
 ar.h
