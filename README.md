@@ -38,11 +38,11 @@ tell `scansys.py` its name:
 Now read through `failures`.  It will contain a list of headers that
 were "present but could not be compiled", normally because they
 require the programmer to include some other header first.  Add or
-update entries in the `prerequisites` dictionary in `scansys.py` as
-necessary.  If you need to do something more than just include other
-headers, you can define a new `SPECIAL_` tag---look at how we handle
-`regexp.h` for hints.  Continue adjusting and rerunning `scansys.py`
-until `failures` comes out empty.
+update entries in `prereqs.ini` as necessary.  If you need to do
+something more than just include other headers, you can define a new
+`[special]` entry---look at how we handle `regexp.h` for hints.
+Continue adjusting `prereqs.ini` and rerunning `scansys.py` until
+`failures` comes out empty.
 
 Once you have solved all the failures, edit the top three lines of
 `data/h-YOUR-OS`, which will look something like this:
@@ -64,7 +64,7 @@ provide what one would think of as a "complete" computing environment,
 prepend the word "embedded" to the category.  (For instance, Android
 and iOS should both be categorized "embedded Unix".)
 
-Send a pull request for your `h-` file and your changes to `scansys.py`.
+Send a pull request for your `h-` file and your changes to `prereqs.ini`.
 
 ## Baseline Lists
 

@@ -16,6 +16,7 @@ lastlog.h
 link.h
 malloc.h
 mntent.h
+omp.h
 paths.h
 resolv.h
 stab.h
@@ -27,6 +28,7 @@ arpa/nameser.h
 arpa/telnet.h
 arpa/tftp.h
 net/if_arp.h
+net/ppp_defs.h
 net/route.h
 netinet/icmp6.h
 netinet/if_ether.h
@@ -68,6 +70,7 @@ rpcsvc/spray.h
 rpcsvc/yp_prot.h
 rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
+sys/acct.h
 sys/file.h
 sys/ioctl.h
 sys/mount.h
