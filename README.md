@@ -96,3 +96,17 @@ which OSes have which headers, and to highlight the ones that are
 ubiquitous.  This is still a work in progress, but if you'd like to
 help out with `tblgen.py`, we'd be delighted to have the assistance.
 
+## Licensing
+
+This documentation is copyright 2013 Zack Weinberg <zackw@panix.com>
+and other contributors.  Copying and distribution of this
+documentation, with or without modification, is permitted in any
+medium without royalty provided the copyright notice and this notice
+are preserved.
+
+The files in the "data" directory are the result of mechanical
+processes without creativity, and their creators disclaim whatever
+copyright, database, or other IP rights may still attach to them.
+
+Other files in this repository may be under other licenses; consult
+each file for details.

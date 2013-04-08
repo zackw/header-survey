@@ -1,3 +1,10 @@
+@charset "utf-8";
+/* Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
+   Copying and distribution of this stylesheet, with or without
+   modification, is permitted in any medium without royalty provided
+   the copyright notice and this notice are preserved.  It is offered
+   as-is, without any warranty. */
+
 table {
   margin: 20px 0 0 20px;
   border-spacing: 0;

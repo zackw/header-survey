@@ -1,5 +1,11 @@
 #! /usr/bin/env python
 # -*- encoding: utf-8 -*-
+# Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
+#
+# Copying and distribution of this program, with or without
+# modification, is permitted in any medium without royalty provided
+# the copyright notice and this notice are preserved.  It is offered
+# as-is, without any warranty.
 
 import cgi
 import errno
