@@ -1,6 +1,6 @@
 # build platform: Windows-7-6.1.7601-SP1
-# compiler: cl (15.00.21022.08)
 :category Windows
+:compiler msvc
 :label MSVC 2008
 assert.h
 ctype.h

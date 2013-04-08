@@ -1,0 +1,111 @@
+table {
+  margin: 20px 0 0 20px;
+  border-spacing: 0;
+  border-collapse: separate;
+  border: 0;
+  padding: 0;
+}
+thead, tbody, tr, th {
+  text-align: left; vertical-align: bottom;
+  padding: 0; margin: 0; border: none;
+}
+th {
+  text-align: left; vertical-align: bottom;
+  padding: 0 0 0 1ex; margin: 0; border: none;
+}
+th[rowspan] { vertical-align: middle; }
+td {
+  text-align: center; vertical-align: middle;
+  padding: 0; margin: 0; border: none;
+}
+
+.tableFloatingHeader {
+  border-bottom: 1px solid black;
+  box-shadow: 0 4px 2px -2px hsla(0,0%,0%,.5);
+}
+
+.y /* yes */ { color: green; }
+.n /* no */ { color: #bbb; }
+.cd /* compiler dependent */ { color: orange; }
+.bug /* buggy */ { color: red; }
+.h /* header */ { font-family: monospace; padding: 0 0 0 1ex }
+.cl /* category leftmost */ { border-left: 1px solid black; }
+.ct /* category topmost */ { border-top: 1px solid black; }
+.std /* standard */ { width: 8em }
+
+/* background colors */
+thead         { background-color: hsl(0,0%,87%); }
+.shift > span { background-color: hsl(0,0%,87%); }
+.e /* even */ { background-color: hsl(0,0%,90%); }
+.o /* odd */  { background-color: hsl(0,0%,95%); }
+
+.shift > span.e,
+.skew  > span.e { background-color: hsl(0,0%,80%); }
+.shift > span.o,
+.skew  > span.o { background-color: hsl(0,0%,87%); }
+
+th { font-size: 12px; font-family: sans-serif; }
+
+.shift {
+  position: relative;
+  padding: 0;
+}
+.shift > span {
+  display: block;
+  position: relative;
+  top: 0px;
+  left: 130px;
+  padding: 3px 0;
+  overflow: visible;
+  text-align: center;
+}
+.skew {
+  height: 130px;
+  width: 30px;
+  position: relative;
+  padding: 0;
+}
+.skew > span {
+  display: block;
+  position: relative;
+  top: 0px;
+  left: 65px;
+  height: 100%;
+  width: 100%;
+  transform:skew(-45deg,0deg);
+  -ms-transform:skew(-45deg,0deg);
+  -moz-transform:skew(-45deg,0deg);
+  -webkit-transform:skew(-45deg,0deg);
+  -o-transform:skew(-45deg,0deg);
+  overflow: visible; /*hidden;*/
+}
+.skew > span > span {
+  transform:skew(45deg,0deg) rotate(315deg);
+  -ms-transform:skew(45deg,0deg) rotate(315deg);
+  -moz-transform:skew(45deg,0deg) rotate(315deg);
+  -webkit-transform:skew(45deg,0deg) rotate(315deg);
+  -o-transform:skew(45deg,0deg) rotate(315deg);
+  position: absolute;
+  bottom: 15px;
+  left: 1px;
+  display: inline-block;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+}
+.key {
+  overflow: visible;
+}
+.key > span {
+  display: block;
+  position: relative;
+}
+.key > span > span {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 20px;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: normal;
+}

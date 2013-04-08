@@ -1,5 +1,6 @@
 # Linux 3.8.2 x86_64
 :category Unix
+:compiler gcc
 :label GNU libc 2.13 (Linux)
 a.out.h
 aio.h

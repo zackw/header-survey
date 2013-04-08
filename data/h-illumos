@@ -1,6 +1,7 @@
 # SunOS 5.11 i386 (Illumos)
 :category Unix
-:label Solaris 11 (Illumos)
+:label Illumos (Solaris 11-derived)
+:compiler gcc
 aio.h
 alloca.h
 ar.h

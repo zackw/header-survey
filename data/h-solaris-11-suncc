@@ -1,5 +1,6 @@
 # build platform: SunOS-5.11-i86pc-i386-32bit-ELF
 :category Unix
+:compiler suncc
 :label Solaris 11
 aio.h
 alloca.h

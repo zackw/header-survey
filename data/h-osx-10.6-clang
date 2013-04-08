@@ -1,6 +1,7 @@
-# Darwin 12.3.0 x86_64
+# build platform: Darwin-10.8.0-i386-64bit
 :category Unix
-:label MacOSX 10.8
+:compiler clang
+:label MacOSX 10.6–10.8
 aio.h
 alloca.h
 ar.h

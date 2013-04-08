@@ -1,6 +1,7 @@
-# Darwin 10.8.0 i386
+# build platform: Darwin-10.8.0-i386-64bit
 :category Unix
-:label MacOSX 10.6
+:compiler gcc42apple
+:label MacOSX 10.6–10.8
 aio.h
 alloca.h
 ar.h
