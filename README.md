@@ -19,21 +19,21 @@ already have an `h-` file for.  We are particularly interested in:
 
 but anything goes as long as it's a conforming hosted C89
 implementation (that is, as long as it does provide the headers listed
-in the file `b-c1989`).  Since we're investigating what can safely be
-assumed to exist everywhere, it is most useful to report on older OS
-versions, as long as they're still in current use.  Three to five
-years back is a decent rule of thumb.
+in the file `data/b-c1989`).  Since we're investigating what can
+safely be assumed to exist everywhere, it is most useful to report on
+older OS versions, as long as they're still in current use.  Three to
+five years back is a decent rule of thumb.
 
 To generate an inventory, clone the repository and run `scansys.py`
 like this:
 
-    $ python scansys.py > h-YOUR-OS 2> failures
+    $ python scansys.py > data/h-YOUR-OS 2> failures
 
 Please choose a label for YOUR-OS consistent with the `h-` files that
 already exist.  If your C compiler is not named '`cc`', you'll need to
 tell `scansys.py` its name:
 
-    $ python scansys.py YOUR-COMPILER > h-YOUR-OS 2> failures
+    $ python scansys.py YOUR-COMPILER > data/h-YOUR-OS 2> failures
 
 Now read through `failures`.  It will contain a list of headers that
 were "present but could not be compiled", normally because they
@@ -45,7 +45,7 @@ headers, you can define a new `SPECIAL_` tag---look at how we handle
 until `failures` comes out empty.
 
 Once you have solved all the failures, edit the top three lines of
-`h-YOUR-OS`, which will look something like this:
+`data/h-YOUR-OS`, which will look something like this:
 
     # YourOS x.y.z YourCPU
     :category unknown
@@ -75,12 +75,12 @@ If you remember when function definitions looked like
     {
 
 then we'd appreciate your having a look at our baseline lists.  These
-are the files named `b-something`, and each defines a set of header
-files that's either specified by a particular standard, or by common
-convention.  It is the latter that we need help with.  Specifically,
-is there anything in `b-obsolete` that belongs in `b-ucom`, or vice
-versa?  Is there anything *missing* from `b-ucom` or `b-obsolete`, and
-not mentioned in any other b-file?
+are the files named `data/b-something`, and each defines a set of
+header files that's either specified by a particular standard, or by
+common convention.  It is the latter that we need help with.
+Specifically, is there anything in `b-obsolete` that belongs in
+`b-ucom`, or vice versa?  Is there anything *missing* from `b-ucom` or
+`b-obsolete`, and not mentioned in any other b-file?
 
 If you're doing this, you might also want to look at the `r-` files,
 which contain raw lists of everything in `/usr/include` on a tiny
