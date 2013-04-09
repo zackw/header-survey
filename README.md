@@ -54,25 +54,59 @@ something more than just include other headers, you can define a new
 Continue adjusting `prereqs.ini` and rerunning `scansys.py` until
 `failures` comes out empty.
 
-Once you have solved all the failures, edit the top three lines of
+Once you have solved all the failures, edit the header of
 `data/h-YOUR-OS`, which will look something like this:
 
-    # YourOS x.y.z YourCPU
+    # host: Linux 3.8-trunk-amd64 #1 SMP Debian 3.8.3-1~experimental.1
+    # compile command: cc
+    ## cc (Debian 4.7.2-5) 4.7.2
     :category unknown
-    :label unknown
+    :label Linux
+    :version 3.8-trunk-amd64
+    :compiler cc
 
-If Python picked the wrong fields of `uname -a` to put on the first
-line, correct it.  Then set a category and label for your OS.  The
-label should be the most common way to refer to this version of your
-OS, something like "MacOSX 10.6" or "Solaris 11".  In the case of
-Linux or other much-reused kernels, it may be more useful to identify
-the C library - "GNU libc", "Android", "dietlibc", etc.  The category
-should identify a broad class of similar operating systems to which
-yours belongs: "Unix", "Windows", "VMS", that sort of thing.  If the
-OS is designed for use on special-purpose devices and/or does not
-provide what one would think of as a "complete" computing environment,
-prepend the word "embedded" to the category.  (For instance, Android
-and iOS should both be categorized "embedded Unix".)
+`scansys.py` does its best to work out an identification, but you will
+still need to make corrections.  The lines beginning with `#` are
+comments and need not be adjusted (on the other hand, feel free to
+make them more accurate) but the lines beginning with `:` are used to
+categorize your OS and C library for table generation, so they must be
+accurate.
+
+* You *must* edit the `:category` line; `scansys.py` does not know how
+  to do this.  The category identifies a broad class of similar
+  operating systems to which yours belongs: "Unix", "Windows", "VMS",
+  that sort of thing.  If the OS is designed for use on
+  special-purpose devices and/or does not provide what one would think
+  of as a "complete" computing environment, prepend the word
+  "embedded" to the category.  (For instance, Android and iOS should
+  both be categorized "embedded Unix".)
+
+* The `:label` line should be the most common way to refer to the OS
+  being scanned.  It's initialized to `uname -s` for the host where
+  `scansys.py` ran, which may not be the most well-known name.  If you
+  have inventoried a cross compiler, you *must* correct the `:label`
+  line to identify the *target*.  For OSes with more than one C
+  library in wide use (e.g. Linux, Windows), it may be appropriate to
+  name the C library instead or in addition.
+
+* The `:version` line is initialized to `uname -r`, but what we want
+  is a version number for the *C API*.  If there's more than one C
+  library, you probably want its version number instead.
+
+* The `:compiler` line is initialized with what you passed as
+  YOUR-COMPILER, which (as in the above example) is often too generic.
+  If there's an official name for the compiler, make sure it appears
+  on the `:compiler` line.
+
+After correction, the above example becomes:
+
+    # host: Linux 3.8-trunk-amd64 #1 SMP Debian 3.8.3-1~experimental.1
+    # compile command: cc
+    ## cc (Debian 4.7.2-5) 4.7.2
+    :category Unix
+    :label GNU libc
+    :version 2.13
+    :compiler gcc
 
 Send a pull request for your `h-` file and your changes to
 `prereqs.ini`.  If you find that you need to modify `scansys.py`

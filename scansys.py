@@ -237,12 +237,14 @@ def invoke(argv):
 def platform_id():
     try:
         import platform
-        return platform.platform()
+        x = platform.uname()
+        return platform.system_alias(x[0], x[2], x[3])
     except ImportError:
         try:
-            return " ".join(os.uname())
+            x = os.uname()
+            return (x[0], x[2], x[3])
         except AttributeError:
-            return sys.platform
+            return (sys.platform, "unknown", "unknown")
 
 _compiler_id_stop_re = re.compile(
     r'unrecognized option|must have argument|not found|warning|error|usage|'
@@ -497,11 +499,19 @@ class HeaderProber:
 
     def report(self, f):
         """Write a report on everything we have found to file F."""
-        f.write("# host OS: " + platform_id() + "\n")
-        f.write("# compiler: " + " ".join(self.cc) + "\n")
+        system,release,version = platform_id()
+        ccid = compiler_id(self.cc[0])
+
+        f.write("# host: %s %s %s\n" % (system, release, version))
+        f.write("# compile command: %s\n" % list2cmdline(self.cc))
         for l in compiler_id(self.cc[0]):
             f.write("## %s\n" % l)
-        f.write(":category unknown\n:label unknown\n")
+
+        f.write(":category unknown\n")
+        f.write(":label %s\n" % system)
+        f.write(":version %s\n" % release)
+        f.write(":compiler %s\n" % os.path.basename(self.cc[0]))
+
         for h in sorthdr(self.known_headers):
             f.write(h + "\n")
 
