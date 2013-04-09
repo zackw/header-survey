@@ -1,5 +1,4 @@
 #! /usr/bin/env python
-# -*- encoding: utf-8 -*-
 # Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
 #
 # Copying and distribution of this program, with or without
@@ -128,7 +127,8 @@ except ImportError:
                 if e.errno == errno.EEXIST:
                     continue
                 raise
-        raise OSError, (errno.EEXIST, "No usable temporary directory name found")
+        raise OSError, (errno.EEXIST,
+                        "No usable temporary directory name found")
 
 # platform identification
 def platform_id():
@@ -266,14 +266,13 @@ items in the preceeding sets.
 # list, so that gensrc() can safely check whether probable-prerequisite
 # headers are known to exist, and include them only if so.
 def toposort_headers(headers, prerequisites):
-    def flatten(lol):
-        rv = []
-        for l in lol: rv.extend(l)
-        return rv
     topo_in = {}
     for h in headers:
         topo_in[h] = Set(prerequisites.get(h, []))
-    return flatten(toposort(topo_in))
+    topo_out = toposort(topo_in)
+    rv = []
+    for l in topo_out: rv.extend(l)
+    return rv
 
 # Sort a list of pathnames, ASCII case-insensitively.  All
 # one-component pathnames are sorted ahead of all longer pathnames;
@@ -300,7 +299,7 @@ def sorthdr(hs):
         return [x[1] for x in khs]
 
 # Filesystem state.
-class FsState:
+class ScratchDir:
     def __init__(self):
         # grab these in case __del__ gets called at a bad time
         self.rmtree = shutil.rmtree
@@ -335,8 +334,8 @@ def include(f, h, prerequisites, specials, known_headers):
                 include(f, p, prerequisites, specials, known_headers)
     f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
 
-def gensrc(state, header, known_headers, prerequisites, specials):
-    src = os.path.join(state.wd, "htest.c")
+def gensrc(scratch, header, known_headers, prerequisites, specials):
+    src = os.path.join(scratch.wd, "htest.c")
     f = open(src, "w")
     include(f, header, prerequisites, specials, known_headers)
     # End with a global definition, in case some compiler
@@ -347,7 +346,7 @@ def gensrc(state, header, known_headers, prerequisites, specials):
     f.close()
     return src
 
-def invoke(state, argv):
+def invoke(scratch, argv):
     # for a wonder, the incantation to redirect both stdout and
     # stderr to a file is exactly the same on Windows as on Unix!
     cmdline = list2cmdline(argv) + " > htest-out.txt 2>&1"
@@ -362,16 +361,16 @@ def invoke(state, argv):
             msg.append("%s: %s" % (argv[0], e.strerror))
     return (rc, msg)
 
-def probe_one(state, cc, debug, header, known_headers, prerequisites, specials):
-    src = gensrc(state, header, known_headers, prerequisites, specials)
-    (rc, errors) = invoke(state, cc + ["-c", src])
+def probe_one(scratch, cc, debug, header, known_headers, prerequisites, specials):
+    src = gensrc(scratch, header, known_headers, prerequisites, specials)
+    (rc, errors) = invoke(scratch, cc + ["-c", src])
     if rc == 0:
         return 1
 
     if debug:
         sys.stderr.write("# %s compilation failed:\n" % header)
     else:
-        (rc, errors) = invoke(state, cc + ["-E", src])
+        (rc, errors) = invoke(scratch, cc + ["-E", src])
         if rc == 0:
             sys.stderr.write("# %s present but cannot be compiled:\n"
                              % header)
@@ -386,19 +385,19 @@ def probe_one(state, cc, debug, header, known_headers, prerequisites, specials):
 
     return 0
 
-def probe(state, cc, debug, headers, prerequisites, specials):
+def probe(scratch, cc, debug, headers, prerequisites, specials):
     known_headers = Set()
     for h in headers:
-        if probe_one(state, cc, debug, h,
+        if probe_one(scratch, cc, debug, h,
                      known_headers, prerequisites, specials):
             known_headers.add(h)
     return known_headers
 
-def smoke(state, cc):
+def smoke(scratch, cc):
     # "Smoke test": If we cannot detect this header file, something is
     # so profoundly wrong that we shouldn't try to continue.
-    src = gensrc(state, "stdarg.h", Set(), {}, {})
-    (rc, errors) = invoke(state, cc + ["-c", src])
+    src = gensrc(scratch, "stdarg.h", Set(), {}, {})
+    (rc, errors) = invoke(scratch, cc + ["-c", src])
     if rc == 0:
         return
     sys.stderr.write("# stdarg.h not detected. Something is wrong "
@@ -496,20 +495,16 @@ class Args:
 
 def main(argv, stdout, stderr):
     args = Args(argv)
-    state = None
+    scratch = None
     prerequisites, specials = read_prereqs(args.prereqs)
     headers = toposort_headers(headers_to_probe(args.datadir),
                                prerequisites)
     try:
-        state = FsState()
-        smoke(state, args.cc)
-        avail_headers = probe(state, args.cc, args.debug,
+        scratch = ScratchDir()
+        smoke(scratch, args.cc)
+        avail_headers = probe(scratch, args.cc, args.debug,
                               headers, prerequisites, specials)
-<<<<<<< HEAD
-        state.close()
-=======
-        del state
->>>>>>> b74e2c86b8cd78a75881f56555c3ea3224e76c1a
+        scratch.close()
 
         stdout.write("# host OS: " + platform_id() + "\n")
         if len(args.cc) > 1:
@@ -519,15 +514,11 @@ def main(argv, stdout, stderr):
             stdout.write(h + "\n")
         return 0
     except EnvironmentError, e:
-<<<<<<< HEAD
-        state.close()
-=======
-        del state
->>>>>>> b74e2c86b8cd78a75881f56555c3ea3224e76c1a
+        scratch.close()
         stderr.write("%s: %s\n" % (e.filename, e.strerror))
         return 1
     except:
-        state.close()
+        scratch.close()
         raise
 
 if __name__ == '__main__':
