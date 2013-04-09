@@ -27,13 +27,19 @@ five years back is a decent rule of thumb.
 To generate an inventory, clone the repository and run `scansys.py`
 like this:
 
-    $ python scansys.py > data/h-YOUR-OS 2> failures
+    $ python scansys.py > data/h-YOUR-OS
 
 Please choose a label for YOUR-OS consistent with the `h-` files that
 already exist.  If your C compiler is not named '`cc`', you'll need to
 tell `scansys.py` its name:
 
-    $ python scansys.py YOUR-COMPILER > data/h-YOUR-OS 2> failures
+    $ python scansys.py YOUR-COMPILER > data/h-YOUR-OS
+
+If you've got more than one C compiler, we'd appreciate your running
+the script for each of them (writing the output to distinct files);
+often a handful of header files are provided by the compiler rather
+than the OS, so we need to check whether *all* the compilers for a
+particular platform provide them.
 
 You can put additional compilation options after the name of the
 compiler, if necessary.  **WARNING:** `scansys.py` runs in a temporary
@@ -45,17 +51,22 @@ pathname, and any pathnames in additional compilation options
 There are also a few options to `scansys.py` itself which you probably
 won't need.  See the comments at the top of the script for details.
 
-Now read through `failures`.  It will contain a list of headers that
-were "present but could not be compiled", normally because they
-require the programmer to include some other header first.  Add or
-update entries in `prereqs.ini` as necessary.  If you need to do
-something more than just include other headers, you can define a new
-`[special]` entry---look at how we handle `regexp.h` for hints.
-Continue adjusting `prereqs.ini` and rerunning `scansys.py` until
-`failures` comes out empty.
+Now you need to check for errors.  Read through `data/h-YOUR-OS` and
+look for headers marked with a leading `!`.  These headers are present
+on your system, but the test program failed to compile.  Each will
+have a block of commented-out compiler errors immediately above it.
+Normally this happens because that header requires the programmer to
+include some other header first.  Add or update entries in
+`prereqs.ini` as necessary, then rerun `scansys.py`.  If you need to
+do something more than just include other headers, you can define a
+new `[special]` entry---look at how we handle `regexp.h` for hints.
+It does occasionally happen that some system header is just flat-out
+*buggy*; if you can't fix the test program by adjusting `prereqs.ini`,
+leave the `!`-marked entry and the compiler errors in the file.
 
-Once you have solved all the failures, edit the header of
-`data/h-YOUR-OS`, which will look something like this:
+Once you have solved as many compile errors as possible and rerun
+`scansys.py`, the final thing we need you to do is correct the header
+of `data/h-YOUR-OS`, which will initially look something like this:
 
     # host: Linux 3.8-trunk-amd64 #1 SMP Debian 3.8.3-1~experimental.1
     # compile command: cc

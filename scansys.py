@@ -148,6 +148,7 @@ _universal_readlines_re = re.compile("\r|\n|\r\n")
 def universal_readlines(fname):
     f = open(fname, "rb")
     s = f.read().strip()
+    if s == "": return []
     return _universal_readlines_re.split(s)
 
 # We can't use subprocess, it's too new.  We can't use os.popen*,
@@ -427,15 +428,23 @@ class HeaderProber:
             f.write(s)
         else:
             for p in self.prerequisites.get(h, []):
-                if p in self.known_headers:
+                # only include this prereq if it's available and not buggy
+                state = self.known_headers.get(p, None)
+                if type(state) == type(""):
                     self.include(f, p)
+                elif self.debug:
+                    sys.stderr.write("%s: skipping prereq %s: state=%s\n"
+                                     % (h, p, repr(state)))
         f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
 
-    def gensrc(self, header):
+    def gensrc(self, header, bare):
         """Generate a source file that tests the inclusion of HEADER."""
         src = "htest.c"
         f = open(src, "w")
-        self.include(f, header)
+        if bare:
+            f.write("#include <%s>\n" % (os.path.join(*header.split("/"))))
+        else:
+            self.include(f, header)
         # End with a global definition, in case some compiler
         # doesn't like source files that define nothing.
         # The #undefs are probably unnecessary, but you never know.
@@ -444,50 +453,72 @@ class HeaderProber:
         f.close()
         return src
 
+    def probe_report(self, header, state, errors, src):
+        if not self.debug: return
+        sys.stderr.write("%s: %s\n" % (header, state))
+        if len(errors) > 1:
+            for e in errors:
+                sys.stderr.write("| %s\n" % e.strip())
+            sys.stderr.write("test code:\n")
+            for l in universal_readlines(src):
+                sys.stderr.write("| %s\n" % l.strip())
+            sys.stderr.write('\n')
 
     def probe_one(self, header):
-        """Probe for one header.
-           If compilation of a source file that includes HEADER succeeds,
-           we assume it is present.  If both compilation and preprocessing
-           of that file fail, we assume it is not present.  Otherwise we
-           report an error (probably a missing prerequisite)."""
-        src = self.gensrc(header)
+        """Probe for one header.  This goes in several stages:
+
+           * First preprocess (cc -E) a source file that just includes
+             HEADER.  If this fails, the header is _absent_, and it is
+             not added to known_headers.
+
+           * Next compile (cc -c) a source file that just includes HEADER.
+             If this succeeds, the header is _correct_, and is added to
+             known_headers with value "".
+
+           * Next, if the header has an entry in prerequisites or
+             specials, compile (cc -c) a source file with those
+             applied.  If that succeeds, the header is _dependent_,
+             and is added to known_headers with value "%".
+
+           * Finally, if that too fails, the header is _buggy_, and is
+             added to known_headers with value ("!", <error messages>).
+
+           The values set in known_headers are chosen for the
+           convenience of report(), which see, and ultimately wind up
+           being used by tblgen.py."""
+        src = self.gensrc(header, bare=1)
+        (rc, errors) = invoke(self.cc + ["-E", "-o", "htest.i", src])
+        if rc != 0:
+            self.probe_report(header, "absent", errors, src)
+            return
+
         (rc, errors) = invoke(self.cc + ["-c", src])
         if rc == 0:
-            return 1
+            self.probe_report(header, "correct", errors, src)
+            self.known_headers[header] = ""
+            return
 
-        if self.debug:
-            sys.stderr.write("# %s compilation failed:\n" % header)
-        else:
-            # retry with preprocessor only
-            (rc, dummy) = invoke(self.cc + ["-E", src])
-            if rc != 0:
-                return 0
-            sys.stderr.write("# %s present but cannot be compiled:\n"
-                             % header)
+        src = self.gensrc(header, bare=0)
+        (rc, errors) = invoke(self.cc + ["-c", src])
+        if rc == 0:
+            self.probe_report(header, "dependent", errors, src)
+            self.known_headers[header] = "%"
+            return
 
-        for e in errors:
-            sys.stderr.write("## %s\n" % e)
-        if self.debug:
-            sys.stderr.write("# failed program was:\n")
-            for l in universal_readlines(src):
-                sys.stderr.write("## %s\n" % l)
-
-        return 0
+        self.probe_report(header, "buggy", errors, src)
+        self.known_headers[header] = ("!", errors)
 
     def probe(self):
         """Probe for all the headers in self.headers.  Save the results in
            self.known_headers."""
-        self.known_headers = Set()
+        self.known_headers = {}
         for h in self.headers:
-            if self.probe_one(h):
-                self.known_headers.add(h)
-        return self.known_headers
+            self.probe_one(h)
 
     def smoke(self):
         """Perform a "smoke test": If a probe for stdarg.h fails,
            something is profoundly wrong and we should bail out."""
-        src = self.gensrc("stdarg.h")
+        src = self.gensrc("stdarg.h", bare=1)
         (rc, errors) = invoke(self.cc + ["-c", src])
         if rc == 0:
             return 1
@@ -512,8 +543,15 @@ class HeaderProber:
         f.write(":version %s\n" % release)
         f.write(":compiler %s\n" % os.path.basename(self.cc[0]))
 
-        for h in sorthdr(self.known_headers):
-            f.write(h + "\n")
+        for h in sorthdr(self.known_headers.keys()):
+            v = self.known_headers[h]
+            if type(v) == type((None,)):
+                for err in v[1]:
+                    f.write("# %s\n" % err.strip())
+                f.write("%s%s\n" % (v[0], h))
+            else:
+                assert type(v) == type("")
+                f.write("%s%s\n" % (v, h))
 
 class ScratchDir:
     """RAII class to create and clean up our scratch directory."""
