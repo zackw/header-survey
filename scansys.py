@@ -17,12 +17,19 @@
 #
 # On the command line, specify the compiler to use and any additional
 # arguments that may be necessary.  If no arguments are provided,
-# defaults to "cc".
+# defaults to "cc".  You can also control this script's behavior to
+# some extent with command-line options, which must appear before the
+# compiler to use, so they aren't confused with arguments to the
+# compiler.
 #
-# The list of headers to look for is computed from the b- and r-files in
-# the data/ directory.  You can override the location of this directory
-# with the --datadir= command-line option, which must appear before the
-# compiler and its options, if any.
+# The list of headers to look for is taken from the union of all
+# b- files in the "data/" directory.  You can override the location of
+# this directory with --datadir.  There is also a configuration file
+# which defines "prerequisites" -- headers which cannot just be
+# included in isolation.  This defaults to "prereqs.ini", which can be
+# overridden with --prereqs.  Finally, if results are not as expected,
+# --debug will cause the script to print extra information about
+# failed probes on stderr.
 
 # This script is backward compatible all the way to Python 2.0, and
 # therefore uses many constructs which are considered obsolete, and
