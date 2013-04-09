@@ -35,6 +35,16 @@ tell `scansys.py` its name:
 
     $ python scansys.py YOUR-COMPILER > data/h-YOUR-OS 2> failures
 
+You can put additional compilation options after the name of the
+compiler, if necessary.  **WARNING:** `scansys.py` runs in a temporary
+directory, to facilitate cleaning up after itself.  Therefore,
+YOUR-COMPILER must either be found in `$PATH` or be an absolute
+pathname, and any pathnames in additional compilation options
+(e.g. directories containing header files) must also be absolute.
+
+There are also a few options to `scansys.py` itself which you probably
+won't need.  See the comments at the top of the script for details.
+
 Now read through `failures`.  It will contain a list of headers that
 were "present but could not be compiled", normally because they
 require the programmer to include some other header first.  Add or
@@ -64,7 +74,11 @@ provide what one would think of as a "complete" computing environment,
 prepend the word "embedded" to the category.  (For instance, Android
 and iOS should both be categorized "embedded Unix".)
 
-Send a pull request for your `h-` file and your changes to `prereqs.ini`.
+Send a pull request for your `h-` file and your changes to
+`prereqs.ini`.  If you find that you need to modify `scansys.py`
+itself, we're glad to take patches for that too, but please be aware
+that it's meant to work with any version of Python all the way back to
+2.0 (which came out in 2001).
 
 ## Baseline Lists
 

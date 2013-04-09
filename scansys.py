@@ -16,19 +16,23 @@
 #
 # On the command line, specify the compiler to use and any additional
 # arguments that may be necessary.  If no arguments are provided,
-# defaults to "cc".  You can also control this script's behavior to
-# some extent with command-line options, which must appear before the
-# compiler to use, so they aren't confused with arguments to the
-# compiler.
+# defaults to "cc".  WARNING: because we can't reliably predict all of
+# the files that will be created during the probe process, the script
+# changes into a temporary directory.  Therefore, if the compiler to
+# use isn't in $PATH, it must be named by absolute pathname, and any
+# pathnames in the compiler's arguments must also be absolute.
 #
-# The list of headers to look for is taken from the union of all
-# b- files in the "data/" directory.  You can override the location of
-# this directory with --datadir.  There is also a configuration file
-# which defines "prerequisites" -- headers which cannot just be
-# included in isolation.  This defaults to "prereqs.ini", which can be
-# overridden with --prereqs.  Finally, if results are not as expected,
-# --debug will cause the script to print extra information about
-# failed probes on stderr.
+# You can also control this script's behavior to some extent with
+# command-line options, which must appear before the compiler to use,
+# so they aren't confused with arguments to the compiler. The list of
+# headers to look for is taken from the union of all b- files in the
+# "data/" directory.  You can override the location of this directory
+# with --datadir.  There is also a configuration file which defines
+# "prerequisites" -- headers which cannot just be included in
+# isolation.  This defaults to "prereqs.ini", which can be overridden
+# with --prereqs.  Finally, if results are not as expected, --debug
+# will cause the script to print extra information about failed probes
+# on stderr.
 
 # This script is backward compatible all the way to Python 2.0, and
 # therefore uses many constructs which are considered obsolete, and
@@ -138,56 +142,6 @@ except ImportError:
         raise OSError, (errno.EEXIST,
                         "No usable temporary directory name found")
 
-# platform identification
-def platform_id():
-    try:
-        import platform
-        return platform.platform()
-    except ImportError:
-        try:
-            return " ".join(os.uname())
-        except AttributeError:
-            return sys.platform
-
-_compiler_id_stop_re = re.compile(
-    r'unrecognized option|must have argument|not found|warning|error|usage|'
-    r'must have argument|copyright|informational note 404|no input files',
-                  re.IGNORECASE)
-
-def _compiler_id_1(cc, opt):
-    # some versions of HP cc won't print their version info unless you
-    # give them something to compile, le sigh
-    made_dummy_i = 0
-    if opt.endswith("dummy.i"):
-        made_dummy_i = 1
-        open("dummy.i", "w").write("int foo;\n")
-    (stdin, stdout) = os.popen4(cc + " " + opt)
-    stdin.close()
-
-    results = []
-
-    for l in stdout.read().split("\n"):
-        l = l.strip()
-        if l == "": continue
-        if _compiler_id_stop_re.search(l): break
-        results.append(l)
-
-    stdout.close()
-    return results
-
-def compiler_id(cc):
-    # gcc, clang: --version
-    # sun cc, compaq cc, HP CC: -V
-    # mipspro cc: -version
-    # xlc: -qversion
-    # -qversion is first because xlc's behavior upon receiving an unrecognized
-    # option is to dump out its _entire manpage!_
-    for opt in ("-qversion", "--version", "-V", "-version", "-V -c dummy.i"):
-        r = _compiler_id_1(cc, opt)
-        if len(r) > 0:
-            return r
-    return []
-
 # opening a file in "rU" mode on a Python that doesn't support it
 # ... silently succeeds!  So we can't use it at all.  Regex time!
 _universal_readlines_re = re.compile("\r|\n|\r\n")
@@ -278,6 +232,56 @@ def invoke(argv):
         else:
             msg.append("%s: %s" % (argv[0], e.strerror))
     return (rc, msg)
+
+# platform identification
+def platform_id():
+    try:
+        import platform
+        return platform.platform()
+    except ImportError:
+        try:
+            return " ".join(os.uname())
+        except AttributeError:
+            return sys.platform
+
+_compiler_id_stop_re = re.compile(
+    r'unrecognized option|must have argument|not found|warning|error|usage|'
+    r'must have argument|copyright|informational note 404|no input files',
+                  re.IGNORECASE)
+
+def _compiler_id_1(cc, opt):
+    # some versions of HP cc won't print their version info unless you
+    # give them something to compile, le sigh
+    made_dummy_i = 0
+    if opt.endswith("dummy.i"):
+        made_dummy_i = 1
+        open("dummy.i", "w").write("int foo;\n")
+    (stdin, stdout) = os.popen4(cc + " " + opt)
+    stdin.close()
+
+    results = []
+
+    for l in stdout.read().split("\n"):
+        l = l.strip()
+        if l == "": continue
+        if _compiler_id_stop_re.search(l): break
+        results.append(l)
+
+    stdout.close()
+    return results
+
+def compiler_id(cc):
+    # gcc, clang: --version
+    # sun cc, compaq cc, HP CC: -V
+    # mipspro cc: -version
+    # xlc: -qversion
+    # -qversion is first because xlc's behavior upon receiving an unrecognized
+    # option is to dump out its _entire manpage!_
+    for opt in ("-qversion", "--version", "-V", "-version", "-V -c dummy.i"):
+        r = _compiler_id_1(cc, opt)
+        if len(r) > 0:
+            return r
+    return []
 
 # from http://code.activestate.com/recipes/578272-topological-sort/
 def toposort(data):
