@@ -42,6 +42,14 @@ import re
 import shutil
 import sys
 
+# suppress all Python warnings, since we deliberately use deprecated
+# things (that were the only option in 2.0)
+try:
+    import warnings
+    warnings.simplefilter("ignore")
+except:
+    pass
+
 # see if we have sets; if not, provide a replacement that does enough
 try:
     Set = set
@@ -141,12 +149,52 @@ def platform_id():
         except AttributeError:
             return sys.platform
 
+_compiler_id_stop_re = re.compile(
+    r'unrecognized option|must have argument|not found|warning|error|usage|'
+    r'must have argument|copyright|informational note 404|no input files',
+                  re.IGNORECASE)
+
+def _compiler_id_1(cc, opt):
+    # some versions of HP cc won't print their version info unless you
+    # give them something to compile, le sigh
+    made_dummy_i = 0
+    if opt.endswith("dummy.i"):
+        made_dummy_i = 1
+        open("dummy.i", "w").write("int foo;\n")
+    (stdin, stdout) = os.popen4(cc + " " + opt)
+    stdin.close()
+
+    results = []
+
+    for l in stdout.read().split("\n"):
+        l = l.strip()
+        if l == "": continue
+        if _compiler_id_stop_re.search(l): break
+        results.append(l)
+
+    stdout.close()
+    return results
+
+def compiler_id(cc):
+    # gcc, clang: --version
+    # sun cc, compaq cc, HP CC: -V
+    # mipspro cc: -version
+    # xlc: -qversion
+    # -qversion is first because xlc's behavior upon receiving an unrecognized
+    # option is to dump out its _entire manpage!_
+    for opt in ("-qversion", "--version", "-V", "-version", "-V -c dummy.i"):
+        r = _compiler_id_1(cc, opt)
+        if len(r) > 0:
+            return r
+    return []
+
 # opening a file in "rU" mode on a Python that doesn't support it
 # ... silently succeeds!  So we can't use it at all.  Regex time!
+_universal_readlines_re = re.compile("\r|\n|\r\n")
 def universal_readlines(fname):
     f = open(fname, "rb")
     s = f.read().strip()
-    return re.split("\r|\n|\r\n", s)
+    return _universal_readlines_re.split(s)
 
 # We can't use subprocess, it's too new.  We can't use os.popen*,
 # because they don't report the exit code.  So... os.system it is.
@@ -423,7 +471,7 @@ class HeaderProber:
 
     def probe(self):
         """Probe for all the headers in self.headers.  Save the results in
-           self.known_headers and also return that set."""
+           self.known_headers."""
         self.known_headers = Set()
         for h in self.headers:
             if self.probe_one(h):
@@ -442,6 +490,16 @@ class HeaderProber:
         for e in errors:
             sys.stderr.write("# %s\n" % e)
         return 0
+
+    def report(self, f):
+        """Write a report on everything we have found to file F."""
+        f.write("# host OS: " + platform_id() + "\n")
+        f.write("# compiler: " + " ".join(self.cc) + "\n")
+        for l in compiler_id(self.cc[0]):
+            f.write("## %s\n" % l)
+        f.write(":category unknown\n:label unknown\n")
+        for h in sorthdr(self.known_headers):
+            f.write(h + "\n")
 
 class ScratchDir:
     """RAII class to create and clean up our scratch directory."""
@@ -535,20 +593,14 @@ def main(argv, stdout, stderr):
             scratch = ScratchDir()
             if not engine.smoke():
                 return 1
-            avail_headers = engine.probe()
+            engine.probe()
+            engine.report(stdout)
+            return 0
         except EnvironmentError, e:
             stderr.write("%s: %s\n" % (e.filename, e.strerror))
             return 1
     finally:
         del scratch
-
-    stdout.write("# host OS: " + platform_id() + "\n")
-    if len(args.cc) > 1:
-        stdout.write("# compiler: " + " ".join(args.cc) + "\n")
-    stdout.write(":category unknown\n:label unknown\n")
-    for h in sorthdr(avail_headers):
-        stdout.write(h + "\n")
-    return 0
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv, sys.stdout, sys.stderr))
