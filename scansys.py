@@ -202,13 +202,34 @@ if sys.platform == "win32":
             return ''.join(result)
 else:
     try:
+        # shlex.quote is the documented API for Bourne-shell
+        # quotation, but was only added very recently.  Note that it
+        # only does one argument.
         import shlex
         shellquote1 = shlex.quote
     except:
+        # pipes.quote is undocumented but has existed all the way back
+        # to 2.0.  It is semantically identical to shlex.quote.
         import pipes
         shellquote1 = pipes.quote
     def list2cmdline(seq):
         return " ".join([shellquote1(s) for s in seq])
+
+def invoke(argv):
+    """Invoke the command in 'argv' and capture its output."""
+    # for a wonder, the incantation to redirect both stdout and
+    # stderr to a file is exactly the same on Windows as on Unix!
+    cmdline = list2cmdline(argv) + " > htest-out.txt 2>&1"
+    msg = [cmdline]
+    try:
+        rc = os.system(cmdline)
+        msg.extend(universal_readlines("htest-out.txt"))
+    except EnvironmentError, e:
+        if e.filename:
+            msg.append("%s: %s" % (e.filename, e.strerror))
+        else:
+            msg.append("%s: %s" % (argv[0], e.strerror))
+    return (rc, msg)
 
 # from http://code.activestate.com/recipes/578272-topological-sort/
 def toposort(data):
@@ -298,8 +319,132 @@ def sorthdr(hs):
         khs.sort()
         return [x[1] for x in khs]
 
-# Filesystem state.
+class HeaderProber:
+    """Engine class - this does all the real work."""
+
+    def __init__(self, args):
+        self.debug = args.debug
+        self.cc = args.cc
+        self.read_prereqs(args.prereqs)
+        self.read_headers(args.datadir)
+
+    def read_prereqs(self, prereqs):
+        """Read prereqs.ini and generate the 'prerequisites' and 'specials'
+           dictionaries."""
+        prerequisites = {}
+        specials = {}
+        parser = ConfigParser.ConfigParser()
+        parser.read(prereqs)
+
+        if parser.has_section("prerequisites"):
+            for h in parser.options("prerequisites"):
+                prerequisites[h.strip()] = \
+                    parser.get("prerequisites", h).split()
+        if parser.has_section("special"):
+            for h in parser.options("special"):
+                specials[h] = parser.get("special", h).strip() + "\n"
+
+        self.prerequisites = prerequisites
+        self.specials = specials
+
+    def read_headers(self, datadir):
+        """Compute the set of headers to scan for -- that is, header
+           files that you might reasonably expect to find on more than
+           one system.  In the datadir, there are a bunch of "b-"
+           files, which list headers defined by this or that standard;
+           we simply take the union of all these lists."""
+        headers = Set()
+        basename = os.path.basename
+        join = os.path.join
+        for fn in os.listdir(datadir):
+            tag = basename(fn)[:2]
+            if tag == 'b-' and tag[-1] != '~':
+                for l in universal_readlines(join(datadir, fn)):
+                    l = l.strip()
+                    if l == "" or l[0] in ":#": continue
+                    headers.add(l)
+
+        self.headers = toposort_headers(headers, self.prerequisites)
+
+    def include(self, f, h):
+        """Subroutine of gensrc, handles one header."""
+        s = self.specials.get(h)
+        if s is not None:
+            f.write(s)
+        else:
+            for p in self.prerequisites.get(h, []):
+                if p in self.known_headers:
+                    self.include(f, p)
+        f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
+
+    def gensrc(self, header):
+        """Generate a source file that tests the inclusion of HEADER."""
+        src = "htest.c"
+        f = open(src, "w")
+        self.include(f, header)
+        # End with a global definition, in case some compiler
+        # doesn't like source files that define nothing.
+        # The #undefs are probably unnecessary, but you never know.
+        f.write("#undef int\n#undef main\n#undef void\n#undef return\n"
+                "int main(void){return 0;}\n")
+        f.close()
+        return src
+
+
+    def probe_one(self, header):
+        """Probe for one header.
+           If compilation of a source file that includes HEADER succeeds,
+           we assume it is present.  If both compilation and preprocessing
+           of that file fail, we assume it is not present.  Otherwise we
+           report an error (probably a missing prerequisite)."""
+        src = self.gensrc(header)
+        (rc, errors) = invoke(self.cc + ["-c", src])
+        if rc == 0:
+            return 1
+
+        if self.debug:
+            sys.stderr.write("# %s compilation failed:\n" % header)
+        else:
+            # retry with preprocessor only
+            (rc, dummy) = invoke(self.cc + ["-E", src])
+            if rc != 0:
+                return 0
+            sys.stderr.write("# %s present but cannot be compiled:\n"
+                             % header)
+
+        for e in errors:
+            sys.stderr.write("## %s\n" % e)
+        if self.debug:
+            sys.stderr.write("# failed program was:\n")
+            for l in universal_readlines(src):
+                sys.stderr.write("## %s\n" % l)
+
+        return 0
+
+    def probe(self):
+        """Probe for all the headers in self.headers.  Save the results in
+           self.known_headers and also return that set."""
+        self.known_headers = Set()
+        for h in self.headers:
+            if self.probe_one(h):
+                self.known_headers.add(h)
+        return self.known_headers
+
+    def smoke(self):
+        """Perform a "smoke test": If a probe for stdarg.h fails,
+           something is profoundly wrong and we should bail out."""
+        src = self.gensrc("stdarg.h")
+        (rc, errors) = invoke(self.cc + ["-c", src])
+        if rc == 0:
+            return 1
+        sys.stderr.write("error: stdarg.h not detected. Something is wrong "
+                         "with your compiler:\n")
+        for e in errors:
+            sys.stderr.write("# %s\n" % e)
+        return 0
+
 class ScratchDir:
+    """RAII class to create and clean up our scratch directory."""
     def __init__(self):
         # grab these in case __del__ gets called at a bad time
         self.rmtree = shutil.rmtree
@@ -309,7 +454,7 @@ class ScratchDir:
         self.wd = mkdtemp()
         self.cd(self.wd)
 
-    def close(self):
+    def __del__(self):
         # This is exceedingly paranoid since we want it to work
         # regardless of how constructed the object got.
         rmtree = getattr(self, 'rmtree', None)
@@ -322,126 +467,11 @@ class ScratchDir:
             rmtree(wd)
         self.wd = None
 
-    __del__ = close
-
-def include(f, h, prerequisites, specials, known_headers):
-    s = specials.get(h)
-    if s is not None:
-        f.write(s)
-    else:
-        for p in prerequisites.get(h, []):
-            if p in known_headers:
-                include(f, p, prerequisites, specials, known_headers)
-    f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
-
-def gensrc(scratch, header, known_headers, prerequisites, specials):
-    src = os.path.join(scratch.wd, "htest.c")
-    f = open(src, "w")
-    include(f, header, prerequisites, specials, known_headers)
-    # End with a global definition, in case some compiler
-    # doesn't like source files that define nothing.
-    # The #undefs are probably unnecessary, but you never know.
-    f.write("#undef int\n#undef main\n#undef void\n#undef return\n"
-            "int main(void){return 0;}\n")
-    f.close()
-    return src
-
-def invoke(scratch, argv):
-    # for a wonder, the incantation to redirect both stdout and
-    # stderr to a file is exactly the same on Windows as on Unix!
-    cmdline = list2cmdline(argv) + " > htest-out.txt 2>&1"
-    msg = [cmdline]
-    try:
-        rc = os.system(cmdline)
-        msg.extend(universal_readlines("htest-out.txt"))
-    except EnvironmentError, e:
-        if e.filename:
-            msg.append("%s: %s" % (e.filename, e.strerror))
-        else:
-            msg.append("%s: %s" % (argv[0], e.strerror))
-    return (rc, msg)
-
-def probe_one(scratch, cc, debug, header, known_headers, prerequisites, specials):
-    src = gensrc(scratch, header, known_headers, prerequisites, specials)
-    (rc, errors) = invoke(scratch, cc + ["-c", src])
-    if rc == 0:
-        return 1
-
-    if debug:
-        sys.stderr.write("# %s compilation failed:\n" % header)
-    else:
-        (rc, errors) = invoke(scratch, cc + ["-E", src])
-        if rc == 0:
-            sys.stderr.write("# %s present but cannot be compiled:\n"
-                             % header)
-
-    if rc == 0 or debug:
-        for e in errors:
-            sys.stderr.write("## %s\n" % e)
-    if debug:
-        sys.stderr.write("# failed program was:\n")
-        for l in universal_readlines(src):
-            sys.stderr.write("## %s\n" % l)
-
-    return 0
-
-def probe(scratch, cc, debug, headers, prerequisites, specials):
-    known_headers = Set()
-    for h in headers:
-        if probe_one(scratch, cc, debug, h,
-                     known_headers, prerequisites, specials):
-            known_headers.add(h)
-    return known_headers
-
-def smoke(scratch, cc):
-    # "Smoke test": If we cannot detect this header file, something is
-    # so profoundly wrong that we shouldn't try to continue.
-    src = gensrc(scratch, "stdarg.h", Set(), {}, {})
-    (rc, errors) = invoke(scratch, cc + ["-c", src])
-    if rc == 0:
-        return
-    sys.stderr.write("# stdarg.h not detected. Something is wrong "
-                     "with your compiler:\n")
-    for e in errors:
-        sys.stderr.write("# %s\n" % e)
-    sys.exit(1)
-
-# Compute the set of headers to scan for -- that is, header files that
-# you might reasonably expect to find on more than one system.  In the
-# datadir, there are a bunch of "b-" files, which list headers defined
-# by this or that standard; we simply take the union of all these lists.
-def headers_to_probe(datadir):
-    headers = Set()
-    basename = os.path.basename
-    join = os.path.join
-    for fn in os.listdir(datadir):
-        tag = basename(fn)[:2]
-        if tag == 'b-' and tag[-1] != '~':
-            for l in universal_readlines(join(datadir, fn)):
-                l = l.strip()
-                if l == "" or l[0] in ":#": continue
-                headers.add(l)
-    return headers
-
-# Read prereqs.ini and generate the 'prerequisites' and 'specials'
-# dictionaries.
-def read_prereqs(fname):
-    prerequisites = {}
-    specials = {}
-    parser = ConfigParser.ConfigParser()
-    parser.read(fname)
-
-    if parser.has_section("prerequisites"):
-        for h in parser.options("prerequisites"):
-            prerequisites[h.strip()] = parser.get("prerequisites", h).split()
-    if parser.has_section("special"):
-        for h in parser.options("special"):
-            specials[h] = parser.get("special", h).strip() + "\n"
-
-    return prerequisites, specials
-
 class Args:
+    """Command line argument store."""
+
     def usage(self, argv0, errmsg=""):
+        """Report usage information and exit."""
         argv0 = os.path.basename(argv0)
         if errmsg != "":
             exitcode = 2
@@ -465,6 +495,8 @@ class Args:
         sys.exit(exitcode)
 
     def __init__(self, argv):
+        """Parse the command line."""
+
         # defaults
         self.cc = ["cc"]
         self.debug = 0
@@ -495,31 +527,28 @@ class Args:
 
 def main(argv, stdout, stderr):
     args = Args(argv)
-    scratch = None
-    prerequisites, specials = read_prereqs(args.prereqs)
-    headers = toposort_headers(headers_to_probe(args.datadir),
-                               prerequisites)
-    try:
-        scratch = ScratchDir()
-        smoke(scratch, args.cc)
-        avail_headers = probe(scratch, args.cc, args.debug,
-                              headers, prerequisites, specials)
-        scratch.close()
 
-        stdout.write("# host OS: " + platform_id() + "\n")
-        if len(args.cc) > 1:
-            stdout.write("# compiler: " + " ".join(args.cc) + "\n")
-        stdout.write(":category unknown\n:label unknown\n")
-        for h in sorthdr(avail_headers):
-            stdout.write(h + "\n")
-        return 0
-    except EnvironmentError, e:
-        scratch.close()
-        stderr.write("%s: %s\n" % (e.filename, e.strerror))
-        return 1
-    except:
-        scratch.close()
-        raise
+    scratch = None
+    try:
+        try:
+            engine = HeaderProber(args)
+            scratch = ScratchDir()
+            if not engine.smoke():
+                return 1
+            avail_headers = engine.probe()
+        except EnvironmentError, e:
+            stderr.write("%s: %s\n" % (e.filename, e.strerror))
+            return 1
+    finally:
+        del scratch
+
+    stdout.write("# host OS: " + platform_id() + "\n")
+    if len(args.cc) > 1:
+        stdout.write("# compiler: " + " ".join(args.cc) + "\n")
+    stdout.write(":category unknown\n:label unknown\n")
+    for h in sorthdr(avail_headers):
+        stdout.write(h + "\n")
+    return 0
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv, sys.stdout, sys.stderr))
