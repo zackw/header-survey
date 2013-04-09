@@ -498,7 +498,11 @@ def main(argv, stdout, stderr):
         smoke(state, args.cc)
         avail_headers = probe(state, args.cc, args.debug,
                               headers, prerequisites, specials)
+<<<<<<< HEAD
         state.close()
+=======
+        del state
+>>>>>>> b74e2c86b8cd78a75881f56555c3ea3224e76c1a
 
         stdout.write("# host OS: " + platform_id() + "\n")
         if len(args.cc) > 1:
@@ -508,7 +512,11 @@ def main(argv, stdout, stderr):
             stdout.write(h + "\n")
         return 0
     except EnvironmentError, e:
+<<<<<<< HEAD
         state.close()
+=======
+        del state
+>>>>>>> b74e2c86b8cd78a75881f56555c3ea3224e76c1a
         stderr.write("%s: %s\n" % (e.filename, e.strerror))
         return 1
     except:
