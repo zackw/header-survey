@@ -27,4 +27,5 @@ sys/signal.h
 sys/statfs.h
 sys/termios.h
 sys/timeb.h
+sys/ttold.h
 sys/unistd.h

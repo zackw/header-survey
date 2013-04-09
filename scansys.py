@@ -487,11 +487,19 @@ class HeaderProber:
            convenience of report(), which see, and ultimately wind up
            being used by tblgen.py."""
         src = self.gensrc(header, bare=1)
-        (rc, errors) = invoke(self.cc + ["-E", "-o", "htest.i", src])
+        (rc, errors) = invoke(self.cc + ["-E", src])
         if rc != 0:
-            self.probe_report(header, "absent", errors, src)
-            return
+            # It's not out of the question that the header exists but
+            # needs its prereqs in order to *preprocess* successfully.
+            # (Because of #error conditions satisfied by the prereqs,
+            # for instance.  Seen for reals on IRIX6.)  Retry that way.
+            src = self.gensrc(header, bare=0)
+            (rc, perrors) = invoke(self.cc + ["-E", src])
+            if rc != 0:
+                self.probe_report(header, "absent", errors, src)
+                return
 
+        src = self.gensrc(header, bare=1)
         (rc, errors) = invoke(self.cc + ["-c", src])
         if rc == 0:
             self.probe_report(header, "correct", errors, src)
