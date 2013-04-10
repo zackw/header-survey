@@ -7,8 +7,16 @@
 # the copyright notice and this notice are preserved.  It is offered
 # as-is, without any warranty.
 
+# Note to contributors: Unlike scansys.py, this program only needs
+# to work with Python 2.7 and may grow dependencies on third-party
+# libraries in the future (e.g. an HTML generator of some sort).
+# Some code is functionally duplicated from scansys.py but with the
+# compatibility contortions removed; this is why there is no shared
+# support library.
+
 import cgi
 import errno
+import itertools
 import os
 import re
 import sys
@@ -40,21 +48,36 @@ def natsort_key(s):
         except: return s.lower()
     return tuple(try_int(c) for c in _natsort_split_re.findall(s))
 
-class Group(object):
-    def __init__(self, items, label, category, compiler, sequence):
-        self.items = items
-        self.label = label
-        self.compiler = compiler
-        self.category = category
-        # "embedded X" sorts immediately after X; otherwise,
-        # categories are case-insensitive alphabetical
-        if category.startswith("embedded "):
-            self.catkey = (category[9:].lower(), 1)
+class Dataset(object):
+    def __init__(self, *args, **kwargs):
+        if len(args) == 1 and len(kwargs) == 0:
+            other = args[0]
+            self.items = other.items
+            self.label = other.label
+            self.version = other.version
+            self.compiler = "<merged>"
+            self.category = other.category
+            self.sequence = other.sequence
+            self.catkey = other.catkey
+            self.labelkey = other.labelkey
+            self.verskey = other.verskey
         else:
-            self.catkey = (category.lower(), 0)
-        # numbers within labels are sorted numerically
-        self.labelkey = natsort_key(label)
-        self.sequence = sequence
+            assert len(args) == 0
+            self.items = kwargs['items']
+            self.label = kwargs['label']
+            self.version = kwargs['version']
+            self.compiler = kwargs['compiler']
+            self.category = kwargs['category']
+            self.sequence = kwargs['sequence']
+            # "embedded X" sorts immediately after X; otherwise,
+            # categories are case-insensitive alphabetical
+            if self.category.startswith("embedded "):
+                self.catkey = (self.category[9:].lower(), 1)
+            else:
+                self.catkey = (self.category.lower(), 0)
+            # numbers within labels are sorted numerically
+            self.labelkey = natsort_key(self.label)
+            self.verskey = natsort_key(self.version)
 
     @classmethod
     def from_file(cls, fname):
@@ -67,6 +90,7 @@ class Group(object):
         sequence = 50
         category = "Uncategorized"
         compiler = "unknown"
+        version = "unknown"
 
         items = {}
         with open(fname, "rU") as fp:
@@ -76,11 +100,13 @@ class Group(object):
                 if line[0] == ":":
                     if line.startswith(":label "):
                         label = line[7:]
-                    elif line.startswith(":category"):
+                    elif line.startswith(":version "):
+                        version = line[9:]
+                    elif line.startswith(":category "):
                         category = line[10:]
-                    elif line.startswith(":compiler"):
+                    elif line.startswith(":compiler "):
                         compiler = line[10:]
-                    elif line.startswith(":sequence"):
+                    elif line.startswith(":sequence "):
                         sequence = int(line[10:])
                     else:
                         raise RuntimeError("{}: unknown directive-line {0!r}"
@@ -91,7 +117,7 @@ class Group(object):
                 if line[0] in _punctuation:
                     p = line[0]
                     l = line[1:]
-                    if p not in "!@":
+                    if p not in "!@%":
                         raise RuntimeError("{}: {}: unsupported tag symbol: {}"
                                            .format(fname, l, p))
 
@@ -103,21 +129,52 @@ class Group(object):
                                        .format(fname, line))
                 items[l] = p
 
-        return cls(items, label, category, compiler, sequence)
+        return cls(items=items,
+                   label=label,
+                   version=version,
+                   category=category,
+                   compiler=compiler,
+                   sequence=sequence)
 
     def merge_compiler(self, other):
-        for h in self.items:
-            if h not in other.items:
-                self.items[h] = "@"
-        for h in other.items:
-            if h not in self.items:
-                self.items[h] = "@"
+        def merge_compiler_1(mine, theirs):
+            assert mine != '' or theirs != ''
+            if mine == '.' and theirs == '.': return '.'
+            if mine == '!' or  theirs == '!': return '!'
+            if mine == '%' or  theirs == '%': return '%'
+            return '@'
 
+        assert self.label == other.label and self.version == other.version
+        allh = frozenset(itertools.chain(self.items.iterkeys(),
+                                         other.items.iterkeys()))
+        mergeh = {}
+        for h in allh:
+            mine   = self.items.get(h, '')
+            theirs = other.items.get(h, '')
+            mergeh[h] = merge_compiler_1(mine, theirs)
+        self.items = mergeh
+
+    def maybe_merge_versions(self, other):
+        assert self.label == other.label and self.version != other.version
+        assert self.verskey < other.verskey
+
+        if self.items != other.items:
+            return False
+
+        if "–" in self.version:
+            (before, dash, after) = self.version.partition("–")
+            self.version = before + "–" + other.version
+        else:
+            self.version = self.version + "–" + other.version
+        return True
+
+    # We don't use rich comparisons for this class because (a) it'd be
+    # harder to write, and (b) sort() doesn't seem to honor them.
     def __cmp__(self, other):
         return (cmp(self.sequence, other.sequence) or
                 cmp(self.catkey, other.catkey) or
-                -cmp(len(self.items), len(other.items)) or
                 cmp(self.labelkey, other.labelkey) or
+                cmp(self.verskey, other.verskey) or
                 cmp(self.compiler, other.compiler) or
                 cmp(self.items, other.items))
 
@@ -137,21 +194,21 @@ class Group(object):
     def get(self, x, d=None):
         return self.items.get(x, d)
 
-def load_groups(dirname):
-    groups = []
+def load_datasets(dirname):
+    datasets = []
     rv = 0
     try:
         files = os.listdir(dirname)
     except EnvironmentError, e:
         sys.stderr.write("{}: {}\n".format(e.filename, e.strerror))
         rv = 1;
-        return rv, groups
+        return rv, datasets
 
     for fname in os.listdir(dirname):
         if not (fname.startswith("b-") or fname.startswith("h-")):
             continue
         try:
-            g = Group.from_file(fname)
+            datasets.append(Dataset.from_file(os.path.join(dirname, fname)))
         except EnvironmentError, e:
             # silently skip directories
             # report all other errors and continue
@@ -160,23 +217,53 @@ def load_groups(dirname):
                                                    e.strerror))
                 rv = 1
 
-        groups.append(g)
-    return rv, groups
+    return rv, datasets
 
-def preprocess(groups):
-    oses = {}
-    stds = []
-    for g in groups:
-        if g.category == "standard":
-            stds.append(g)
+def preprocess_osgrp(osgroup):
+    assert len(frozenset(os.label for os in osgroup)) == 1
+
+    versions = {}
+    for os in osgroup:
+        merged = versions.get(os.version, None)
+        if merged is not None:
+            merged.merge_compiler(os)
         else:
-            other = oses.get(g.label)
+            versions[os.version] = Dataset(os)
+    verlist = versions.values()
+    verlist.sort()
+
+    nverlist = []
+    one = verlist[0]
+    for two in verlist[1:]:
+        if not one.maybe_merge_versions(two):
+            nverlist.append(one)
+            one = two
+    nverlist.append(one)
+    return nverlist
+
+def preprocess(datasets):
+
+    # separate standards-sets from os-sets, cluster os-sets by label
+    osgrps = {}
+    stds = []
+    for d in datasets:
+        if d.category == "standard":
+            stds.append(d)
+        else:
+            other = osgrps.get(d.label)
             if other is not None:
-                other.merge_compiler(g)
+                other.append(d)
             else:
-                oses[g.label] = g
+                osgrps[d.label] = [d]
+
+    # compute version ranges and compiler dependencies
+    oses = []
+    for osgroup in osgrps.itervalues():
+        oses.extend(preprocess_osgrp(osgroup))
+
+    oses.sort()
     stds.sort()
-    return sorted(oses.itervalues()), stds
+    return oses, stds
 
 def write_header(f, title):
     title = cgi.escape(title)
@@ -202,9 +289,11 @@ def write_thead(f, oses):
     # system-categories row
     f.write("\n<tr><th class=\"key\" colspan=\"2\"><span><span>"
             "<span class=\"n\">⚪</span>: absent<br>"
+            "<span class=\"bug\">✗</span>: unusably buggy<br>"
+            "<span class=\"p\">⦿</span>: not self-contained<br>"
+            "<span class=\"cd\">◍</span>: present with some compilers<br>"
             "<span class=\"y\">⚫</span>: present<br>"
-            "<span class=\"cd\">◗</span>: compiler-dependent<br>"
-            "<span class=\"bug\">✗</span>: unusably buggy</span></span></th>")
+            "</span></span></th>")
     cat = ""
     span = 0
     for o in oses:
@@ -232,7 +321,7 @@ def write_thead(f, oses):
             cat = o.category
         f.write("<th class=\"skew\"><span class=\"{}\"><span>{}"
                 "</span></span></th>"
-                .format(cls, cgi.escape(o.label)))
+                .format(cls, cgi.escape(o.label + " " + o.version)))
 
     f.write("</tr>\n</thead>")
 
@@ -263,7 +352,10 @@ def write_tbody(f, oses, stds):
                     sym = "⚫"
                 elif x == "@": # compiler dependent
                     cls = "cd"
-                    sym = "◗"
+                    sym = "◍"
+                elif x == "%": # compiler dependent
+                    cls = "p"
+                    sym = "⦿"
                 elif x == "!": # buggy
                     cls = "bug"
                     sym = "✗"
@@ -309,10 +401,10 @@ def main():
         else:
             sys.exit(2)
 
-    rv, groups = load_groups(dirname)
+    rv, datasets = load_datasets(dirname)
     if rv != 0: sys.exit(rv)
 
-    oses, stds = preprocess(groups)
+    oses, stds = preprocess(datasets)
     write_html(sys.stdout, oses, stds)
     sys.exit(0)
 

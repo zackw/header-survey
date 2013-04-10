@@ -20,7 +20,10 @@ th {
   text-align: left; vertical-align: bottom;
   padding: 0 0 0 1ex; margin: 0; border: none;
 }
-th[rowspan] { vertical-align: middle; }
+th[rowspan] {
+  vertical-align: top;
+  padding-top: 4px;
+}
 td {
   text-align: center; vertical-align: middle;
   padding: 0; margin: 0; border: none;
@@ -32,8 +35,9 @@ td {
 }
 
 .y /* yes */ { color: green; }
-.n /* no */ { color: #bbb; }
-.cd /* compiler dependent */ { color: orange; }
+.n /* no */ { color: #ccc; }
+.cd /* compiler dependent */ { color: green; }
+.p /* prerequisite */ { color: blue; }
 .bug /* buggy */ { color: red; }
 .h /* header */ { font-family: monospace; padding: 0 0 0 1ex }
 .cl /* category leftmost */ { border-left: 1px solid black; }
