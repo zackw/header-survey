@@ -42,10 +42,10 @@ than the OS, so we need to check whether *all* the compilers for a
 particular platform provide them.
 
 You can put additional compilation options after the name of the
-compiler, if necessary.  **WARNING:** `scansys.py` runs in a temporary
-directory, to facilitate cleaning up after itself.  Therefore,
-YOUR-COMPILER must either be found in `$PATH` or be an absolute
-pathname, and any pathnames in additional compilation options
+compiler, if necessary.  **WARNING:** `scansys.py` changes into a
+temporary directory, to facilitate cleaning up after itself.
+Therefore, YOUR-COMPILER must either be found in `$PATH` or be an
+absolute pathname, and any pathnames in additional compilation options
 (e.g. directories containing header files) must also be absolute.
 
 There are also a few options to `scansys.py` itself which you probably
@@ -62,7 +62,10 @@ do something more than just include other headers, you can define a
 new `[special]` entry---look at how we handle `regexp.h` for hints.
 It does occasionally happen that some system header is just flat-out
 *buggy*; if you can't fix the test program by adjusting `prereqs.ini`,
-leave the `!`-marked entry and the compiler errors in the file.
+leave the `!`-marked entry and the compiler errors in the file.  When
+this happens, it's helpful to write an additional (commented-out)
+annotation explaining the bug.  (See `data/h-hpux11.23-gcc` and
+`data/h-irix6.5-gcc` for existing examples.)
 
 Once you have solved as many compile errors as possible and rerun
 `scansys.py`, the final thing we need you to do is correct the header
@@ -140,13 +143,6 @@ common convention.  It is the latter that we need help with.
 Specifically, is there anything in `b-obsolete` that belongs in
 `b-ucom`, or vice versa?  Is there anything *missing* from `b-ucom` or
 `b-obsolete`, and not mentioned in any other b-file?
-
-If you're doing this, you might also want to look at the `r-` files,
-which contain raw lists of everything in `/usr/include` on a tiny
-sample of bleeding-edge OSes.  Here we are trying to be as inclusive
-as possible but still weed out headers that are specific to one OS.
-The `b-` and `r-` files feed into `setcommon.py` to generate the big
-list in `scansys.py`.
 
 ## Table Generation
 

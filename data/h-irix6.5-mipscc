@@ -119,20 +119,20 @@ rpc/rpc.h
 rpc/svc_auth.h
 rpc/types.h
 %rpc/xdr.h
-# cc -c htest.c > htest-out.txt 2>&1
-# cc-1020 cc: ERROR File = /usr/include/rpcsvc/mount.h, Line = 44
-# The identifier "fhandle_t" is undefined.
-# 
-# fhandle_t fhs_fh;
-# ^
-# 
-# cc-1020 cc: ERROR File = /usr/include/rpcsvc/mount.h, Line = 109
-# The identifier "fhandle_t" is undefined.
-# 
-# extern bool_t xdr_fhandle(XDR *, fhandle_t *);
-# ^
-# 
-# 2 errors detected in the compilation of "htest.c".
+# Declarations depending on a typedef which isn't in scope.
+# fhandle_t is only defined in what appear to be private kernel headers.
+# Other OSes define this type in this header.
+## cc-1020 cc: ERROR File = /usr/include/rpcsvc/mount.h, Line = 44
+## The identifier "fhandle_t" is undefined.
+##
+## fhandle_t fhs_fh;
+## ^
+##
+## cc-1020 cc: ERROR File = /usr/include/rpcsvc/mount.h, Line = 109
+## The identifier "fhandle_t" is undefined.
+##
+## extern bool_t xdr_fhandle(XDR *, fhandle_t *);
+##                                  ^
 !rpcsvc/mount.h
 %rpcsvc/nlm_prot.h
 %rpcsvc/rex.h

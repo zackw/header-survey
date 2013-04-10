@@ -146,9 +146,12 @@ sys/sem.h
 sys/shm.h
 sys/signal.h
 sys/socket.h
-# gcc -c htest.c > htest-out.txt 2>&1
-# In file included from htest.c:3:
-# /usr/include/sys/socketvar.h:516: error: array type has incomplete element type
+# gcc objects to 'extern struct foo var[];' when no definition of
+# struct foo is in scope; in this case, the necessary definition is
+# immediately *below* the offending declaration, and is not otherwise
+# available.
+## /usr/include/sys/socketvar.h:516: error: array type has incomplete
+##                                   element type
 !sys/socketvar.h
 sys/stat.h
 sys/statvfs.h

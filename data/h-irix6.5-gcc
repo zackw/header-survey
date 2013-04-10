@@ -118,10 +118,11 @@ rpc/rpc.h
 rpc/svc_auth.h
 rpc/types.h
 %rpc/xdr.h
-# gcc -std=gnu99 -c htest.c > htest-out.txt 2>&1
-# In file included from htest.c:2:
-# /usr/include/rpcsvc/mount.h:44: error: syntax error before "fhandle_t"
-# /usr/include/rpcsvc/mount.h:109: error: syntax error before "fhandle_t"
+# Declarations depending on a typedef which isn't in scope.
+# fhandle_t is only defined in what appear to be private kernel headers.
+# Other OSes define this type in this header.
+## /usr/include/rpcsvc/mount.h:44: error: syntax error before "fhandle_t"
+## /usr/include/rpcsvc/mount.h:109: error: syntax error before "fhandle_t"
 !rpcsvc/mount.h
 %rpcsvc/nlm_prot.h
 %rpcsvc/rex.h
