@@ -54,52 +54,6 @@ try:
 except:
     pass
 
-# see if we have sets; if not, provide a replacement that does enough
-try:
-    Set = set
-except NameError:
-    try:
-        from sets import Set
-    except ImportError:
-        class Set:
-            def __init__(self, *items):
-                self.items = {}
-                for x in items:
-                    for xx in x:
-                        self.items[xx] = 1
-            def __len__(self):
-                return len(self.items)
-            def __contains__(self, x):
-                return self.items.get(x) is not None
-            def __iter__(self):
-                return self.items.keys()
-            # for pre-__iter__ interpreters
-            def __getitem__(self, n):
-                return self.items.keys()[n]
-            def add(self, x):
-                self.items[x] = 1
-            def discard(self, x):
-                try: del self.items[x]
-                except KeyError: pass
-            def copy(self):
-                return Set(self.items.keys())
-            def update(self, other):
-                for x in other:
-                    self.items[x] = 1
-            def union(self, other):
-                new = self.copy()
-                new.update(other)
-                return new
-            __and__ = union
-            def difference_update(self, other):
-                for x in other:
-                    self.discard(x)
-            def difference(self, other):
-                new = self.copy()
-                new.difference_update(other)
-                return new
-            __sub__ = difference
-
 # It may be necessary to monkey-patch ConfigParser to accept / in an
 # option name.
 def maybe_fix_ConfigParser():
@@ -289,49 +243,59 @@ def compiler_id(cc):
 # from http://code.activestate.com/recipes/578272-topological-sort/
 def toposort(data):
     """Dependencies are expressed as a dictionary whose keys are items
-and whose values are a set of dependent items. Output is a list of
-sets in topological order. The first set consists of items with no
-dependences, each subsequent set consists of items that depend upon
-items in the preceeding sets.
+and whose values are lists of dependent items. Output is a list of
+lists in topological order. The first list consists of items with no
+dependences, each subsequent list consists of items that depend upon
+items in the preceding list.  Order within lists is not meaningful.
 
 >>> print '\\n'.join(repr(sorted(x)) for x in toposort({
-...     2: Set([11]),
-...     9: Set([11,8]),
-...     10: Set([11,3]),
-...     11: Set([7,5]),
-...     8: Set([7,3]),
+...     2: [11],
+...     9: [11,8],
+...     10: [11,3],
+...     11: [7,5],
+...     8: [7,3],
 ...     }) )
 [3, 5, 7]
 [8, 11]
 [2, 9, 10]
 
 """
-
-    # Ignore self dependencies.
+    # Convert input lists to dictionaries.
+    # Ignore self-dependencies.
+    ndata = {}
     for k, v in data.items():
-        v.discard(k)
+        nv = {}
+        for d in v:
+            if d != k:
+                nv[d] = 1
+        ndata[k] = nv
+    data = ndata
+
     # Find all items that don't depend on anything.
-    extra_items_in_deps = Set()
+    # Add empty dependences where needed.
+    extra_items_in_deps = {}
     for s in data.values():
         extra_items_in_deps.update(s)
-    extra_items_in_deps.difference_update(data.keys())
-    # Add empty dependences where needed
-    for item in extra_items_in_deps:
-        data[item] = Set()
+    for item in extra_items_in_deps.keys():
+        if data.get(item, None) is None:
+            data[item] = {}
 
     result = []
     while 1:
-        ordered = Set()
+        ordered = {}
         for item, dep in data.items():
             if not dep:
-                ordered.add(item)
+                ordered[item] = 1
         if not ordered:
             break
-        result.append(ordered)
+        result.append(ordered.keys())
         ndata = {}
         for item, dep in data.items():
-           if item not in ordered:
-               ndata[item] = dep - ordered
+           if ordered.get(item, None) is None:
+               for o in ordered.keys():
+                   try: del dep[o]
+                   except KeyError: pass
+               ndata[item] = dep
         data = ndata
     if len(data) > 0:
         raise RuntimeError("Cyclic dependencies exist among these items:\n"
@@ -344,7 +308,7 @@ items in the preceeding sets.
 def toposort_headers(headers, prerequisites):
     topo_in = {}
     for h in headers:
-        topo_in[h] = Set(prerequisites.get(h, []))
+        topo_in[h] = prerequisites.get(h, [])
     topo_out = toposort(topo_in)
     rv = []
     for l in topo_out: rv.extend(l)
@@ -408,7 +372,7 @@ class HeaderProber:
            one system.  In the datadir, there are a bunch of "b-"
            files, which list headers defined by this or that standard;
            we simply take the union of all these lists."""
-        headers = Set()
+        headers = {}
         basename = os.path.basename
         join = os.path.join
         for fn in os.listdir(datadir):
@@ -417,9 +381,9 @@ class HeaderProber:
                 for l in universal_readlines(join(datadir, fn)):
                     l = l.strip()
                     if l == "" or l[0] in ":#": continue
-                    headers.add(l)
+                    headers[l] = 1
 
-        self.headers = toposort_headers(headers, self.prerequisites)
+        self.headers = toposort_headers(headers.keys(), self.prerequisites)
 
     def include(self, f, h):
         """Subroutine of gensrc, handles one header."""
