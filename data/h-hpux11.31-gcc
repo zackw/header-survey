@@ -46,6 +46,7 @@ omp.h
 poll.h
 pthread.h
 pwd.h
+regex.h
 regexp.h
 resolv.h
 sched.h
@@ -66,7 +67,6 @@ stropts.h
 sysexits.h
 syslog.h
 tar.h
-termcap.h
 termio.h
 termios.h
 tgmath.h
