@@ -1,0 +1,35 @@
+# host: Windows 7 6.1.7601
+# compile command: cl
+## Microsoft (R) 32-bit C/C++ Optimizing Compiler Version 16.00.40219.01 for 80x86
+:category Windows
+:label MSVC
+:version 2010
+:compiler cl
+assert.h
+ctype.h
+direct.h
+errno.h
+fcntl.h
+float.h
+iso646.h
+limits.h
+locale.h
+malloc.h
+math.h
+memory.h
+search.h
+setjmp.h
+signal.h
+stdarg.h
+stddef.h
+stdint.h
+stdio.h
+stdlib.h
+string.h
+time.h
+varargs.h
+wchar.h
+wctype.h
+sys/stat.h
+sys/timeb.h
+sys/types.h
