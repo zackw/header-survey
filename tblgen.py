@@ -288,11 +288,11 @@ def write_thead(f, oses):
 
     # system-categories row
     f.write("\n<tr><th class=\"key\" colspan=\"2\"><span><span>"
-            "<span class=\"n\">⚪</span>: absent<br>"
+            "<span class=\"n\">○</span>: absent<br>"
             "<span class=\"bug\">✗</span>: unusably buggy<br>"
             "<span class=\"p\">⦿</span>: not self-contained<br>"
             "<span class=\"cd\">◍</span>: present with some compilers<br>"
-            "<span class=\"y\">⚫</span>: present<br>"
+            "<span class=\"y\">●</span>: present<br>"
             "</span></span></th>")
     cat = ""
     span = 0
@@ -346,10 +346,10 @@ def write_tbody(f, oses, stds):
                 x = o.get(h)
                 if x is None:
                     cls = "n"
-                    sym = "⚪"
+                    sym = "○"
                 elif x == ".":
                     cls = "y"
-                    sym = "⚫"
+                    sym = "●"
                 elif x == "@": # compiler dependent
                     cls = "cd"
                     sym = "◍"
