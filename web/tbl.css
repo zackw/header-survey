@@ -5,6 +5,15 @@
    the copyright notice and this notice are preserved.  It is offered
    as-is, without any warranty. */
 
+@font-face {
+  font-family: "tblmarks";
+  src: url("tblmarks.eot");
+  src: url("f/tblmarks.eot?#iefix") format("embedded-opentype"),
+       url("f/tblmarks.woff") format("woff"),
+       url("f/tblmarks.ttf") format("truetype");
+  unicode-range: U+25C9, U+25CB-25CF, U+2717, U+29BF;
+}
+
 table {
   margin: 20px 0 0 20px;
   border-spacing: 0;
@@ -26,7 +35,9 @@ th[rowspan] {
 }
 td {
   text-align: center; vertical-align: middle;
-  padding: 0; margin: 0; border: none;
+  padding: 3px 0; margin: 0; border: none;
+  font-family: "tblmarks", sans;
+  font-size: 12px;
 }
 
 .tableFloatingHeader {
@@ -64,8 +75,9 @@ th { font-size: 12px; font-family: sans-serif; }
 .shift > span {
   display: block;
   position: relative;
-  top: 0px;
+  bottom: 0px;
   left: 130px;
+  height: 30px;
   padding: 3px 0;
   overflow: visible;
   text-align: center;
