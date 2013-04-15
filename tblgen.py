@@ -14,13 +14,17 @@
 # compatibility contortions removed; this is why there is no shared
 # support library.
 
-import cgi
+from __future__ import unicode_literals
+
 import errno
 import itertools
 import os
 import re
 import sys
 
+from genshi.template import TemplateLoader
+from genshi.core import TEXT
+from genshi.output import HTMLSerializer
 from string import punctuation as _punctuation
 
 # Sort a list of pathnames, ASCII case-insensitively.  All
@@ -117,12 +121,14 @@ class Dataset(object):
                 if line[0] in _punctuation:
                     p = line[0]
                     l = line[1:]
-                    if p not in "!@%":
+                    if p == '!': p = 'B'
+                    elif p == '%': p = 'P'
+                    else:
                         raise RuntimeError("{}: {}: unsupported tag symbol: {}"
                                            .format(fname, l, p))
 
                 else:
-                    p = '.'
+                    p = 'Y'
                     l = line
                 if l in items:
                     raise RuntimeError("{}: duplicate header-line {0!r}"
@@ -139,10 +145,15 @@ class Dataset(object):
     def merge_compiler(self, other):
         def merge_compiler_1(mine, theirs):
             assert mine != '' or theirs != ''
-            if mine == '.' and theirs == '.': return '.'
-            if mine == '!' or  theirs == '!': return '!'
-            if mine == '%' or  theirs == '%': return '%'
-            return '@'
+            if mine == theirs:
+                return mine
+            new = ''
+            if 'Y' in mine or 'Y' in theirs: new += 'Y'
+            if 'P' in mine or 'P' in theirs: new += 'P'
+            if 'B' in mine or 'B' in theirs: new += 'B'
+            if ('N' in mine or 'N' in theirs
+                or '' == mine or '' == theirs): new += 'N'
+            return new
 
         assert self.label == other.label and self.version == other.version
         allh = frozenset(itertools.chain(self.items.iterkeys(),
@@ -255,132 +266,73 @@ def preprocess(datasets):
                 other.append(d)
             else:
                 osgrps[d.label] = [d]
+    stds.sort()
 
     # compute version ranges and compiler dependencies
     oses = []
     for osgroup in osgrps.itervalues():
         oses.extend(preprocess_osgrp(osgroup))
-
     oses.sort()
-    stds.sort()
-    return oses, stds
 
-def write_header(f, title):
-    title = cgi.escape(title)
+    # cluster oses by category
+    class OsCat(list):
+        def __init__(self, name):
+            self.name = name
+    oscats = []
+    curcat = oses[0].category
+    curcatlist = OsCat(curcat)
+    for os in oses:
+        if os.category != curcat:
+            oscats.append(curcatlist)
+            curcat = os.category
+            curcatlist = OsCat(curcat)
+        curcatlist.append(os)
+    oscats.append(curcatlist)
 
-    f.write("<!doctype html><html><head><meta charset=\"utf-8\">")
-    f.write("<title>{}</title>".format(title))
-    f.write("<link rel=\"stylesheet\" href=\"tbl.css\">")
-    f.write("</head><body>\n")
-    f.write("<h1>{}</h1>\n".format(title))
+    return oscats, stds
 
-def write_trailer(f):
-    f.write("<script src=\"jquery-1.9.1.min.js\"></script>")
-    f.write("<script src=\"jquery.stickytableheaders.js\"></script>")
-    f.write("""<script>window.onload=function(){
-  $('table').stickyTableHeaders();
-}</script>""")
-    # deliberate absence of newline at EOF
-    f.write("\n</body></html>")
+# If someone can suggest a more elegant, or at least less repetitive,
+# way to write this transform, I am all ears.
+_wsre = re.compile(r'\s+', re.UNICODE)
+def collapse_ws_xml(stream):
+    wsre = _wsre
+    tqueue_data = None
+    tqueue_pos = None
 
-def write_thead(f, oses):
-    f.write("<table><thead>")
-
-    # system-categories row
-    f.write("\n<tr><th class=\"key\" colspan=\"2\"><span><span>"
-            "<span class=\"n\">○</span>: absent<br>"
-            "<span class=\"bug\">✗</span>: unusably buggy<br>"
-            "<span class=\"p\">⦿</span>: not self-contained<br>"
-            "<span class=\"cd\">◍</span>: present with some compilers<br>"
-            "<span class=\"y\">●</span>: present<br>"
-            "</span></span></th>")
-    cat = ""
-    span = 0
-    for o in oses:
-        if cat != o.category:
-            if cat != "":
-                f.write("<th class=\"shift\" colspan=\"{}\">"
-                        "<span class=\"cl\">{}</span></th>"
-                        .format(span, cgi.escape(cat)))
-            cat = o.category
-            span = 0
-        span += 1
-    f.write("<th class=\"shift\" colspan=\"{}\">"
-            "<span class=\"cl\">{}</span></th>"
-            .format(span, cgi.escape(cat)))
-
-    # systems row
-    f.write("</tr>\n<tr><th>Standard</th><th>Header</th>")
-    cat = ""
-    n = 0
-    for o in oses:
-        n += 1
-        cls = "o" if n%2 else "e"
-        if cat != o.category:
-            cls += " cl"
-            cat = o.category
-        f.write("<th class=\"skew\"><span class=\"{}\"><span>{}"
-                "</span></span></th>"
-                .format(cls, cgi.escape(o.label + " " + o.version)))
-
-    f.write("</tr>\n</thead>")
-
-def write_tbody(f, oses, stds):
-    f.write("<tbody>")
-
-    for std in stds:
-        first = True
-        for h in sorthdr(std):
-            if first:
-                f.write("\n<tr><th rowspan=\"{}\" class=\"ct std\">{}</th>"
-                        "<th class=\"h ct\">{}</th>"
-                        .format(len(std), cgi.escape(std.label),
-                                cgi.escape(h)))
+    for kind, data, pos in stream:
+        if kind == TEXT:
+            if tqueue_pos is not None:
+                tqueue_data += data
             else:
-                f.write("</th>\n<tr><th class=\"h\">{}</th>"
-                        .format(cgi.escape(h)))
+                tqueue_pos = pos
+                tqueue_data = data
+        else:
+            if tqueue_pos is not None:
+                tqueue_data = tqueue_data.strip()
+                if tqueue_data != "":
+                    tqueue_data = wsre.sub(" ", tqueue_data)
+                    yield TEXT, tqueue_data, tqueue_pos
+                tqueue_pos = None
+                tqueue_data = None
+            yield kind, data, pos
 
-            n = 0
-            cat = ""
-            for o in oses:
-                x = o.get(h)
-                if x is None:
-                    cls = "n"
-                    sym = "○"
-                elif x == ".":
-                    cls = "y"
-                    sym = "●"
-                elif x == "@": # compiler dependent
-                    cls = "cd"
-                    sym = "◍"
-                elif x == "%": # compiler dependent
-                    cls = "p"
-                    sym = "⦿"
-                elif x == "!": # buggy
-                    cls = "bug"
-                    sym = "✗"
-                else:
-                    raise RuntimeError("{}: {}: unsupported tag symbol: {}"
-                                       .format(o.label, h, x))
-                n += 1
-                cls += " o" if n%2 else " e"
+    if tqueue_pos is not None:
+        tqueue_data = tqueue_data.strip()
+        if tqueue_data != "":
+            tqueue_data = wsre.sub(" ", tqueue_data)
+            yield TEXT, tqueue_data, tqueue_pos
 
-                if first: cls += " ct"
-                if cat != o.category:
-                    cls += " cl"
-                    cat = o.category
 
-                f.write("<td class=\"{}\">{}</td>".format(cls, sym))
-
-            first = False
-
-    f.write("</tr>\n</tbody></table>")
-
-def write_html(f, oses, stds):
-    write_header(f, "Cross-platform availability of C header files")
-    write_thead(f, oses)
-    write_tbody(f, oses, stds)
-    write_trailer(f)
+def write_html(f, oscats, stds):
+    loader = TemplateLoader(["web"])
+    tmpl = loader.load("tbltmpl.xml")
+    stream = tmpl.generate(oscats=oscats,
+                           stds=stds,
+                           enumerate=enumerate,
+                           sorthdr=sorthdr,
+                           cycle=itertools.cycle)
+    for chunk in HTMLSerializer(doctype='html5')(collapse_ws_xml(stream)):
+        f.write(chunk.encode('utf-8'))
 
 def main():
     if len(sys.argv) == 1:
@@ -404,8 +356,8 @@ def main():
     rv, datasets = load_datasets(dirname)
     if rv != 0: sys.exit(rv)
 
-    oses, stds = preprocess(datasets)
-    write_html(sys.stdout, oses, stds)
+    oscats, stds = preprocess(datasets)
+    write_html(sys.stdout, oscats, stds)
     sys.exit(0)
 
 if __name__ == '__main__': main()

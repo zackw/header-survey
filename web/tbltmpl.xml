@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:t="http://genshi.edgewall.org/"
+      t:with="title='Cross-platform availability of C header files'">
+<head>
+<meta charset="utf-8"/>
+<title t:content="title"/>
+<link rel="stylesheet" href="tbl.css"/>
+</head>
+<body>
+<h1 t:content="title"/>
+<table>
+  <thead>
+    <tr>
+      <th class="key" colspan="2">
+        <div>
+          <div>
+            <span class="key-y">Y</span>: present<br/>
+            <span class="key-p">P</span>: has prerequisites<br/>
+            <span class="key-b">B</span>: unusably buggy<br/>
+            <span class="key-n">N</span>: absent<br/>
+            If more than one code appears, any of<br/>them may apply,
+            depending on the<br/>compiler in use. Click for details.
+          </div>
+        </div>
+      </th>
+      <th t:for="oc in oscats" class="shift" colspan="${len(oc)}">
+        <div class="cl">${oc.name}</div>
+      </th>
+    </tr>
+    <tr t:with="alt=cycle(('o','e'))">
+      <th>Standard</th><th>Header></th>
+      <t:for each="oc in oscats">
+        <th t:for="i, o in enumerate(oc)" class="skew">
+          <div class="${alt.next()}${' cl' if i==0 else ''}">
+            <div>${o.label} ${o.version}</div>
+          </div>
+        </th>
+      </t:for>
+    </tr>
+  </thead>
+  <tbody>
+    <?python def compute_td(i, j, o, h):
+        sym = o.get(h)
+        if sym is None: sym="N"
+        cls = sym.lower()
+        if i == 0: cls += " ct"
+        if j == 0: cls += " cl"
+        return cls, sym ?>
+    <t:for each="std in stds">
+      <tr t:for="i, h in enumerate(sorthdr(std))"
+          t:with="alt=cycle(('o','e'))">
+        <th t:if="i==0" rowspan="${len(std)}" class="std ct">${std.label}</th>
+        <th class="h${' ct' if i==0 else ''}">${h}</th>
+        <t:for each="oc in oscats">
+          <td t:for="j, o in enumerate(oc)"
+              t:with="cls,sym=compute_td(i,j,o,h)"
+              class="${alt.next()} ${cls}">${sym}</td>
+        </t:for>
+      </tr>
+    </t:for>
+  </tbody>
+</table>
+<script defer="defer" src="jquery-1.9.1.min.js"/>
+<script defer="defer" src="jquery.stickytableheaders.js"/>
+<script><![CDATA[window.onload=function(){
+  $$("table").stickyTableHeaders();
+}]]></script>
+</body>
+</html>

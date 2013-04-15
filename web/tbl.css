@@ -47,9 +47,8 @@ td {
 
 .y /* yes */ { color: green; }
 .n /* no */ { color: #ccc; }
-.cd /* compiler dependent */ { color: green; }
 .p /* prerequisite */ { color: blue; }
-.bug /* buggy */ { color: red; }
+.b /* buggy */ { color: red; }
 .h /* header */ { font-family: monospace; padding: 0 0 0 1ex }
 .cl /* category leftmost */ { border-left: 1px solid black; }
 .ct /* category topmost */ { border-top: 1px solid black; }
@@ -57,14 +56,14 @@ td {
 
 /* background colors */
 thead         { background-color: hsl(0,0%,87%); }
-.shift > span { background-color: hsl(0,0%,87%); }
+.shift > div  { background-color: hsl(0,0%,87%); }
 .e /* even */ { background-color: hsl(0,0%,90%); }
 .o /* odd */  { background-color: hsl(0,0%,95%); }
 
-.shift > span.e,
-.skew  > span.e { background-color: hsl(0,0%,80%); }
-.shift > span.o,
-.skew  > span.o { background-color: hsl(0,0%,87%); }
+.shift > div.e,
+.skew  > div.e { background-color: hsl(0,0%,80%); }
+.shift > div.o,
+.skew  > div.o { background-color: hsl(0,0%,87%); }
 
 th { font-size: 12px; font-family: sans-serif; }
 
@@ -72,7 +71,7 @@ th { font-size: 12px; font-family: sans-serif; }
   position: relative;
   padding: 0;
 }
-.shift > span {
+.shift > div {
   display: block;
   position: relative;
   bottom: 0px;
@@ -88,7 +87,7 @@ th { font-size: 12px; font-family: sans-serif; }
   position: relative;
   padding: 0;
 }
-.skew > span {
+.skew > div {
   display: block;
   position: relative;
   top: 0px;
@@ -102,7 +101,7 @@ th { font-size: 12px; font-family: sans-serif; }
   -o-transform:skew(-45deg,0deg);
   overflow: visible; /*hidden;*/
 }
-.skew > span > span {
+.skew > div > div {
   transform:skew(45deg,0deg) rotate(315deg);
   -ms-transform:skew(45deg,0deg) rotate(315deg);
   -moz-transform:skew(45deg,0deg) rotate(315deg);
@@ -119,11 +118,11 @@ th { font-size: 12px; font-family: sans-serif; }
 .key {
   overflow: visible;
 }
-.key > span {
+.key > div {
   display: block;
   position: relative;
 }
-.key > span > span {
+.key > div > div {
   display: block;
   position: absolute;
   top: 0;
