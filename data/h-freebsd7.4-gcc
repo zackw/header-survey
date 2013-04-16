@@ -1,6 +1,7 @@
 # host: FreeBSD 7.4-RELEASE-p9
 # compile command: gcc
 ## gcc (GCC) 4.2.1 20070719  [FreeBSD]
+:sequence 30
 :category Unix
 :label FreeBSD
 :version 7.4

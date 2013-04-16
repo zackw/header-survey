@@ -1,6 +1,7 @@
 # host: NetBSD 6.0.1
 # compile command: gcc
 ## gcc (NetBSD nb2 20110806) 4.5.3
+:sequence 30
 :category Unix
 :label NetBSD
 :version 6.0

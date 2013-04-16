@@ -1,6 +1,7 @@
 # host: FreeBSD 8.3-RELEASE-p6
 # compile command: cc
 ## cc (GCC) 4.2.1 20070719  [FreeBSD]
+:sequence 30
 :category Unix
 :label FreeBSD
 :version 8.3

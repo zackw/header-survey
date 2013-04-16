@@ -3,6 +3,7 @@
 ## Debian clang version 3.0-6.2 (tags/RELEASE_30/final) (based on LLVM 3.0)
 ## Target: x86_64-pc-linux-gnu
 ## Thread model: posix
+:sequence 20
 :category Unix
 :label GNU libc
 :version 2.13

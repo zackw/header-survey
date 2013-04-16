@@ -1,6 +1,7 @@
 # host: FreeBSD 9.1-RC1 FreeBSD 9.1-RC1 #0: Fri Aug 31 16:21:11 UTC 2012     root@freebsd91-x64-1.snakebite.net:/usr/obj/usr/src/sys/GENERIC
 # compile command: gcc
 ## gcc (GCC) 4.2.1 20070831 patched [FreeBSD]
+:sequence 30
 :category Unix
 :label FreeBSD
 :version 9.1
