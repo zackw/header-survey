@@ -4,19 +4,19 @@
      version="1.1" viewBox="0 0 120 120">
 <defs>
 <symbol id="sY" viewBox="0 0 30 30">
-  <path fill="#008000" d="m26,15a11,11,0,1,1,-22,0,11,11,0,1,1,22,0z"/>
+  <path fill="#4a4" d="m26,15a11,11,0,1,1,-22,0,11,11,0,1,1,22,0z"/>
 </symbol>
 <symbol id="sP" viewBox="0 0 30 30">
-  <path stroke-linejoin="round" stroke-linecap="round" stroke-width="2"
-        stroke="#0000b6" fill="none"
+  <path stroke-linejoin="round" stroke-linecap="round" stroke-width="3"
+        fill="none" stroke="#80c"
         d="m27,15-9,3-3,9-3-9-9-3,9-3,3-9,3,9z"/>
 </symbol>
 <symbol id="sB" viewBox="0 0 30 30">
-  <path stroke-linecap="round" stroke-width="2" stroke="#d40000" fill="none"
+  <path stroke-linecap="round" stroke-width="4" stroke="#d40000" fill="none"
         d="m3,3,24,24m0-24-24,24"/>
 </symbol>
 <symbol id="sN" viewBox="0 0 30 30">
-  <path fill="none" stroke="black"
+  <path fill="none" stroke="#555"
         d="m26,15a11,11,0,1,1,-22,0,11,11,0,1,1,22,0z"/>
 </symbol>
 </defs>
