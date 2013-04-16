@@ -5,15 +5,6 @@
    the copyright notice and this notice are preserved.  It is offered
    as-is, without any warranty. */
 
-@font-face {
-  font-family: "tblmarks";
-  src: url("tblmarks.eot");
-  src: url("f/tblmarks.eot?#iefix") format("embedded-opentype"),
-       url("f/tblmarks.woff") format("woff"),
-       url("f/tblmarks.ttf") format("truetype");
-  unicode-range: U+25C9, U+25CB-25CF, U+2717, U+29BF;
-}
-
 table {
   margin: 20px 0 0 20px;
   border-spacing: 0;
@@ -36,8 +27,6 @@ th[rowspan] {
 td {
   text-align: center; vertical-align: middle;
   padding: 3px 0; margin: 0; border: none;
-  font-family: "tblmarks", sans;
-  font-size: 12px;
 }
 
 .tableFloatingHeader {
@@ -45,11 +34,7 @@ td {
   box-shadow: 0 4px 2px -2px hsla(0,0%,0%,.5);
 }
 
-.y /* yes */ { color: green; }
-.n /* no */ { color: #ccc; }
-.p /* prerequisite */ { color: blue; }
-.b /* buggy */ { color: red; }
-.h /* header */ { font-family: monospace; padding: 0 0 0 1ex }
+.h /* header */ { font-family: monospace; padding: 0 1ex; vertical-align: middle }
 .cl /* category leftmost */ { border-left: 1px solid black; }
 .ct /* category topmost */ { border-top: 1px solid black; }
 .std /* standard */ { width: 8em }
@@ -125,9 +110,55 @@ th { font-size: 12px; font-family: sans-serif; }
 .key > div > div {
   display: block;
   position: absolute;
-  top: 0;
-  left: 20px;
+  top: -20px;
+  left: 10px;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 15px;
   font-weight: normal;
 }
+.key-y, .key-p, .key-b, .key-n {
+  text-indent: -9999em;
+  display: inline-block;
+  vertical-align: middle;
+  width: 12px;
+  height: 12px;
+  background-image: url("spritesheet.png");
+  background-clip: content-box;
+  background-size: 48px 48px;
+  overflow: hidden;
+}
+.key-y { background-position: 0px -12px; }
+.key-p { background-position: 0px -24px; }
+.key-b { background-position: -12px 0px; }
+.key-n { background-position: -24px 0px; }
+
+.y, .p, .b, .n,
+.yp, .yb, .yn, .pb, .pn, .bn,
+.ypb, .ypn, .ybn, .pbn,
+.ypbn {
+  display: inline-block;
+  text-indent: -9999em;
+  width: 15px;
+  height: 15px;
+  background-image: url("spritesheet.png");
+  background-clip: content-box;
+  background-size: 60px 60px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.y   { background-position:  0px  -15px; }
+.p   { background-position:  0px  -30px; }
+.b   { background-position: -15px   0px; }
+.n   { background-position: -30px   0px; }
+.yp  { background-position:  0px  -45px; }
+.yb  { background-position: -15px -15px; }
+.yn  { background-position: -30px -15px; }
+.pb  { background-position: -15px -30px; }
+.pn  { background-position: -30px -30px; }
+.bn  { background-position: -45px   0px; }
+.ypb { background-position: -15px -45px; }
+.ypn { background-position: -30px -45px; }
+.ybn { background-position: -45px -15px; }
+.pbn { background-position: -45px -30px; }
+.ypbn{ background-position: -45px -45px; }
