@@ -1,6 +1,7 @@
 # host: Solaris 2.9 Generic_118558-34
 # compile command: gcc
 ## gcc (GCC) 4.6.3
+:sequence 40
 :category Unix
 :label Solaris
 :version 2.9

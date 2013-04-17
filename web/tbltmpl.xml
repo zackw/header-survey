@@ -19,7 +19,7 @@
             <span class="key-p">P</span>: has prerequisites<br/>
             <span class="key-b">B</span>: unusably buggy<br/>
             <span class="key-n">N</span>: absent<br/>
-            If more than one code appears, any of<br/>them may apply,
+            If more than one symbol appears, any of<br/>them may apply,
             depending on the<br/>compiler in use. Click for details.
           </div>
         </div>
@@ -43,10 +43,11 @@
     <?python def compute_td(i, j, o, h):
         sym = o.get(h)
         if sym is None: sym="N"
-        cls = sym.lower()
-        if i == 0: cls += " ct"
-        if j == 0: cls += " cl"
-        return cls, sym ?>
+        dcls = sym.lower()
+        tcls = ""
+        if i == 0: tcls += " ct"
+        if j == 0: tcls += " cl"
+        return tcls, dcls, sym ?>
     <t:for each="std in stds">
       <tr t:for="i, h in enumerate(sorthdr(std))"
           t:with="alt=cycle(('o','e'))">
@@ -54,8 +55,10 @@
         <th class="h${' ct' if i==0 else ''}">${h}</th>
         <t:for each="oc in oscats">
           <td t:for="j, o in enumerate(oc)"
-              t:with="cls,sym=compute_td(i,j,o,h)"
-              class="${alt.next()} ${cls}">${sym}</td>
+              t:with="tcls,dcls,sym=compute_td(i,j,o,h)"
+              class="${alt.next()} ${tcls}">
+            <div class="${dcls}">${sym}</div>
+          </td>
         </t:for>
       </tr>
     </t:for>

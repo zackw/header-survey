@@ -1,6 +1,7 @@
 # host: Linux 3.8-trunk-amd64 #1 SMP Debian 3.8.3-1~experimental.1
 # compile command: gcc
 ## gcc (Debian 4.7.2-5) 4.7.2
+:sequence 20
 :category Unix
 :label GNU libc
 :version 2.13

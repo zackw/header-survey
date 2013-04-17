@@ -3,6 +3,7 @@
 ## FreeBSD clang version 3.1 (branches/release_31 156863) 20120523
 ## Target: x86_64-unknown-freebsd9.0
 ## Thread model: posix
+:sequence 30
 :category Unix
 :label FreeBSD
 :version 9.1

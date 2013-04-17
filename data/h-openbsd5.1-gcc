@@ -1,6 +1,7 @@
 # host: OpenBSD 5.1 GENERIC#181
 # compile command: gcc -std=gnu99
 ## gcc (GCC) 4.2.1 20070719
+:sequence 30
 :category Unix
 :label OpenBSD
 :version 5.1

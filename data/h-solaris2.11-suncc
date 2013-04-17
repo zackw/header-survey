@@ -1,6 +1,7 @@
 # host: Solaris 2.11 11.1
 # compile command: cc
 ## cc: Sun C 5.12 SunOS_i386 2011/11/16
+:sequence 40
 :category Unix
 :label Solaris
 :version 2.11
