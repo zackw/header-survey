@@ -102,6 +102,7 @@ _universal_readlines_re = re.compile("\r|\n|\r\n")
 def universal_readlines(fname):
     f = open(fname, "rb")
     s = f.read().strip()
+    f.close()
     if s == "": return []
     return _universal_readlines_re.split(s)
 
@@ -113,12 +114,11 @@ def universal_readlines(fname):
 if sys.platform == "win32":
     try:
         from subprocess import list2cmdline
-    except:
+    except ImportError:
         def list2cmdline(seq):
-            # See
-            # http://msdn.microsoft.com/en-us/library/17w5ykft.aspx
-            # or search http://msdn.microsoft.com for
-            # "Parsing C++ Command-Line Arguments"
+            # See http://msdn.microsoft.com/en-us/library/17w5ykft.aspx
+            # or search http://msdn.microsoft.com for "Parsing C++
+            # Command-Line Arguments".
             result = []
             needquote = 0
             for arg in seq:
@@ -157,26 +157,47 @@ if sys.platform == "win32":
                     result.append('"')
 
             return ''.join(result)
-else:
+
+    # Additional layer of quoting required by cmd.exe.
+    # Backslash is *not* a cmd.exe metacharacter; ^ does what
+    # backslash does in Bourne shell.  Space is also *not* a
+    # cmd.exe metacharacter (because each Windows process is
+    # responsible for chopping up its own argument vector).
+    # However, " *is* a cmd.exe metacharacter, and that's the
+    # problem: "blah\"blah" will be misinterpreted.  We take
+    # the brute-force approach and ^-escape every documented
+    # cmd.exe metacharacter.
+    # See http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
+    def list2shell(seq):
+        crtquoted = list2cmdline(seq)
+        result = []
+        for c in crtquoted:
+            if c in r'!"%&()<>^|':
+                result.append('^')
+            result.append(c)
+        return ''.join(result)
+
+else: # not Windows; assume os.system is Bourne-shell-like
     try:
         # shlex.quote is the documented API for Bourne-shell
         # quotation, but was only added very recently.  Note that it
         # only does one argument.
         import shlex
         shellquote1 = shlex.quote
-    except:
+    except (ImportError, AttributeError):
         # pipes.quote is undocumented but has existed all the way back
         # to 2.0.  It is semantically identical to shlex.quote.
         import pipes
         shellquote1 = pipes.quote
-    def list2cmdline(seq):
+
+    def list2shell(seq):
         return " ".join([shellquote1(s) for s in seq])
 
 def invoke(argv):
     """Invoke the command in 'argv' and capture its output."""
     # for a wonder, the incantation to redirect both stdout and
     # stderr to a file is exactly the same on Windows as on Unix!
-    cmdline = list2cmdline(argv) + " > htest-out.txt 2>&1"
+    cmdline = list2shell(argv) + " > htest-out.txt 2>&1"
     msg = [cmdline]
     try:
         rc = os.system(cmdline)
@@ -194,7 +215,7 @@ def platform_id():
         import platform
         x = platform.uname()
         return platform.system_alias(x[0], x[2], x[3])
-    except ImportError:
+    except (ImportError, AttributeError):
         try:
             x = os.uname()
             return (x[0], x[2], x[3])
@@ -506,7 +527,7 @@ class HeaderProber:
         ccid = compiler_id(self.cc[0])
 
         f.write("# host: %s %s %s\n" % (system, release, version))
-        f.write("# compile command: %s\n" % list2cmdline(self.cc))
+        f.write("# compile command: %s\n" % list2shell(self.cc))
         for l in compiler_id(self.cc[0]):
             f.write("## %s\n" % l)
 
