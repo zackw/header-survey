@@ -584,16 +584,18 @@ class Args:
             exitcode = 0
             f = sys.stdout
 
-        f.write("Usage: %s [OPTIONS] [COMPILER AND ARGS]\n"
-                "Probe COMPILER for set of supported common header files.\n"
-                "COMPILER defaults to 'cc'.  List is written to stdout.\n\n"
-                "Options:\n"
-                "  -h, --help            display command line help\n"
-                "  --debug               report all compiler errors\n"
-                "  --datadir=DIRECTORY   directory containing lists of header"
-                                         "files to probe\n"
-                "  --prereqs=FILE        file listing prerequisite sets for"
-                                         "each header\n"
+        f.write("""\
+usage: %s [options] [compiler [args...]]
+
+Determine the set of common header files that are supported by COMPILER.
+COMPILER defaults to 'cc'. The inventory is written to stdout.
+
+options:
+  -h, --help           show this help message and exit
+  --debug              report all compiler errors
+  --datadir DIRECTORY  directory containing lists of header files to probe
+  --prereqs FILE       file listing prerequisite sets for each header
+"""
                 % argv0)
         sys.exit(exitcode)
 
