@@ -7,20 +7,24 @@
 # the copyright notice and this notice are preserved.  It is offered
 # as-is, without any warranty.
 
-# Note to contributors: Unlike scansys.py, this program only needs
-# to work with Python 2.7 and may grow dependencies on third-party
-# libraries in the future (e.g. an HTML generator of some sort).
-# Some code is functionally duplicated from scansys.py but with the
-# compatibility contortions removed; this is why there is no shared
-# support library.
+# Note to contributors: Unlike scansys.py, this program only needs to
+# work with Python 2.7.  Some code is functionally duplicated from
+# scansys.py but with the compatibility contortions removed; this is
+# why there is no shared support library.
+#
+# It requires the Genshi template library, and is likely to grow
+# dependencies on other third-party libraries in the future (such as
+# CSS and JS minifiers).
 
 from __future__ import unicode_literals
 
+import argparse
 import errno
 import itertools
 import os
 import re
 import sys
+import tempfile
 
 from genshi.template import TemplateLoader
 from genshi.core import TEXT
@@ -51,6 +55,135 @@ def natsort_key(s):
         try: return int(s)
         except: return s.lower()
     return tuple(try_int(c) for c in _natsort_split_re.findall(s))
+
+# Create/update files only if necessary.
+# This may not be as thorough as it needs to be.
+def ensure_all_directories(path):
+    """Make sure that all components of PATH exist and are
+       directories.  No-op if they already do.  PATH should be
+       normalized (e.g. via os.path.normpath or os.path.realpath)."""
+    try:
+        os.makedirs(path)
+    except EnvironmentError, e:
+        if e.errno != errno.EEXIST:
+            raise
+
+class UpdateIfChange(file):
+    def __init__(self, fname, binary=False):
+        self.path = os.path.realpath(fname)
+        dname = os.path.dirname(self.path)
+        ensure_all_directories(dname)
+        (fd, tmppath) = tempfile.mkstemp(dir=dname)
+        self.tmppath = tmppath
+        # the file constructor takes only a name, so we have to reopen
+        # we hang onto the original fd for use later
+        self.fd = fd
+        file.__init__(self, tmppath, 'w' + ('b' if binary else ''))
+
+    def close(self):
+        file.close(self)
+        nfd = self.fd
+        ofd = None
+        try:
+            # Compare the old and new files.  If they are identical,
+            # just delete the new file.  If the old file doesn't exist,
+            # create it now; this streamlines processing below, at the
+            # cost of a little additional inode churn.
+            ofd = os.open(self.path, os.O_RDWR | os.O_CREAT)
+            ost = os.fstat(ofd)
+            nst = os.fstat(nfd)
+
+            if ost.st_nlink != 1:
+                os.close(ofd)
+                os.close(nfd)
+                raise RuntimeError("cannot atomically update {!r} with {} links"
+                                   .format(self.path, ost.st_nlink))
+
+            # If they're not the same size they cannot be identical.
+            if ost.st_size == nst.st_size:
+                os.lseek(ofd, 0, os.SEEK_SET)
+                if os.read(nfd, ost.st_size) == os.read(ofd, ost.st_size):
+                    # Identical.
+                    os.close(ofd)
+                    os.close(nfd)
+                    os.unlink(self.tmppath)
+                    return
+
+            # Not identical, so we need to update.  Copy permissions
+            # from ofd to nfd, then rename tmppath over path.
+            # Assumes Unixy rename() semantics.  Does not copy ACLs
+            # or extended attributes (if there's an existing library
+            # to deal with that, please let me know about it).
+            # Only do fchown() if it would make a difference, since
+            # we may not have the privilege to use it.
+            if ost.st_uid != nst.st_uid or ost.st_gid != nst.st_gid:
+                os.fchown(nfd, ost.st_uid, ost.st_gid)
+            os.fchmod(nfd, ost.st_mode)
+            os.close(ofd)
+            os.fsync(nfd)
+            os.close(nfd)
+            os.rename(self.tmppath, self.path)
+            return
+
+        # Make sure to clean up if any of the above processing raises
+        # an exception.  This is not a finally: because we don't want
+        # to do it if nothing went wrong.
+        except:
+            if ofd is not None: os.close(ofd)
+            os.close(nfd)
+            os.unlink(self.tmppath)
+            raise
+
+def update_directory_tree(srcdir, dstdir, process_file):
+    """Update the contents of DSTDIR based on the contents of SRCDIR.
+       For each file below SRCDIR, process_file will be called with
+       arguments (srcpath, dstpath, fname) where srcpath/fname is the
+       file and dstpath is the subdirectory of DSTDIR corresponding to
+       srcpath.  dstpath is not guaranteed to exist when process_file
+       is called.  process_file should return a list of all the
+       pathnames it has created or updated in response to this call;
+       these pathnames should all start with 'dstpath'.  Once SRCDIR
+       has been completely walked, DSTDIR is walked depth-first and
+       all files that were not reported by process_file are deleted,
+       plus all empty directories (except DSTDIR itself)"""
+    pjoin   = os.path.join
+    relpath = os.path.relpath
+    normpath = os.path.normpath
+    dirname = os.path.dirname
+    keep_files = set()
+    keep_dirs = set()
+    success = True
+    def report_error(exc):
+        sys.stderr.write("{}: {}\n".format(exc.filename, exc.strerror))
+        success = False
+
+    for (srcpath, dirs, files) in os.walk(srcdir, onerror=report_error):
+        dstpath = normpath(pjoin(dstdir, relpath(srcpath, srcdir)))
+        for f in files:
+            for created in process_file(srcpath, dstpath, f):
+                if not created.startswith(dstpath):
+                    raise RuntimeError("{} not within {}"
+                                       .format(created, dstpath))
+                keep_files.add(created)
+                keep_dirs.add(dirname(created))
+    if not success:
+        raise SystemExit(1)
+
+    for (path, dirs, files) in os.walk(dstdir, onerror=report_error,
+                                       topdown=False):
+        for f in files:
+            p = pjoin(path, f)
+            if p not in keep_files:
+                try: os.unlink(p)
+                except EnvironmentError, e: report_error(e)
+        for d in dirs:
+            p = pjoin(path, d)
+            if p not in keep_dirs:
+                try: os.rmdir(p)
+                except EnvironmentError, e: report_error(e)
+    if not success:
+        raise SystemExit(1)
+
 
 class Dataset(object):
     def __init__(self, *args, **kwargs):
@@ -205,31 +338,6 @@ class Dataset(object):
     def get(self, x, d=None):
         return self.items.get(x, d)
 
-def load_datasets(dirname):
-    datasets = []
-    rv = 0
-    try:
-        files = os.listdir(dirname)
-    except EnvironmentError, e:
-        sys.stderr.write("{}: {}\n".format(e.filename, e.strerror))
-        rv = 1;
-        return rv, datasets
-
-    for fname in os.listdir(dirname):
-        if not (fname.startswith("b-") or fname.startswith("h-")):
-            continue
-        try:
-            datasets.append(Dataset.from_file(os.path.join(dirname, fname)))
-        except EnvironmentError, e:
-            # silently skip directories
-            # report all other errors and continue
-            if e.errno != errno.EISDIR:
-                sys.stderr.write("{}: {}\n".format(e.filename,
-                                                   e.strerror))
-                rv = 1
-
-    return rv, datasets
-
 def preprocess_osgrp(osgroup):
     assert len(frozenset(os.label for os in osgroup)) == 1
 
@@ -253,7 +361,6 @@ def preprocess_osgrp(osgroup):
     return nverlist
 
 def preprocess(datasets):
-
     # separate standards-sets from os-sets, cluster os-sets by label
     osgrps = {}
     stds = []
@@ -277,6 +384,7 @@ def preprocess(datasets):
     # cluster oses by category
     class OsCat(list):
         def __init__(self, name):
+            list.__init__(self)
             self.name = name
     oscats = []
     curcat = oses[0].category
@@ -290,6 +398,34 @@ def preprocess(datasets):
     oscats.append(curcatlist)
 
     return oscats, stds
+
+def load_datasets(dirname):
+    datasets = []
+    rv = 0
+    try:
+        files = os.listdir(dirname)
+    except EnvironmentError, e:
+        sys.stderr.write("{}: {}\n".format(e.filename, e.strerror))
+        raise SystemExit(1)
+
+    for fname in files:
+        if not (fname.startswith("b-") or fname.startswith("h-")):
+            continue
+        try:
+            datasets.append(Dataset.from_file(os.path.join(dirname, fname)))
+        except EnvironmentError, e:
+            # silently skip directories
+            # report all other errors and continue
+            if e.errno != errno.EISDIR:
+                sys.stderr.write("{}: {}\n".format(e.filename,
+                                                   e.strerror))
+                rv = 1
+
+    if rv != 0: raise SystemExit(rv)
+    return datasets
+
+def load_prereqs(fname):
+    return [] # stub
 
 # If someone can suggest a more elegant, or at least less repetitive,
 # way to write this transform, I am all ears.
@@ -322,42 +458,83 @@ def collapse_ws_xml(stream):
             tqueue_data = wsre.sub(" ", tqueue_data)
             yield TEXT, tqueue_data, tqueue_pos
 
+class PageWriter(object):
+    def __init__(self, args):
+        datasets = load_datasets(args.datadir)
+        self.prereqs = load_prereqs(args.prereqs)
+        self.oscats, self.stds = preprocess(datasets)
+        self.tmpldir = args.template
+        self.loader = TemplateLoader(self.tmpldir)
 
-def write_html(f, oscats, stds):
-    loader = TemplateLoader(["web"])
-    tmpl = loader.load("tbltmpl.xml")
-    stream = tmpl.generate(oscats=oscats,
-                           stds=stds,
-                           enumerate=enumerate,
-                           sorthdr=sorthdr,
-                           cycle=itertools.cycle)
-    for chunk in HTMLSerializer(doctype='html5')(collapse_ws_xml(stream)):
-        f.write(chunk.encode('utf-8'))
+    def __call__(self, srcdir, dstdir, fname):
+        # ignore editor backup files
+        if fname[-1] == '~' or (fname[0] == '#' and fname[-1] == '#'):
+            return []
+
+        srcname = os.path.join(srcdir, fname)
+        (base, ext) = os.path.splitext(fname)
+        dstname = os.path.join(dstdir, base)
+
+        if ext == '.tmpl':
+            dstname += '.html'
+            self.write_tmpl(srcname, dstname)
+        else:
+            dstname += ext
+            self.copy_file(srcname, dstname)
+
+        return [dstname]
+
+    def copy_file(self, srcname, dstname):
+        with UpdateIfChange(dstname, binary=True) as to:
+            with open(srcname, 'rb') as frm:
+                to.write(frm.read())
+
+    def write_tmpl(self, srcname, dstname):
+        tmpl = self.loader.load(os.path.relpath(srcname, self.tmpldir))
+        stream = tmpl.generate(oscats=self.oscats,
+                               stds=self.stds,
+                               prereqs=self.prereqs,
+                               enumerate=enumerate,
+                               sorthdr=sorthdr,
+                               cycle=itertools.cycle)
+        stream = collapse_ws_xml(stream)
+        with UpdateIfChange(dstname) as f:
+            for chunk in HTMLSerializer(doctype='html5')(stream):
+                f.write(chunk.encode('utf-8'))
 
 def main():
-    if len(sys.argv) == 1:
-        dirname = "."
-    elif (len(sys.argv) == 2
-          and sys.argv[1] != "-h" and sys.argv[1] != "--help"):
-        dirname = sys.argv[1]
-    elif (len(sys.argv) == 3 and sys.argv[1] == "--"):
-        dirname = sys.argv[2]
-    else:
-        sys.stderr.write("usage: " + os.basename(argv[0]) + " directory\n"
-                         "Generates a table of header usage from h- and "
-                         "b-files found in DIRECTORY.\n"
-                         "Table is written to stdout.\n\n")
-        if (len(sys.argv) == 2 and (sys.argv[1] == "-h" or
-                                    sys.argv[1] == "--help")):
-            sys.exit(0)
-        else:
-            sys.exit(2)
+    argp = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="""
+Generate a webpage showing per-OS availability of header files, from
+the data files in DATADIR, the prerequisite table PREREQS, and the
+templates in TMPLDIR.  The page is written to OUTDIR.
+""")
+    # Monkey-patch out the stupid hardwired names for arguments and options.
+    # There doesn't appear to be any better way to do this (stuffing
+    # everything in a group of our own works but then we have to implement
+    # --help by hand).
+    for g in getattr(argp, '_action_groups', []):
+        if g.title == 'positional arguments':
+            g.title = 'arguments'
+        elif g.title == 'optional arguments':
+            g.title = 'options'
 
-    rv, datasets = load_datasets(dirname)
-    if rv != 0: sys.exit(rv)
+    argp.add_argument('-d', '--datadir', metavar='DATADIR',
+                      help='directory containing lists of header files per OS',
+                      default='data')
+    argp.add_argument('-p', '--prereqs', metavar='PREREQS',
+                      help='file listing prerequisite sets for each header',
+                      default='prereqs.ini')
+    argp.add_argument('-t', '--template', metavar='TMPLDIR',
+                      help='directory containing template for webpage',
+                      default='tmpl')
+    argp.add_argument('-o', '--output', metavar='OUTDIR',
+                      help='output directory; contents will be overwritten!',
+                      default='web')
 
-    oscats, stds = preprocess(datasets)
-    write_html(sys.stdout, oscats, stds)
-    sys.exit(0)
+    args = argp.parse_args()
+    writer = PageWriter(args)
+    update_directory_tree(args.template, args.output, writer)
 
 if __name__ == '__main__': main()
