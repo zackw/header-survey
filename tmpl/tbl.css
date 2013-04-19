@@ -5,6 +5,8 @@
    the copyright notice and this notice are preserved.  It is offered
    as-is, without any warranty. */
 
+aside { max-width: 500px }
+
 table {
   margin: 20px 0 0 20px;
   border-spacing: 0;

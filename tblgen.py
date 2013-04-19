@@ -19,6 +19,7 @@
 from __future__ import unicode_literals
 
 import argparse
+import ConfigParser
 import errno
 import itertools
 import os
@@ -26,9 +27,11 @@ import re
 import sys
 import tempfile
 
-from genshi.template import TemplateLoader
 from genshi.core import TEXT
+from genshi.builder import tag as Tag
+from genshi.input import HTML
 from genshi.output import HTMLSerializer
+from genshi.template import TemplateLoader
 from string import punctuation as _punctuation
 
 # Sort a list of pathnames, ASCII case-insensitively.  All
@@ -48,6 +51,12 @@ def hsortkey(h):
 def sorthdr(hs):
     return sorted(hs, key=hsortkey)
 
+make_id_re=re.compile(r'[^A-Za-z0-9_]')
+def make_id(s):
+    s = make_id_re.sub("_", s)
+    if s[0] in "0123456789": s = "_"+s
+    return s
+
 # hat tip to http://code.activestate.com/recipes/285264-natural-string-sorting/
 _natsort_split_re = re.compile(r'(\d+|\D+)')
 def natsort_key(s):
@@ -55,6 +64,15 @@ def natsort_key(s):
         try: return int(s)
         except: return s.lower()
     return tuple(try_int(c) for c in _natsort_split_re.findall(s))
+
+# http://code.activestate.com/recipes/511480-interleaving-sequences/
+def interleave(*args):
+    for idx in range(0, max(len(arg) for arg in args)):
+        for arg in args:
+            try:
+                yield arg[idx]
+            except IndexError:
+                continue
 
 # Create/update files only if necessary.
 # This may not be as thorough as it needs to be.
@@ -425,7 +443,60 @@ def load_datasets(dirname):
     return datasets
 
 def load_prereqs(fname):
-    return [] # stub
+    """Read prereqs.ini and generate a table of each header's prerequisites.
+       The return value is a dictionary mapping each header in the .ini to
+       an *expanded* (transitive) list of its prerequisites.
+       For specials, the dictionary entry is instead the text of the
+       first comment in the special declaration."""
+
+    ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
+    def extract_comment(text):
+        m = ecre.search(text)
+        if not m: return "???special without explanation???"
+        return HTML(m.group(1).decode('utf-8'))
+
+    def expand_prereq(h, prereqs):
+        r = set()
+        for p in prereqs.get(h, []):
+            r.add(p)
+            r |= expand_prereq(p, prereqs)
+        return r
+
+    def prereq_note(prereqs):
+        pq = sorthdr(prereqs)
+        if len(pq) == 1:
+            return Tag("May require ", Tag.code(pq[0]), ".")
+        elif len(pq) == 2:
+            return Tag("May require ", Tag.code(pq[0]),
+                       " and/or ", Tag.code(pq[1]), ".")
+        else:
+            l = [Tag.code(p) for p in pq]
+            s = (", ",)*(len(l) - 2) + (", and ",)
+            r = tuple(interleave(l, s))
+            return Tag(*(("May require some or all of: ",) + r + (".",)))
+
+    prerequisites = {}
+    specials = {}
+    parser = ConfigParser.ConfigParser()
+    parser.read(fname)
+
+    if parser.has_section("prerequisites"):
+        for h in parser.options("prerequisites"):
+            prerequisites[h.strip()] = \
+                parser.get("prerequisites", h).split()
+    if parser.has_section("special"):
+        for h in parser.options("special"):
+            specials[h] = parser.get("special", h).strip()
+
+    expanded = {}
+    for h in prerequisites:
+        expanded[h] = [prereq_note(expand_prereq(h, prerequisites))]
+    for h in specials:
+        assert h not in expanded
+        expanded[h] = [extract_comment(specials[h])]
+
+    return expanded
+
 
 # If someone can suggest a more elegant, or at least less repetitive,
 # way to write this transform, I am all ears.
@@ -444,9 +515,8 @@ def collapse_ws_xml(stream):
                 tqueue_data = data
         else:
             if tqueue_pos is not None:
-                tqueue_data = tqueue_data.strip()
-                if tqueue_data != "":
-                    tqueue_data = wsre.sub(" ", tqueue_data)
+                tqueue_data = wsre.sub(" ", tqueue_data)
+                if tqueue_data != "" and tqueue_data != " ":
                     yield TEXT, tqueue_data, tqueue_pos
                 tqueue_pos = None
                 tqueue_data = None
@@ -461,7 +531,7 @@ def collapse_ws_xml(stream):
 class PageWriter(object):
     def __init__(self, args):
         datasets = load_datasets(args.datadir)
-        self.prereqs = load_prereqs(args.prereqs)
+        self.notes = load_prereqs(args.prereqs)
         self.oscats, self.stds = preprocess(datasets)
         self.tmpldir = args.template
         self.loader = TemplateLoader(self.tmpldir)
@@ -493,9 +563,10 @@ class PageWriter(object):
         tmpl = self.loader.load(os.path.relpath(srcname, self.tmpldir))
         stream = tmpl.generate(oscats=self.oscats,
                                stds=self.stds,
-                               prereqs=self.prereqs,
+                               notes=self.notes,
                                enumerate=enumerate,
                                sorthdr=sorthdr,
+                               make_id=make_id,
                                cycle=itertools.cycle)
         stream = collapse_ws_xml(stream)
         with UpdateIfChange(dstname) as f:

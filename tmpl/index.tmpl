@@ -56,14 +56,20 @@
         <t:for each="oc in oscats">
           <td t:for="j, o in enumerate(oc)"
               t:with="tcls,dcls,sym=compute_td(i,j,o,h)"
-              class="${alt.next()} ${tcls}">
-            <div class="${dcls}">${sym}</div>
+              class="${alt.next()}${tcls}">
+            <a t:strip="h not in notes"
+               href="#${make_id(h)}"><div class="${dcls}">${sym}</div></a>
           </td>
         </t:for>
       </tr>
     </t:for>
   </tbody>
 </table>
+<h2>Notes</h2>
+<aside t:for="h in sorthdr(notes)" id="${make_id(h)}">
+  <h3><code>${h}</code></h3>
+  <ul><li t:for="n in notes[h]">${n}</li></ul>
+</aside>
 <script defer="defer" src="jquery-1.9.1.min.js"/>
 <script defer="defer" src="jquery.stickytableheaders.js"/>
 <script><![CDATA[window.onload=function(){
