@@ -209,57 +209,101 @@ def invoke(argv):
             msg.append("%s: %s" % (argv[0], e.strerror))
     return (rc, msg)
 
-# platform identification
-def platform_id():
-    try:
-        import platform
-        x = platform.uname()
-        return platform.system_alias(x[0], x[2], x[3])
-    except (ImportError, AttributeError):
+class SysLabel:
+    """System information label."""
+    def __init__(self, args):
+        if args.compiler is not None:
+            self.compiler = args.compiler
+        else:
+            self.compiler = args.cc[0]
+        self.ccid = self.compiler_id(args.cc[0])
+
+        system,release,version = self.platform_id()
+        if args.unameversion:
+            self.hostid = " ".join((system, release, version))
+        else:
+            self.hostid = " ".join((system, release))
+
+        if args.category is not None:
+            self.category = args.category
+        else:
+            self.category = "unknown"
+        if args.label is not None:
+            self.label = args.label
+        else:
+            self.label = system
+        if args.version is not None:
+            self.version = args.version
+        else:
+            self.version = version
+
+        self.sequence = args.sequence
+
+    def platform_id(self):
         try:
-            x = os.uname()
-            return (x[0], x[2], x[3])
-        except AttributeError:
-            return (sys.platform, "unknown", "unknown")
+            import platform
+            x = platform.uname()
+            return platform.system_alias(x[0], x[2], x[3])
+        except (ImportError, AttributeError):
+            try:
+                x = os.uname()
+                return (x[0], x[2], x[3])
+            except AttributeError:
+                return (sys.platform, "unknown", "unknown")
 
-_compiler_id_stop_re = re.compile(
-    r'unrecognized option|must have argument|not found|warning|error|usage|'
-    r'must have argument|copyright|informational note 404|no input files',
-                  re.IGNORECASE)
+    _compiler_id_stop_re = re.compile(
+        r'unrecognized option|must have argument|not found|warning|error|usage|'
+        r'must have argument|copyright|informational note 404|no input files',
+        re.IGNORECASE)
 
-def _compiler_id_1(cc, opt):
-    # some versions of HP cc won't print their version info unless you
-    # give them something to compile, le sigh
-    made_dummy_i = 0
-    if opt.endswith("dummy.i"):
-        made_dummy_i = 1
-        open("dummy.i", "w").write("int foo;\n")
-    (stdin, stdout) = os.popen4(cc + " " + opt)
-    stdin.close()
+    def _compiler_id_1(self, cc, opt):
+        # some versions of HP cc won't print their version info unless you
+        # give them something to compile, le sigh
+        if opt.endswith("dummy.i"):
+            f = open("dummy.i", "w")
+            f.write("int foo;\n")
+            f.close()
+        # we know by construction that 'opt' should _not_ be shell-quoted
+        (stdin, stdout) = os.popen4(list2shell([cc]) + " " + opt)
+        stdin.close()
 
-    results = []
+        results = []
 
-    for l in stdout.read().split("\n"):
-        l = l.strip()
-        if l == "": continue
-        if _compiler_id_stop_re.search(l): break
-        results.append(l)
+        for l in stdout.read().split("\n"):
+            l = l.strip()
+            if l == "": continue
+            if self._compiler_id_stop_re.search(l): break
+            results.append(l)
 
-    stdout.close()
-    return results
+        stdout.close()
+        # this lines up with the "# cc: " put on the first line by write()
+        return "\n#     ".join(results)
 
-def compiler_id(cc):
-    # gcc, clang: --version
-    # sun cc, compaq cc, HP CC: -V
-    # mipspro cc: -version
-    # xlc: -qversion
-    # -qversion is first because xlc's behavior upon receiving an unrecognized
-    # option is to dump out its _entire manpage!_
-    for opt in ("-qversion", "--version", "-V", "-version", "-V -c dummy.i"):
-        r = _compiler_id_1(cc, opt)
-        if len(r) > 0:
-            return r
-    return []
+    def compiler_id(self, cc):
+        # gcc, clang: --version
+        # sun cc, compaq cc, HP CC: -V (possibly with a dummy compilation)
+        # mipspro cc: -version
+        # xlc: -qversion
+        # cl: prints its version number (among other things) upon
+        #     encountering any unrecognized invocation
+        # -qversion is first because xlc's behavior upon receiving an
+        # unrecognized option is to dump out its _entire manpage!_
+        for opt in ("-qversion", "--version", "-V", "-version",
+                    "-V -c dummy.i"):
+            r = self._compiler_id_1(cc, opt)
+            if len(r) > 0:
+                return r
+        return []
+
+    def write(self, f):
+        f.write("# host: %s\n" % self.hostid)
+        f.write("# cc: %s\n" % self.ccid)
+        if self.sequence is not None:
+            f.write(":sequence %d\n" % self.sequence)
+        f.write(":category %s\n" % self.category)
+        f.write(":label %s\n" % self.label)
+        f.write(":version %s\n" % self.version)
+        f.write(":compiler %s\n" % self.compiler)
 
 # from http://code.activestate.com/recipes/578272-topological-sort/
 def toposort(data):
@@ -365,6 +409,7 @@ class HeaderProber:
     def __init__(self, args):
         self.debug = args.debug
         self.cc = args.cc
+        self.syslabel = SysLabel(args)
         self.read_prereqs(args.prereqs)
         self.read_headers(args.datadir)
 
@@ -523,19 +568,7 @@ class HeaderProber:
 
     def report(self, f):
         """Write a report on everything we have found to file F."""
-        system,release,version = platform_id()
-        ccid = compiler_id(self.cc[0])
-
-        f.write("# host: %s %s %s\n" % (system, release, version))
-        f.write("# compile command: %s\n" % list2shell(self.cc))
-        for l in compiler_id(self.cc[0]):
-            f.write("## %s\n" % l)
-
-        f.write(":category unknown\n")
-        f.write(":label %s\n" % system)
-        f.write(":version %s\n" % release)
-        f.write(":compiler %s\n" % os.path.basename(self.cc[0]))
-
+        self.syslabel.write(f)
         for h in sorthdr(self.known_headers.keys()):
             v = self.known_headers[h]
             if type(v) == type((None,)):
@@ -592,6 +625,12 @@ COMPILER defaults to 'cc'. The inventory is written to stdout.
 
 options:
   -h, --help           show this help message and exit
+  -c, --cattag CAT     set the :category tag in the output
+  -l, --lbltag LABEL   set the :label tag in the output
+  -v, --vertag VERS    set the :version tag in the output
+  -C, --cctag CC       set the :compiler tag in the output
+  -s, --seqtag SEQ     set the :sequence tag in the output
+  --no-uname-version   do not put `uname -v` in the output
   --debug              report all compiler errors
   --datadir DIRECTORY  directory containing lists of header files to probe
   --prereqs FILE       file listing prerequisite sets for each header
@@ -607,11 +646,20 @@ options:
         self.debug = 0
         self.datadir = "data"
         self.prereqs = "prereqs.ini"
+        self.category = None
+        self.label = None
+        self.version = None
+        self.compiler = None
+        self.sequence = None
+        self.unameversion = 1
 
         try:
-            opts, args = getopt.getopt(argv[1:], "h",
+            opts, args = getopt.getopt(argv[1:], "hc:l:v:C:s:",
                                        ["help", "debug",
-                                        "datadir=", "prereqs="])
+                                        "datadir=", "prereqs=",
+                                        "cattag=", "lbltag=",
+                                        "vertag=", "cctag=",
+                                        "seqtag=", "no-uname-version"])
         except getopt.GetoptError, e:
             self.usage(argv[0], str(e))
 
@@ -622,8 +670,27 @@ options:
                 self.prereqs = a
             elif o == "--debug":
                 self.debug = 1
+            elif o == "--no-uname-version":
+                self.unameversion = 0
             elif o in ("-h", "--help"):
                 self.usage(argv[0])
+            elif o in ("-c", "--cattag"):
+                self.category = a
+            elif o in ("-l", "--lbltag"):
+                self.label = a
+            elif o in ("-v", "--vertag"):
+                self.version = a
+            elif o in ("-C", "--cctag"):
+                self.compiler = a
+            elif o in ("-s", "--seqtag"):
+                try:
+                    self.sequence = int(a)
+                except ValueError:
+                    self.usage(argv[0], "argument to %s must be an integer"
+                               "between 0 and 100 (inclusive)" % o)
+                if self.sequence < 0 or self.sequence > 100:
+                    self.usage(argv[0], "argument to %s must be an integer"
+                               "between 0 and 100 (inclusive)" % o)
             else:
                 self.usage(argv[0], "impossible argument %s %s" % (o, a))
 
