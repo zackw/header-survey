@@ -497,8 +497,8 @@ def prereq_ann(prereqs):
     else:
         rv = "$ Requires "
         for p in prereqs[:-1]:
-            rv.append("<code>%s</code>, " % cgi.escape(p))
-        rv.append("<code>%s</code>.\n" % cgi.escape(prereqs[-1]))
+            rv += ("<code>%s</code>, " % cgi.escape(p))
+        rv += ("<code>%s</code>.\n" % cgi.escape(prereqs[-1]))
         return rv
 
 ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
