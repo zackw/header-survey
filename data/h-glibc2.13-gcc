@@ -192,3 +192,6 @@ sys/unistd.h
 sys/user.h
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
+:cccmd ['gcc']
+:unameversion 1
