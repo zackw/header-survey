@@ -160,3 +160,4 @@ sys/un.h
 sys/unistd.h
 sys/utsname.h
 sys/wait.h
+:cccmd ['gcc']

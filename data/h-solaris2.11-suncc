@@ -181,3 +181,4 @@ sys/unistd.h
 sys/user.h
 sys/utsname.h
 sys/wait.h
+:cccmd ['cc']
