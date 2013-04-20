@@ -490,16 +490,16 @@ def prereq_combs(prereqs):
 
 def prereq_ann(prereqs):
     if len(prereqs) == 1:
-        return "$ Requires <code>%s</code>.\n" % cgi.escape(prereqs[0])
+        rv = "Requires <code>%s</code>." % cgi.escape(prereqs[0])
     elif len(prereqs) == 2:
-        return ("$ Requires <code>%s</code> and <code>%s</code>.\n"
+        rv = ("Requires <code>%s</code> and <code>%s</code>."
                 % (cgi.escape(prereqs[0]), cgi.escape(prereqs[1])))
     else:
-        rv = "$ Requires "
+        rv = "Requires "
         for p in prereqs[:-1]:
             rv += ("<code>%s</code>, " % cgi.escape(p))
-        rv += ("<code>%s</code>.\n" % cgi.escape(prereqs[-1]))
-        return rv
+        rv += ("and <code>%s</code>." % cgi.escape(prereqs[-1]))
+    return rewrap(rv, prefix="$ ")
 
 ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
 def special_ann(text):
