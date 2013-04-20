@@ -1,13 +1,13 @@
-# host: Linux 3.8-trunk-amd64 #1 SMP Debian 3.8.3-1~experimental.1
-# compile command: clang
-## Debian clang version 3.0-6.2 (tags/RELEASE_30/final) (based on LLVM 3.0)
-## Target: x86_64-pc-linux-gnu
-## Thread model: posix
+# host: Linux 3.8-trunk-amd64 #1 SMP Debian 3.8.5-1~experimental.1
+# cc: Debian clang version 3.0-6.2 (tags/RELEASE_30/final) (based on LLVM 3.0)
+#     Target: x86_64-pc-linux-gnu
+#     Thread model: posix
 :sequence 20
 :category Unix
 :label GNU libc
 :version 2.13
 :compiler clang
+:gen 1
 a.out.h
 aio.h
 alloca.h
@@ -57,6 +57,10 @@ pthread.h
 pwd.h
 regex.h
 %regexp.h
+$ <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/regexp.html"
+$ >SVID <code>regexp.h</code></a> requires the including file to define
+$ several macros, which are used in the bodies of inlined function
+$ definitions.
 resolv.h
 sched.h
 search.h
@@ -137,6 +141,7 @@ rpcsvc/mount.h
 rpcsvc/nfs_prot.h
 rpcsvc/nis.h
 %rpcsvc/nislib.h
+$ Requires <code>rpcsvc/nis.h</code>.
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
 rpcsvc/rquota.h

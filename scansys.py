@@ -40,11 +40,17 @@
 
 import ConfigParser
 import StringIO
+import cgi
 import getopt
 import os
 import re
 import shutil
 import sys
+
+# If you make a major change to this program, and it would be
+# worthwhile to regenerate all previously-taken inventories with the
+# new version, increase this number.
+OUTPUT_GENERATION_NO = 1
 
 # suppress all Python warnings, since we deliberately use deprecated
 # things (that were the only option in 2.0)
@@ -53,6 +59,19 @@ try:
     warnings.simplefilter("ignore")
 except:
     pass
+
+# used only for neatness, so the fallback is a stub
+try:
+    import textwrap
+    def rewrap(text, prefix):
+        return textwrap.fill(text, width=75,
+                             initial_indent=prefix,
+                             subsequent_indent=prefix,
+                             break_long_words=0,
+                             break_on_hyphens=0) + "\n"
+except ImportError:
+    def rewrap(text, prefix):
+        return prefix + text.strip().replace("\n", " ") + "\n"
 
 # It may be necessary to monkey-patch ConfigParser to accept / in an
 # option name.
@@ -304,6 +323,7 @@ class SysLabel:
         f.write(":label %s\n" % self.label)
         f.write(":version %s\n" % self.version)
         f.write(":compiler %s\n" % self.compiler)
+        f.write(":gen %s\n" % OUTPUT_GENERATION_NO)
 
 # from http://code.activestate.com/recipes/578272-topological-sort/
 def toposort(data):
@@ -403,6 +423,94 @@ def sorthdr(hs):
         khs.sort()
         return [x[1] for x in khs]
 
+def all_prereqs_r(h, prereqs, known, rv):
+    """Recursive worker subroutine of all_prereqs (see below)."""
+
+    # don't add a header more than once
+    if h in rv: return
+
+    # consider all possible prerequisites of this header even if this
+    # version of this header doesn't need them, because prereqs.ini is
+    # abbreviated by not listing C->A when C->B and B->A, but C might
+    # itself need A even if B doesn't
+    for p in prereqs.get(h, []):
+        all_prereqs_r(p, prereqs, known, rv)
+
+    # skip headers known to not exist or to be buggy
+    if known.get(h, ("!",))[0] == "!": return
+
+    rv.append(h)
+
+def all_prereqs(h, prereqs, known):
+    """Produce a list of all the prerequisites of H (from PREREQS),
+       recursively, which are known to exist.  Do not include any
+       header more than once.  Do not include H itself in the list."""
+    rv = []
+    all_prereqs_r(h, prereqs, known, rv)
+    if len(rv) > 0 and rv[-1] == h: rv.pop()
+    return rv
+
+def prereq_combs_r(lo, hi, elts, work, rv):
+    """Recursive worker subroutine of prereq_combs (see below)."""
+    if lo < hi:
+        if lo == 0:
+            nlo = 0
+        else:
+            nlo = work[lo-1] + 1
+        for i in xrange(nlo, len(elts)):
+            work[lo] = i
+            prereq_combs_r(lo+1, hi, elts, work, rv)
+    else:
+        rv.append([elts[work[i]] for i in xrange(hi)])
+
+def prereq_combs(prereqs):
+    """Given an ordered list of header files, PREREQS, that may be
+       necessary prior to inclusion of some other header, produce a
+       list of all possible subsets of that list, maintaining order.
+       (This is not a generator because generators did not exist in
+       2.0.  We expect we can get away with generating a list of 2^N
+       lists, as len(prereqs) is 4 in the worst case currently known.)
+       The list is in "banker's" order as defined in
+       http://applied-math.org/subset.pdf -- all 1-element subsets, then
+       all 2-element subsets, and so on.  The algorithm is also taken
+       from that paper."""
+    rv = []
+    l = len(prereqs)
+    work = [None]*l
+    for i in xrange(l+1):
+        prereq_combs_r(0, i, prereqs, work, rv)
+    return rv
+
+# Annotation generation.
+# Annotation lines starting with $ are consumed by tblgen.py and
+# attached to the relevant header/OS entry.  They can contain
+# arbitrary HTML.
+# Annotation lines starting with # are ignored; we use them for
+# "raw" error messages needing human editing.
+
+def prereq_ann(prereqs):
+    if len(prereqs) == 1:
+        return "$ Requires <code>%s</code>.\n" % cgi.escape(prereqs[0])
+    elif len(prereqs) == 2:
+        return ("$ Requires <code>%s</code> and <code>%s</code>.\n"
+                % (cgi.escape(prereqs[0]), cgi.escape(prereqs[1])))
+    else:
+        rv = "$ Requires "
+        for p in prereqs[:-1]:
+            rv.append("<code>%s</code>, " % cgi.escape(p))
+        rv.append("<code>%s</code>.\n" % cgi.escape(prereqs[-1]))
+        return rv
+
+ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
+def special_ann(text):
+    m = ecre.search(text)
+    if not m: return "$ ???special without explanation???\n"
+    return rewrap(m.group(1), prefix="$ ")
+
+def buggy_ann(errors):
+    return ("$ PLACEHOLDER: Write an explanation of the problem!\n## "
+            + "\n## ".join(errors) + "\n")
+
 class HeaderProber:
     """Engine class - this does all the real work."""
 
@@ -451,38 +559,6 @@ class HeaderProber:
 
         self.headers = toposort_headers(headers.keys(), self.prerequisites)
 
-    def include(self, f, h):
-        """Subroutine of gensrc, handles one header."""
-        s = self.specials.get(h)
-        if s is not None:
-            f.write(s)
-        else:
-            for p in self.prerequisites.get(h, []):
-                # only include this prereq if it's available and not buggy
-                state = self.known_headers.get(p, None)
-                if type(state) == type(""):
-                    self.include(f, p)
-                elif self.debug:
-                    sys.stderr.write("%s: skipping prereq %s: state=%s\n"
-                                     % (h, p, repr(state)))
-        f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
-
-    def gensrc(self, header, bare):
-        """Generate a source file that tests the inclusion of HEADER."""
-        src = "htest.c"
-        f = open(src, "w")
-        if bare:
-            f.write("#include <%s>\n" % (os.path.join(*header.split("/"))))
-        else:
-            self.include(f, header)
-        # End with a global definition, in case some compiler
-        # doesn't like source files that define nothing.
-        # The #undefs are probably unnecessary, but you never know.
-        f.write("#undef int\n#undef main\n#undef void\n#undef return\n"
-                "int main(void){return 0;}\n")
-        f.close()
-        return src
-
     def probe_report(self, header, state, errors, src):
         if not self.debug: return
         sys.stderr.write("%s: %s\n" % (header, state))
@@ -494,57 +570,118 @@ class HeaderProber:
                 sys.stderr.write("| %s\n" % l.strip())
             sys.stderr.write('\n')
 
+    def include(self, f, h, dospecial):
+        """Subroutine of gensrc, handles one header."""
+        s = self.specials.get(h)
+        if s is not None and (dospecial or
+                              self.known_headers.get(h, ("",))[0] == '%'):
+            f.write(s)
+        f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
+
+    def gensrc(self, header, prereqs=[], dospecial=0, trailer=1):
+        """Generate a source file that tests the inclusion of HEADER."""
+        src = "htest.c"
+        f = open(src, "w")
+
+        for p in prereqs:
+            self.include(f, p, 0)
+        self.include(f, header, dospecial)
+        if trailer:
+            # End with a global definition, in case some compiler
+            # doesn't like source files that define nothing.
+            f.write("int main(void){return 0;}\n")
+        f.close()
+        return src
+
     def probe_one(self, header):
         """Probe for one header.  This goes in several stages:
 
-           * First preprocess (cc -E) a source file that just includes
-             HEADER.  If this fails, the header is _absent_, and it is
-             not added to known_headers.
+           * First, we loop over the sets of possible prerequisites
+             provided by prereq_combs(), attempting to compile a
+             source file (cc -c) that includes HEADER plus the
+             prerequisite set.  If this succeeds, the header is
+             considered to be available, and is added to
+             known_headers.  If the prerequisite set used was empty,
+             the value in known_headers is ("", "") otherwise it is
+             ("%", prereq_ann(prereqs)).
 
-           * Next compile (cc -c) a source file that just includes HEADER.
-             If this succeeds, the header is _correct_, and is added to
-             known_headers with value "".
+             If the header is in the "specials" set, we just try it
+             first without, then with, the special text.  If it
+             succeeds without the special text, the value in
+             known_headers is ("", "") otherwise it is
+             ("%", special_ann(special text)).
 
-           * Next, if the header has an entry in prerequisites or
-             specials, compile (cc -c) a source file with those
-             applied.  If that succeeds, the header is _dependent_,
-             and is added to known_headers with value "%".
+           * If none of the compilations in stage one succeeded, we
+             save the error messages emitted from the compilation with
+             the maximal set of prerequisites (conveniently, this is
+             always the last compilation) and attempt to preprocess
+             (cc -E) a source file containing _only_ "#include <header>".
+             If this succeeds, the header is considered to be _buggy_
+             and is added to known_headers with value
+             ("!", buggy_ann(error messages)).
 
-           * Finally, if that too fails, the header is _buggy_, and is
-             added to known_headers with value ("!", <error messages>).
+           * But if that too failed, the header is _absent_ and is not
+             added to known_headers.
 
            The values set in known_headers are chosen for the
            convenience of report(), which see, and ultimately wind up
            being used by tblgen.py."""
-        src = self.gensrc(header, bare=1)
-        (rc, errors) = invoke(self.cc + ["-E", src])
-        if rc != 0:
-            # It's not out of the question that the header exists but
-            # needs its prereqs in order to *preprocess* successfully.
-            # (Because of #error conditions satisfied by the prereqs,
-            # for instance.  Seen for reals on IRIX6.)  Retry that way.
-            src = self.gensrc(header, bare=0)
-            (rc, perrors) = invoke(self.cc + ["-E", src])
-            if rc != 0:
-                self.probe_report(header, "absent", errors, src)
+
+        if self.specials.get(header, None) is not None:
+            if self.debug:
+                sys.stderr.write("%s: trying without special handling\n"
+                                 % header, repr(pc))
+            src = self.gensrc(header)
+            (rc, errors) = invoke(self.cc + ["-c", src])
+            if rc == 0:
+                self.probe_report(header, "correct", errors, src)
+                self.known_headers[header] = ("","")
                 return
 
-        src = self.gensrc(header, bare=1)
-        (rc, errors) = invoke(self.cc + ["-c", src])
-        if rc == 0:
-            self.probe_report(header, "correct", errors, src)
-            self.known_headers[header] = ""
-            return
+            if self.debug:
+                sys.stderr.write("%s: trying with special handling\n"
+                                 % header, repr(pc))
+            src = self.gensrc(header, dospecial=1)
+            (rc, errors) = invoke(self.cc + ["-c", src])
+            if rc == 0:
+                self.probe_report(header, "dependent", errors, src)
+                self.known_headers[header] = \
+                    ("%", special_ann(self.specials[header]))
+                return
 
-        src = self.gensrc(header, bare=0)
-        (rc, errors) = invoke(self.cc + ["-c", src])
-        if rc == 0:
-            self.probe_report(header, "dependent", errors, src)
-            self.known_headers[header] = "%"
+        else:
+            prereqs = all_prereqs(header, self.prerequisites,
+                                  self.known_headers)
+            if self.debug:
+                sys.stderr.write("%s: possible prereqs %s\n" %
+                                 (header, repr(prereqs)))
+            # note: the list that prereq_combs() returns is guaranteed
+            # to start with [] and end with a list equal to 'prereqs'
+            for pc in prereq_combs(prereqs):
+                if self.debug:
+                    sys.stderr.write("%s: trying prereqs=%s\n" %
+                                     (header, repr(pc)))
+                src = self.gensrc(header, pc)
+                (rc, errors) = invoke(self.cc + ["-c", src])
+                if rc == 0:
+                    if len(pc) == 0:
+                        self.probe_report(header, "correct", errors, src)
+                        self.known_headers[header] = ("","")
+                    else:
+                        self.probe_report(header, "dependent", errors, src)
+                        self.known_headers[header] = ("%", prereq_ann(pc))
+                    return
+
+        # If we get here, all prior trials have failed.  See if we can
+        # even preprocess this header.
+        src = self.gensrc(header, trailer=0)
+        (rc, perrors) = invoke(self.cc + ["-E", src])
+        if rc != 0:
+            self.probe_report(header, "absent", perrors, src)
             return
 
         self.probe_report(header, "buggy", errors, src)
-        self.known_headers[header] = ("!", errors)
+        self.known_headers[header] = ("!", buggy_ann(errors))
 
     def probe(self):
         """Probe for all the headers in self.headers.  Save the results in
@@ -556,7 +693,7 @@ class HeaderProber:
     def smoke(self):
         """Perform a "smoke test": If a probe for stdarg.h fails,
            something is profoundly wrong and we should bail out."""
-        src = self.gensrc("stdarg.h", bare=1)
+        src = self.gensrc("stdarg.h")
         (rc, errors) = invoke(self.cc + ["-c", src])
         if rc == 0:
             return 1
@@ -571,13 +708,8 @@ class HeaderProber:
         self.syslabel.write(f)
         for h in sorthdr(self.known_headers.keys()):
             v = self.known_headers[h]
-            if type(v) == type((None,)):
-                for err in v[1]:
-                    f.write("# %s\n" % err.strip())
-                f.write("%s%s\n" % (v[0], h))
-            else:
-                assert type(v) == type("")
-                f.write("%s%s\n" % (v, h))
+            assert type(v) == type((None,))
+            f.write("%s%s\n%s" % (v[0], h, v[1]))
 
 class ScratchDir:
     """RAII class to create and clean up our scratch directory."""
