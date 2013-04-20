@@ -82,6 +82,14 @@ except ImportError:
     def rewrap(text, prefix):
         return prefix + text.strip().replace("\n", " ") + "\n"
 
+# used out of an overabundance of caution; falling back to eval with
+# no globals or locals is probably safe enough
+try:
+    from ast import literal_eval
+except ImportError:
+    def literal_eval(expr):
+        return eval(expr, {'__builtins__':{}}, {})
+
 # It may be necessary to monkey-patch ConfigParser to accept / in an
 # option name.
 def maybe_fix_ConfigParser():
@@ -704,13 +712,12 @@ class HeaderProber:
            something is profoundly wrong and we should bail out."""
         src = self.gensrc("stdarg.h")
         (rc, errors) = invoke(self.cc + ["-c", src])
-        if rc == 0:
-            return 1
-        sys.stderr.write("error: stdarg.h not detected. Something is wrong "
-                         "with your compiler:\n")
-        for e in errors:
-            sys.stderr.write("# %s\n" % e)
-        return 0
+        if rc != 0:
+            sys.stderr.write("error: stdarg.h not detected. Something is wrong "
+                             "with your compiler:\n")
+            for e in errors:
+                sys.stderr.write("# %s\n" % e)
+            raise SystemExit(1)
 
     def report(self, f):
         """Write a report on everything we have found to file F."""
@@ -747,13 +754,12 @@ class ScratchDir:
 class Args:
     """Command line argument store."""
 
-    def usage(self, argv0, errmsg=""):
+    def usage(self, errmsg=""):
         """Report usage information and exit."""
-        argv0 = os.path.basename(argv0)
         if errmsg != "":
             exitcode = 2
             f = sys.stderr
-            f.write("%s: %s\n" % (argv0, errmsg))
+            f.write("%s: %s\n" % (self.argv0, errmsg))
         else:
             exitcode = 0
             f = sys.stdout
@@ -762,7 +768,8 @@ class Args:
 usage: %s [options] [compiler [args...]]
 
 Determine the set of common header files that are supported by COMPILER.
-COMPILER defaults to 'cc'. The inventory is written to stdout.
+COMPILER defaults to 'cc'. The inventory is written to stdout, unless
+you use --recheck, in which case FILE is overwritten.
 
 options:
   -h, --help           show this help message and exit
@@ -771,38 +778,60 @@ options:
   -v, --vertag VERS    set the :version tag in the output
   -C, --cctag CC       set the :compiler tag in the output
   -s, --seqtag SEQ     set the :sequence tag in the output
-  --no-uname-version   do not put `uname -v` in the output
+  --(no-)uname-version do (not) put `uname -v` in the output (default: yes)
+  --recheck FILE       redo the inventory in FILE
   --debug              report all compiler errors
   --datadir DIRECTORY  directory containing lists of header files to probe
   --prereqs FILE       file listing prerequisite sets for each header
 """
-                % argv0)
-        sys.exit(exitcode)
+                % self.argv0)
+        raise SystemExit(exitcode)
+
+    def validate_seqno(self, seqno, warn=0):
+        try:
+            seqno = int(seqno)
+            if 0 <= seqno <= 100:
+                return seqno
+            raise ValueError
+        except ValueError:
+            if warn:
+                sys.stderr.write("%s: --recheck: bad sequence number '%s' "
+                                 "ignored" % (self.argv0, seqno))
+                return None
+            else:
+                self.usage("sequence number must be an integer"
+                           "between 0 and 100 (inclusive)" % o)
 
     def __init__(self, argv):
         """Parse the command line."""
 
         # defaults
-        self.cc = ["cc"]
+        self.argv0 = os.path.basename(argv[0])
         self.debug = 0
         self.datadir = "data"
         self.prereqs = "prereqs.ini"
+        self.output = sys.stdout
+        self.recheck = None
+        self.cc = ["cc"]
+        self.ccset = 0
+        self.unameversionset = 0
+        self.unameversion = 1
         self.category = None
         self.label = None
         self.version = None
         self.compiler = None
         self.sequence = None
-        self.unameversion = 1
 
         try:
             opts, args = getopt.getopt(argv[1:], "hc:l:v:C:s:",
                                        ["help", "debug",
-                                        "datadir=", "prereqs=",
-                                        "cattag=", "lbltag=",
-                                        "vertag=", "cctag=",
-                                        "seqtag=", "no-uname-version"])
+                                        "datadir=", "prereqs=", "recheck=",
+                                        "cattag=", "lbltag=", "vertag=",
+                                        "cctag=", "seqtag=",
+                                        "no-uname-version", "uname-version"
+                                        ])
         except getopt.GetoptError, e:
-            self.usage(argv[0], str(e))
+            self.usage(str(e))
 
         for o, a in opts:
             if o == "--datadir":
@@ -812,9 +841,13 @@ options:
             elif o == "--debug":
                 self.debug = 1
             elif o == "--no-uname-version":
+                self.unameversionset = 1
                 self.unameversion = 0
-            elif o in ("-h", "--help"):
-                self.usage(argv[0])
+            elif o == "--uname-version":
+                self.unameversionset = 1
+                self.unameversion = 1
+            elif o == "--recheck":
+                self.recheck = a
             elif o in ("-c", "--cattag"):
                 self.category = a
             elif o in ("-l", "--lbltag"):
@@ -824,38 +857,95 @@ options:
             elif o in ("-C", "--cctag"):
                 self.compiler = a
             elif o in ("-s", "--seqtag"):
-                try:
-                    self.sequence = int(a)
-                except ValueError:
-                    self.usage(argv[0], "argument to %s must be an integer"
-                               "between 0 and 100 (inclusive)" % o)
-                if self.sequence < 0 or self.sequence > 100:
-                    self.usage(argv[0], "argument to %s must be an integer"
-                               "between 0 and 100 (inclusive)" % o)
+                self.sequence = self.validate_seqno(a)
+            elif o in ("-h", "--help"):
+                self.usage()
             else:
-                self.usage(argv[0], "impossible argument %s %s" % (o, a))
+                self.usage("impossible argument %s %s" % (o, a))
 
         if len(args) > 0:
+            self.ccset = 1
             self.cc = args
 
-def main(argv, stdout, stderr):
-    args = Args(argv)
+        if self.recheck is not None:
+            self.prep_recheck()
+
+    def load_tag(self, tag, val):
+        cval = getattr(self, tag)
+        if cval is None:
+            setattr(self, tag, val)
+        else:
+            sys.stderr.write("%s: --recheck: command line overrides "
+                             "%s %s to %s\n"
+                             % (self.argv0, tag, repr(val), repr(cval)))
+
+    def prep_recheck(self):
+        for l in universal_readlines(self.recheck):
+            if l[0] != ':': continue
+            (key, rest) = l.split(' ', 1)
+            key = key[1:]
+            if key == 'sequence':
+                self.load_tag(key, self.validate_seqno(rest))
+            elif (key == 'category' or
+                  key == 'label' or
+                  key == 'version' or
+                  key == 'compiler'):
+                self.load_tag(key, rest)
+            elif key == 'unameversion':
+                if self.unameversionset:
+                    cmd = ['--no-uname-version',
+                           '--uname-version'][self.unameversion]
+                    tag = ['--no-uname-version',
+                           '--uname-version'][int(rest)]
+                    sys.stderr.write("%s: --recheck: command line overrides "
+                                     "%s to %s" % (self.argv0, cmd, tag))
+                else:
+                    self.unameversion = int(rest)
+            elif key == 'cccmd':
+                try:
+                    cc = literal_eval(rest)
+                    if (type(cc) != type([]) or len(cc) == 0):
+                        raise SyntaxError
+                    if self.ccset:
+                        sys.stderr.write("%s: --recheck: command line "
+                                         "overrides compile command "
+                                         "'%s' to '%s'"
+                                         % (self.argv0, list2shell(cc),
+                                            list2shell(self.cc)))
+                    else:
+                        self.cc = cc
+                except (SyntaxError, ValueError):
+                    sys.stderr.write("%s: --recheck: bad compile command %s "
+                                     "ignored" % (self.argv0, repr(rest)))
+        self.recheck = os.path.realpath(self.recheck)
+        self.output = open(self.recheck + "-new", "w")
+
+    def finalize(self):
+        # tags that would be a distraction if they appeared at the top
+        self.output.write("# Additional scansys state below, for --recheck.\n")
+        self.output.write(":cccmd %s\n" % repr(self.cc))
+        self.output.write(":unameversion %d\n" % self.unameversion)
+        self.output.close()
+        if self.recheck is not None:
+            os.rename(self.recheck, self.recheck + "~")
+            os.rename(self.recheck + "-new", self.recheck)
+
+def main():
+    args = Args(sys.argv)
 
     scratch = None
     try:
         try:
             engine = HeaderProber(args)
             scratch = ScratchDir()
-            if not engine.smoke():
-                return 1
+            engine.smoke()
             engine.probe()
-            engine.report(stdout)
-            return 0
+            engine.report(args.output)
+            args.finalize()
+
         except EnvironmentError, e:
-            stderr.write("%s: %s\n" % (e.filename, e.strerror))
-            return 1
+            raise SystemExit("%s: %s" % (e.filename, e.strerror))
     finally:
         del scratch
 
-if __name__ == '__main__':
-    sys.exit(main(sys.argv, sys.stdout, sys.stderr))
+if __name__ == '__main__': main()
