@@ -61,14 +61,23 @@ except:
     pass
 
 # used only for neatness, so the fallback is a stub
+# break_on_hyphens was added in 2.6 and the constructor is _not_
+# forward compatible
 try:
     import textwrap
     def rewrap(text, prefix):
-        return textwrap.fill(text, width=75,
-                             initial_indent=prefix,
-                             subsequent_indent=prefix,
-                             break_long_words=0,
-                             break_on_hyphens=0) + "\n"
+        try:
+            return textwrap.fill(text, width=75,
+                                 initial_indent=prefix,
+                                 subsequent_indent=prefix,
+                                 break_long_words=0,
+                                 break_on_hyphens=0) + "\n"
+        except TypeError:
+            return textwrap.fill(text, width=75,
+                                 initial_indent=prefix,
+                                 subsequent_indent=prefix,
+                                 break_long_words=0) + "\n"
+
 except ImportError:
     def rewrap(text, prefix):
         return prefix + text.strip().replace("\n", " ") + "\n"
@@ -630,7 +639,7 @@ class HeaderProber:
         if self.specials.get(header, None) is not None:
             if self.debug:
                 sys.stderr.write("%s: trying without special handling\n"
-                                 % header, repr(pc))
+                                 % header)
             src = self.gensrc(header)
             (rc, errors) = invoke(self.cc + ["-c", src])
             if rc == 0:
@@ -640,7 +649,7 @@ class HeaderProber:
 
             if self.debug:
                 sys.stderr.write("%s: trying with special handling\n"
-                                 % header, repr(pc))
+                                 % header)
             src = self.gensrc(header, dospecial=1)
             (rc, errors) = invoke(self.cc + ["-c", src])
             if rc == 0:
