@@ -1,11 +1,11 @@
 # host: AIX 1 7
-# compile command: cc
-## IBM XL C/C++ for AIX, V12.1 (5765-J02, 5725-C72)
-## Version: 12.01.0000.0000
+# cc: IBM XL C/C++ for AIX, V12.1 (5765-J02, 5725-C72)
+#     Version: 12.01.0000.0000
 :category Unix
 :label AIX
 :version 7.1
 :compiler xlc
+:gen 1
 a.out.h
 aio.h
 alloca.h
@@ -49,6 +49,10 @@ pthread.h
 pwd.h
 regex.h
 %regexp.h
+$ <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/regexp.html"
+$ >SVID <code>regexp.h</code></a> requires the including file to define
+$ several macros, which are used in the bodies of inlined function
+$ definitions.
 resolv.h
 sched.h
 search.h
@@ -80,6 +84,7 @@ ulimit.h
 unistd.h
 utime.h
 %utmp.h
+$ Requires <code>sys/types.h</code>.
 utmpx.h
 varargs.h
 wchar.h
@@ -89,35 +94,53 @@ arpa/ftp.h
 arpa/inet.h
 arpa/nameser.h
 %arpa/nameser_compat.h
+$ Requires <code>sys/types.h</code>.
 arpa/telnet.h
 %arpa/tftp.h
+$ Requires <code>sys/types.h</code>.
 net/if.h
 net/if_arp.h
 net/route.h
 %netinet/icmp6.h
+$ Requires <code>netinet/in.h</code>.
 netinet/if_ether.h
 %netinet/igmp.h
+$ Requires <code>netinet/in.h</code>.
 netinet/in.h
 %netinet/in_systm.h
+$ Requires <code>sys/types.h</code>.
 netinet/ip.h
 %netinet/ip6.h
+$ Requires <code>netinet/in.h</code>.
 %netinet/ip_icmp.h
+$ Requires <code>netinet/ip.h</code>.
 netinet/tcp.h
 %netinet/udp.h
+$ Requires <code>sys/types.h</code>.
 %protocols/routed.h
+$ Requires <code>sys/socket.h</code>.
 protocols/rwhod.h
 %protocols/timed.h
+$ Requires <code>sys/param.h</code> and <code>sys/time.h</code>.
 rpc/auth.h
 %rpc/auth_des.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/auth_unix.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/clnt.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/key_prot.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_clnt.h
+$ Requires <code>rpc/rpc.h</code>.
 rpc/pmap_prot.h
 %rpc/pmap_rmt.h
+$ Requires <code>rpc/rpc.h</code>.
 rpc/rpc.h
 %rpc/rpc_msg.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/svc.h
+$ Requires <code>rpc/rpc.h</code>.
 rpc/svc_auth.h
 rpc/types.h
 rpc/xdr.h
@@ -128,10 +151,12 @@ rpcsvc/nislib.h
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
 %rpcsvc/rquota.h
+$ Requires <code>rpc/rpc.h</code>.
 rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
 %rpcsvc/yp_prot.h
+$ Requires <code>rpc/rpc.h</code>.
 rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 sys/acct.h
@@ -147,6 +172,7 @@ sys/poll.h
 sys/procfs.h
 sys/queue.h
 %sys/reboot.h
+$ Requires <code>sys/types.h</code>.
 sys/resource.h
 sys/select.h
 sys/sem.h
@@ -168,4 +194,6 @@ sys/un.h
 sys/user.h
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
 :cccmd ['cc']
+:unameversion 1

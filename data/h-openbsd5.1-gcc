@@ -1,12 +1,13 @@
-# host: OpenBSD 5.1 GENERIC#181
-# compile command: gcc -std=gnu99
-## gcc (GCC) 4.2.1 20070719
+# host: OpenBSD 5.1
+# cc: gcc (GCC) 4.2.1 20070719
 :sequence 30
 :category Unix
 :label OpenBSD
 :version 5.1
 :compiler gcc
+:gen 1
 %a.out.h
+$ Requires <code>sys/types.h</code>.
 ar.h
 assert.h
 complex.h
@@ -22,6 +23,7 @@ float.h
 fnmatch.h
 fstab.h
 %fts.h
+$ Requires <code>sys/types.h</code>.
 ftw.h
 getopt.h
 glob.h
@@ -33,6 +35,7 @@ langinfo.h
 libgen.h
 limits.h
 %link.h
+$ Requires <code>sys/types.h</code>.
 locale.h
 malloc.h
 math.h
@@ -47,6 +50,7 @@ pwd.h
 regex.h
 regexp.h
 %resolv.h
+$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
 sched.h
 search.h
 semaphore.h
@@ -72,6 +76,7 @@ time.h
 unistd.h
 utime.h
 %utmp.h
+$ Requires <code>sys/types.h</code>.
 varargs.h
 wchar.h
 wctype.h
@@ -80,35 +85,66 @@ arpa/inet.h
 arpa/nameser.h
 arpa/telnet.h
 %arpa/tftp.h
+$ Requires <code>sys/types.h</code>.
 %net/if.h
+$ Requires <code>sys/types.h</code> and <code>sys/socket.h</code>.
 %net/if_arp.h
+$ Requires <code>sys/types.h</code> and <code>sys/socket.h</code>.
 %net/ppp_defs.h
+$ Requires <code>sys/types.h</code>.
 %net/route.h
+$ Requires <code>sys/types.h</code> and <code>sys/socket.h</code>.
 %netinet/icmp6.h
+$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
 %netinet/if_ether.h
+$ Requires <code>sys/types.h</code>, <code>sys/socket.h</code>,
+$ <code>net/if.h</code>, and <code>netinet/in.h</code>.
 %netinet/igmp.h
+$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
 %netinet/in.h
+$ Requires <code>sys/types.h</code>.
 %netinet/in_systm.h
+$ Requires <code>sys/types.h</code>.
 %netinet/ip.h
+$ Requires <code>sys/types.h</code>, <code>netinet/in.h</code>, and
+$ <code>netinet/in_systm.h</code>.
 %netinet/ip6.h
+$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
 %netinet/ip_icmp.h
+$ Requires <code>sys/types.h</code>, <code>netinet/in.h</code>,
+$ <code>netinet/in_systm.h</code>, and <code>netinet/ip.h</code>.
 %netinet/tcp.h
+$ Requires <code>sys/types.h</code>.
 %netinet/udp.h
+$ Requires <code>sys/types.h</code>.
 %protocols/routed.h
+$ Requires <code>sys/types.h</code> and <code>sys/socket.h</code>.
 %protocols/rwhod.h
+$ Requires <code>sys/types.h</code>.
 %protocols/timed.h
+$ Requires <code>sys/param.h</code>.
 %rpc/auth.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/auth_unix.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/clnt.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_clnt.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_prot.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_rmt.h
+$ Requires <code>rpc/rpc.h</code>.
 rpc/rpc.h
 %rpc/rpc_msg.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/svc.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/svc_auth.h
+$ Requires <code>rpc/rpc.h</code>.
 rpc/types.h
 %rpc/xdr.h
+$ Requires <code>rpc/rpc.h</code>.
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 rpcsvc/nfs_prot.h
@@ -119,18 +155,24 @@ rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
 %rpcsvc/yp_prot.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpcsvc/ypclnt.h
+$ Requires <code>rpc/rpc.h</code>.
 rpcsvc/yppasswd.h
 %sys/acct.h
+$ Requires <code>sys/types.h</code>.
 sys/dir.h
 sys/errno.h
 sys/fcntl.h
 sys/file.h
 sys/ioctl.h
 %sys/ipc.h
+$ Requires <code>sys/types.h</code>.
 sys/mman.h
 %sys/mount.h
+$ Requires <code>sys/param.h</code>.
 %sys/msg.h
+$ Requires <code>sys/types.h</code>.
 sys/mtio.h
 sys/param.h
 sys/poll.h
@@ -139,10 +181,14 @@ sys/reboot.h
 sys/resource.h
 sys/select.h
 %sys/sem.h
+$ Requires <code>sys/types.h</code>.
 %sys/shm.h
+$ Requires <code>sys/types.h</code>.
 sys/signal.h
 %sys/socket.h
+$ Requires <code>sys/types.h</code>.
 %sys/socketvar.h
+$ Requires <code>sys/types.h</code>.
 sys/stat.h
 sys/statvfs.h
 sys/syscall.h
@@ -150,13 +196,18 @@ sys/syslog.h
 sys/termios.h
 sys/time.h
 %sys/timeb.h
+$ Requires <code>time.h</code>.
 sys/times.h
 sys/types.h
 %sys/uio.h
+$ Requires <code>sys/types.h</code>.
 sys/un.h
 %sys/unistd.h
+$ Requires <code>sys/types.h</code>.
 %sys/user.h
+$ Requires <code>sys/param.h</code>.
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
 :cccmd ['gcc', '-std=gnu99']
 :unameversion 0

@@ -1,10 +1,10 @@
 # host: HP-UX B.11.23 U
-# compile command: cc
-## ccom: HP92453-01 B.11.11.24 HP C Compiler
+# cc: ccom: HP92453-01 B.11.11.24 HP C Compiler
 :category Unix
 :label HP-UX
 :version 11.23
 :compiler acc
+:gen 1
 a.out.h
 aio.h
 alloca.h
@@ -87,20 +87,31 @@ arpa/telnet.h
 arpa/tftp.h
 net/if.h
 %net/if_arp.h
+$ Requires <code>sys/socket.h</code>.
 net/route.h
 netinet/icmp6.h
 %netinet/if_ether.h
+$ Requires <code>net/if.h</code>.
 %netinet/igmp.h
+$ Requires <code>netinet/in.h</code>.
 netinet/in.h
 %netinet/in_systm.h
+$ Requires <code>sys/types.h</code>.
 %netinet/ip.h
+$ Requires <code>netinet/in.h</code> and <code>netinet/in_systm.h</code>.
 netinet/ip6.h
 %netinet/ip_icmp.h
+$ Requires <code>netinet/in.h</code>, <code>netinet/in_systm.h</code>, and
+$ <code>netinet/ip.h</code>.
 %netinet/tcp.h
+$ Requires <code>sys/types.h</code>.
 %netinet/udp.h
+$ Requires <code>sys/types.h</code>.
 %protocols/rwhod.h
+$ Requires <code>sys/types.h</code>.
 rpc/auth.h
 %rpc/auth_des.h
+$ Requires <code>rpc/rpc.h</code>.
 rpc/auth_unix.h
 rpc/clnt.h
 rpc/des_crypt.h
@@ -117,6 +128,7 @@ rpc/xdr.h
 rpcsvc/mount.h
 rpcsvc/nis.h
 %rpcsvc/nislib.h
+$ Requires <code>rpcsvc/nis.h</code>.
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
 rpcsvc/rquota.h
@@ -128,6 +140,7 @@ rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 sys/acct.h
 %sys/dir.h
+$ Requires <code>sys/types.h</code>.
 sys/errno.h
 sys/fcntl.h
 sys/file.h
@@ -137,6 +150,7 @@ sys/mman.h
 sys/mount.h
 sys/msg.h
 %sys/mtio.h
+$ Requires <code>sys/types.h</code>.
 sys/param.h
 sys/poll.h
 sys/reboot.h
@@ -163,4 +177,6 @@ sys/unistd.h
 sys/user.h
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
 :cccmd ['cc']
+:unameversion 1

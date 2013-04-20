@@ -1,11 +1,11 @@
 # host: OSF1 V5.1 2650
-# compile command: cc
-## Compaq C V6.5-011 on Compaq Tru64 UNIX V5.1B (Rev. 2650)
-## Compiler Driver V6.5-003 (sys) cc Driver
+# cc: Compaq C V6.5-011 on Compaq Tru64 UNIX V5.1B (Rev. 2650)
+#     Compiler Driver V6.5-003 (sys) cc Driver
 :category Unix
 :label Tru64
 :version 5.1
 :compiler compaqcc
+:gen 1
 a.out.h
 aio.h
 alloca.h
@@ -86,18 +86,27 @@ arpa/telnet.h
 arpa/tftp.h
 net/if.h
 %net/if_arp.h
+$ Requires <code>sys/socket.h</code>.
 %net/ppp_defs.h
+$ Requires <code>sys/types.h</code>.
 %net/route.h
+$ Requires <code>sys/socket.h</code>.
 %netinet/icmp6.h
+$ Requires <code>netinet/in.h</code>.
 %netinet/if_ether.h
+$ Requires <code>netinet/in.h</code>.
 %netinet/igmp.h
+$ Requires <code>netinet/in.h</code>.
 netinet/in.h
 netinet/in_systm.h
 netinet/ip.h
 %netinet/ip6.h
+$ Requires <code>netinet/in.h</code>.
 %netinet/ip_icmp.h
+$ Requires <code>netinet/ip.h</code>.
 netinet/tcp.h
 %netinet/udp.h
+$ Requires <code>sys/types.h</code>.
 protocols/routed.h
 protocols/rwhod.h
 protocols/timed.h
@@ -154,6 +163,7 @@ sys/time.h
 sys/timeb.h
 sys/times.h
 %sys/timex.h
+$ Requires <code>sys/time.h</code>.
 sys/types.h
 sys/ucontext.h
 sys/uio.h
@@ -161,4 +171,6 @@ sys/un.h
 sys/user.h
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
 :cccmd ['cc']
+:unameversion 1
