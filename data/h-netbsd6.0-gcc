@@ -1,12 +1,13 @@
 # host: NetBSD 6.0.1
-# compile command: gcc
-## gcc (NetBSD nb2 20110806) 4.5.3
+# cc: gcc (NetBSD nb2 20110806) 4.5.3
 :sequence 30
 :category Unix
 :label NetBSD
 :version 6.0
 :compiler gcc
+:gen 1
 %a.out.h
+$ Requires <code>sys/types.h</code>.
 aio.h
 ar.h
 assert.h
@@ -25,12 +26,14 @@ fmtmsg.h
 fnmatch.h
 fstab.h
 %fts.h
+$ Requires <code>sys/types.h</code>.
 ftw.h
 getopt.h
 glob.h
 grp.h
 iconv.h
 %ifaddrs.h
+$ Requires <code>sys/types.h</code>.
 inttypes.h
 iso646.h
 langinfo.h
@@ -54,6 +57,7 @@ pwd.h
 regex.h
 regexp.h
 %resolv.h
+$ Requires <code>netinet/in.h</code>.
 sched.h
 search.h
 semaphore.h
@@ -82,6 +86,7 @@ ulimit.h
 unistd.h
 utime.h
 %utmp.h
+$ Requires <code>sys/types.h</code>.
 utmpx.h
 wchar.h
 wctype.h
@@ -93,34 +98,60 @@ arpa/nameser_compat.h
 arpa/telnet.h
 arpa/tftp.h
 %net/if.h
+$ Requires <code>sys/types.h</code>.
 %net/if_arp.h
+$ Requires <code>sys/types.h</code> and <code>sys/socket.h</code>.
 %net/ppp_defs.h
+$ Requires <code>sys/types.h</code>.
 net/route.h
 %netinet/icmp6.h
+$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
 %netinet/if_ether.h
+$ Requires <code>sys/types.h</code>, <code>net/if.h</code>, and
+$ <code>netinet/in.h</code>.
 %netinet/igmp.h
+$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
 netinet/in.h
 %netinet/in_systm.h
+$ Requires <code>sys/types.h</code>.
 %netinet/ip.h
+$ Requires <code>sys/types.h</code>, <code>netinet/in.h</code>, and
+$ <code>netinet/in_systm.h</code>.
 %netinet/ip6.h
+$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
 %netinet/ip_icmp.h
+$ Requires <code>sys/types.h</code>, <code>netinet/in.h</code>,
+$ <code>netinet/in_systm.h</code>, and <code>netinet/ip.h</code>.
 netinet/tcp.h
 netinet/udp.h
 %protocols/routed.h
+$ Requires <code>sys/types.h</code>.
 %protocols/rwhod.h
+$ Requires <code>sys/types.h</code>.
 %protocols/timed.h
+$ Requires <code>sys/param.h</code>.
 %rpc/auth.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/auth_unix.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/clnt.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_clnt.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_prot.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_rmt.h
+$ Requires <code>rpc/rpc.h</code>.
 rpc/rpc.h
 %rpc/rpc_msg.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/svc.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpc/svc_auth.h
+$ Requires <code>rpc/rpc.h</code>.
 rpc/types.h
 %rpc/xdr.h
+$ Requires <code>rpc/rpc.h</code>.
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 rpcsvc/nfs_prot.h
@@ -131,9 +162,12 @@ rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
 %rpcsvc/yp_prot.h
+$ Requires <code>rpc/rpc.h</code>.
 %rpcsvc/ypclnt.h
+$ Requires <code>rpc/rpc.h</code>.
 rpcsvc/yppasswd.h
 %sys/acct.h
+$ Requires <code>sys/types.h</code>.
 sys/dir.h
 sys/errno.h
 sys/fcntl.h
@@ -144,6 +178,7 @@ sys/mman.h
 sys/mount.h
 sys/msg.h
 %sys/mtio.h
+$ Requires <code>sys/types.h</code>.
 sys/param.h
 sys/poll.h
 sys/queue.h
@@ -153,6 +188,7 @@ sys/select.h
 sys/sem.h
 sys/shm.h
 %sys/signal.h
+$ Requires <code>sys/types.h</code>.
 sys/socket.h
 sys/socketvar.h
 sys/stat.h
@@ -162,15 +198,19 @@ sys/syslog.h
 sys/termios.h
 sys/time.h
 %sys/timeb.h
+$ Requires <code>time.h</code>.
 sys/times.h
 %sys/timex.h
+$ Requires <code>sys/time.h</code>.
 sys/types.h
 sys/ucontext.h
 sys/uio.h
 sys/un.h
 sys/unistd.h
 %sys/user.h
+$ Requires <code>sys/types.h</code>.
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
 :cccmd ['gcc']
 :unameversion 0
