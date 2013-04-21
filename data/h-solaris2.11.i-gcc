@@ -1,11 +1,11 @@
 # host: Solaris 2.11 oi_151a7
-# compile command: gcc
-## gcc (GCC) 4.3.3
+# cc: gcc (GCC) 4.3.3
 :sequence 40
 :category Unix
 :label Solaris
 :version 2.11.i
 :compiler gcc
+:gen 1
 aio.h
 alloca.h
 ar.h
@@ -33,6 +33,7 @@ inttypes.h
 iso646.h
 langinfo.h
 %lastlog.h
+$ Requires <code>time.h</code>.
 libgen.h
 limits.h
 link.h
@@ -52,6 +53,10 @@ pthread.h
 pwd.h
 regex.h
 %regexp.h
+$ <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/regexp.html"
+$ >SVID <code>regexp.h</code></a> requires the including file to define
+$ several macros, which are used in the bodies of inlined function
+$ definitions.
 resolv.h
 sched.h
 search.h
@@ -91,26 +96,41 @@ wordexp.h
 arpa/ftp.h
 arpa/inet.h
 %arpa/nameser.h
+$ Requires <code>sys/types.h</code>.
 arpa/nameser_compat.h
 arpa/telnet.h
 %arpa/tftp.h
+$ Requires <code>sys/types.h</code>.
 net/if.h
 net/if_arp.h
 %net/ppp_defs.h
+$ Requires <code>sys/types.h</code>.
 %net/route.h
+$ Requires <code>sys/socket.h</code>.
 %netinet/icmp6.h
+$ Requires <code>netinet/in.h</code>.
 %netinet/if_ether.h
+$ Requires <code>net/if.h</code>.
 %netinet/igmp.h
+$ Requires <code>netinet/in.h</code>.
 netinet/in.h
 %netinet/in_systm.h
+$ Requires <code>sys/types.h</code>.
 %netinet/ip.h
+$ Requires <code>netinet/in.h</code>.
 netinet/ip6.h
 %netinet/ip_icmp.h
+$ Requires <code>netinet/in.h</code>, <code>netinet/in_systm.h</code>, and
+$ <code>netinet/ip.h</code>.
 %netinet/tcp.h
+$ Requires <code>sys/types.h</code>.
 %netinet/udp.h
+$ Requires <code>netinet/in.h</code>.
 %protocols/routed.h
+$ Requires <code>sys/socket.h</code>.
 protocols/rwhod.h
 %protocols/timed.h
+$ Requires <code>netdb.h</code>.
 rpc/auth.h
 rpc/auth_des.h
 rpc/auth_unix.h
@@ -131,6 +151,7 @@ rpcsvc/mount.h
 rpcsvc/nfs_prot.h
 rpcsvc/nis.h
 %rpcsvc/nislib.h
+$ Requires <code>rpcsvc/nis.h</code>.
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
 rpcsvc/rquota.h
@@ -164,6 +185,7 @@ sys/socket.h
 sys/socketvar.h
 sys/stat.h
 %sys/statfs.h
+$ Requires <code>sys/types.h</code>.
 sys/statvfs.h
 sys/syscall.h
 sys/syslog.h
@@ -181,4 +203,6 @@ sys/unistd.h
 sys/user.h
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
 :cccmd ['gcc']
+:unameversion 1
