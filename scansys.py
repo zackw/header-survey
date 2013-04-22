@@ -534,6 +534,10 @@ class HeaderProber:
     def __init__(self, args):
         self.debug = args.debug
         self.cc = args.cc
+        self.compile_opt = args.compile_opt
+        if self.compile_opt is None: self.compile_opt = "-c"
+        self.preproc_opt = args.preproc_opt
+        if self.preproc_opt is None: self.preproc_opt = "-E"
         self.syslabel = SysLabel(args)
         self.read_prereqs(args.prereqs)
         self.read_headers(args.datadir)
@@ -649,7 +653,7 @@ class HeaderProber:
                 sys.stderr.write("%s: trying without special handling\n"
                                  % header)
             src = self.gensrc(header)
-            (rc, errors) = invoke(self.cc + ["-c", src])
+            (rc, errors) = invoke(self.cc + [self.compile_opt, src])
             if rc == 0:
                 self.probe_report(header, "correct", errors, src)
                 self.known_headers[header] = ("","")
@@ -659,7 +663,7 @@ class HeaderProber:
                 sys.stderr.write("%s: trying with special handling\n"
                                  % header)
             src = self.gensrc(header, dospecial=1)
-            (rc, errors) = invoke(self.cc + ["-c", src])
+            (rc, errors) = invoke(self.cc + [self.compile_opt, src])
             if rc == 0:
                 self.probe_report(header, "dependent", errors, src)
                 self.known_headers[header] = \
@@ -679,7 +683,7 @@ class HeaderProber:
                     sys.stderr.write("%s: trying prereqs=%s\n" %
                                      (header, repr(pc)))
                 src = self.gensrc(header, pc)
-                (rc, errors) = invoke(self.cc + ["-c", src])
+                (rc, errors) = invoke(self.cc + [self.compile_opt, src])
                 if rc == 0:
                     if len(pc) == 0:
                         self.probe_report(header, "correct", errors, src)
@@ -692,7 +696,7 @@ class HeaderProber:
         # If we get here, all prior trials have failed.  See if we can
         # even preprocess this header.
         src = self.gensrc(header, trailer=0)
-        (rc, perrors) = invoke(self.cc + ["-E", src])
+        (rc, perrors) = invoke(self.cc + [self.preproc_opt, src])
         if rc != 0:
             self.probe_report(header, "absent", perrors, src)
             return
@@ -711,7 +715,7 @@ class HeaderProber:
         """Perform a "smoke test": If a probe for stdarg.h fails,
            something is profoundly wrong and we should bail out."""
         src = self.gensrc("stdarg.h")
-        (rc, errors) = invoke(self.cc + ["-c", src])
+        (rc, errors) = invoke(self.cc + [self.compile_opt, src])
         if rc != 0:
             sys.stderr.write("error: stdarg.h not detected. Something is wrong "
                              "with your compiler:\n")
@@ -781,6 +785,10 @@ options:
   --(no-)uname-version do (not) put `uname -v` in the output (default: yes)
   --recheck FILE       redo the inventory in FILE
   --debug              report all compiler errors
+  --compile-opt OPT    compiler option to request compilation but not linking
+                       (default: -c) (try -S if your assembler doesn't work)
+  --preproc-opt OPT    compiler option to request preprocessing only
+                       (default: -E)
   --datadir DIRECTORY  directory containing lists of header files to probe
   --prereqs FILE       file listing prerequisite sets for each header
 """
@@ -814,6 +822,8 @@ options:
         self.recheck = None
         self.cc = ["cc"]
         self.ccset = 0
+        self.compile_opt = None
+        self.preproc_opt = None
         self.unameversionset = 0
         self.unameversion = 1
         self.category = None
@@ -828,7 +838,8 @@ options:
                                         "datadir=", "prereqs=", "recheck=",
                                         "cattag=", "lbltag=", "vertag=",
                                         "cctag=", "seqtag=",
-                                        "no-uname-version", "uname-version"
+                                        "no-uname-version", "uname-version",
+                                        "compile-opt=", "preproc-opt="
                                         ])
         except getopt.GetoptError, e:
             self.usage(str(e))
@@ -846,6 +857,10 @@ options:
             elif o == "--uname-version":
                 self.unameversionset = 1
                 self.unameversion = 1
+            elif o == "--preproc-opt":
+                self.preproc_opt = a
+            elif o == "--compile-opt":
+                self.compile_opt = a
             elif o == "--recheck":
                 self.recheck = a
             elif o in ("-c", "--cattag"):
@@ -889,7 +904,9 @@ options:
             elif (key == 'category' or
                   key == 'label' or
                   key == 'version' or
-                  key == 'compiler'):
+                  key == 'compiler' or
+                  key == 'compile_opt' or
+                  key == 'preproc_opt'):
                 self.load_tag(key, rest)
             elif key == 'unameversion':
                 if self.unameversionset:
@@ -925,6 +942,10 @@ options:
         self.output.write("# Additional scansys state below, for --recheck.\n")
         self.output.write(":cccmd %s\n" % repr(self.cc))
         self.output.write(":unameversion %d\n" % self.unameversion)
+        if self.compile_opt is not None:
+            self.output.write(":compile_opt %s\n" % self.compile_opt)
+        if self.preproc_opt is not None:
+            self.output.write(":preproc_opt %s\n" % self.preproc_opt)
         self.output.close()
         if self.recheck is not None:
             os.rename(self.recheck, self.recheck + "~")
