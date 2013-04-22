@@ -1,9 +1,10 @@
 # host: Linux 3.2.0-4-amd64 #1 SMP Debian 3.2.41-2
-## arm-linux-androideabi-gcc (GCC) 4.7
+# cc: arm-linux-androideabi-gcc (GCC) 4.7
 :category embedded Unix
 :label Android API
 :version 13
-:compiler gcc47
+:compiler gcc 4.7
+:gen 1
 alloca.h
 assert.h
 ctype.h
@@ -17,6 +18,7 @@ fenv.h
 float.h
 fnmatch.h
 %fts.h
+$ Requires <code>sys/types.h</code>.
 getopt.h
 grp.h
 inttypes.h
@@ -70,14 +72,18 @@ net/if.h
 net/if_arp.h
 net/route.h
 %netinet/icmp6.h
+$ Requires <code>netinet/in.h</code>.
 netinet/if_ether.h
 netinet/in.h
 %netinet/in_systm.h
+$ Requires <code>sys/types.h</code>.
 netinet/ip.h
 %netinet/ip6.h
+$ Requires <code>netinet/in.h</code>.
 netinet/ip_icmp.h
 netinet/tcp.h
 %netinet/udp.h
+$ Requires <code>sys/types.h</code>.
 sys/errno.h
 sys/file.h
 sys/ioctl.h
@@ -100,5 +106,9 @@ sys/times.h
 sys/types.h
 sys/uio.h
 %sys/un.h
+$ Requires <code>sys/socket.h</code>.
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
+:cccmd ['/home/zack/projects/android-ndk-r8d/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc', '-isystem', '/home/zack/projects/android-ndk-r8d/platforms/android-9/arch-arm/usr/include']
+:unameversion 1

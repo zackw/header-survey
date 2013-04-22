@@ -1,11 +1,12 @@
 # host: Linux 3.2.0-4-amd64 #1 SMP Debian 3.2.41-2
-## clang version 3.1
-## Target: x86_64-pc-linux-gnu
-## Thread model: posix
+# cc: clang version 3.1
+#     Target: armv7-none-linux-androideabi
+#     Thread model: posix
 :category embedded Unix
 :label Android API
 :version 12
-:compiler clang
+:compiler clang 3.1
+:gen 1
 alloca.h
 assert.h
 ctype.h
@@ -19,6 +20,7 @@ fenv.h
 float.h
 fnmatch.h
 %fts.h
+$ Requires <code>sys/types.h</code>.
 getopt.h
 grp.h
 inttypes.h
@@ -70,14 +72,18 @@ net/if.h
 net/if_arp.h
 net/route.h
 %netinet/icmp6.h
+$ Requires <code>netinet/in.h</code>.
 netinet/if_ether.h
 netinet/in.h
 %netinet/in_systm.h
+$ Requires <code>sys/types.h</code>.
 netinet/ip.h
 %netinet/ip6.h
+$ Requires <code>netinet/in.h</code>.
 netinet/ip_icmp.h
 netinet/tcp.h
 %netinet/udp.h
+$ Requires <code>sys/types.h</code>.
 sys/errno.h
 sys/file.h
 sys/ioctl.h
@@ -100,5 +106,10 @@ sys/times.h
 sys/types.h
 sys/uio.h
 %sys/un.h
+$ Requires <code>sys/socket.h</code>.
 sys/utsname.h
 sys/wait.h
+# Additional scansys state below, for --recheck.
+:cccmd ['/home/zack/projects/android-ndk-r8d/toolchains/llvm-3.1/prebuilt/linux-x86/bin/clang', '-target', 'armv7-none-linux-androideabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfpv3-d16', '-nostdinc', '-isystem', '/home/zack/projects/android-ndk-r8d/platforms/android-9/arch-arm/usr/include', '-isystem', '/home/zack/projects/android-ndk-r8d/toolchains/llvm-3.1/prebuilt/linux-x86/lib/clang/3.1/include']
+:unameversion 1
+:compile_opt -S
