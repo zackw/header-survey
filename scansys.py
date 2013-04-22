@@ -134,7 +134,7 @@ except ImportError:
 
 # opening a file in "rU" mode on a Python that doesn't support it
 # ... silently succeeds!  So we can't use it at all.  Regex time!
-_universal_readlines_re = re.compile("\r|\n|\r\n")
+_universal_readlines_re = re.compile("\r\n|\r|\n")
 def universal_readlines(fname):
     f = open(fname, "rb")
     s = f.read().strip()
@@ -896,7 +896,7 @@ options:
 
     def prep_recheck(self):
         for l in universal_readlines(self.recheck):
-            if l[0] != ':': continue
+            if len(l) > 0 and l[0] != ':': continue
             (key, rest) = l.split(' ', 1)
             key = key[1:]
             if key == 'sequence':
