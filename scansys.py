@@ -144,90 +144,92 @@ def universal_readlines(fname):
 
 # We can't use subprocess, it's too new.  We can't use os.popen*,
 # because they don't report the exit code.  So... os.system it is.
-# Which means we have to shell-quote, and shell-quoting for Windows
-# is different than shell-quoting for Unix; the library *may* have
-# the right stuff, somewhere, or then again it may not.
+# Which means we have to shell-quote, which is different on Windows.
+# It is convenient to express the platform-specific logic as a
+# function which quotes *one* argument; it then works on both Windows
+# and Unix to map this function over the argument list and join the
+# result list with spaces.
 if sys.platform == "win32":
-    try:
-        from subprocess import list2cmdline
-    except ImportError:
-        def list2cmdline(seq):
-            # See http://msdn.microsoft.com/en-us/library/17w5ykft.aspx
-            # or search http://msdn.microsoft.com for "Parsing C++
-            # Command-Line Arguments".
-            result = []
-            needquote = 0
-            for arg in seq:
-                bs_buf = []
-
-                # Add a space to separate this argument from the others
-                if result:
-                    result.append(' ')
-
-                needquote = (" " in arg) or ("\t" in arg) or not arg
-                if needquote:
-                    result.append('"')
-
-                for c in arg:
-                    if c == '\\':
-                        # Don't know if we need to double yet.
-                        bs_buf.append(c)
-                    elif c == '"':
-                        # Double backslashes.
-                        result.append('\\' * len(bs_buf)*2)
+    # We could look for subprocess.list2cmdline, but that only quotes
+    # for CreateProcess() [or, rather, the MSVC runtime's
+    # CommandLineToArgvW()] whereas what we need is quoting for
+    # CommandLineToArgvW *plus* quoting for CMD.EXE, and it turns out
+    # that it's easier to do both steps ourselves than to requote what
+    # subprocess.list2cmdline returns, because we need to know the
+    # boundaries between arguments for both steps.  Code borrowed with
+    # extensive modification from Py2.7's subprocess.list2cmdline.
+    # See also http://msdn.microsoft.com/en-us/library/17w5ykft.aspx and
+    # http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
+    def shellquote1(arg):
+        # Phase 1: quote for CommandLineToArgvW.  The only characters
+        # that require quotation are space, tab, and double quote.  If
+        # any of the above are present, then the whole argument must
+        # be surrounded by double quotes, any literal double quotes
+        # must be escaped with backslashes, and any backslashes *which
+        # immediately precede a double quote* must be escaped with
+        # more backslashes.  Note that backslash is *only* significant
+        # if it's part of a train of backslashes immediately followed
+        # by a double quote. It is technically not necessary to wrap
+        # arguments that contain double quotes but *not* spaces or
+        # tabs in more double quotes, but it is logically simpler.
+        if arg == '':
+            qarg = ['"', '"']
+        elif (' ' not in arg and '\t' not in arg and '"' not in arg):
+            qarg = [c for c in arg]
+        else:
+            qarg = ['"']
+            bs_buf = []
+            for c in arg:
+                if c == '\\':
+                    # Don't know if we need to double yet.
+                    bs_buf.append(c)
+                elif c == '"':
+                    # Double backslashes.
+                    qarg.extend(bs_buf)
+                    qarg.extend(bs_buf)
+                    bs_buf = []
+                    qarg.append('\\"')
+                else:
+                    # Normal char
+                    if bs_buf:
+                        qarg.extend(bs_buf)
                         bs_buf = []
-                        result.append('\\"')
-                    else:
-                        # Normal char
-                        if bs_buf:
-                            result.extend(bs_buf)
-                            bs_buf = []
-                        result.append(c)
-
-                # Add remaining backslashes, if any.
+                    qarg.append(c)
                 if bs_buf:
-                    result.extend(bs_buf)
+                    qarg.extend(bs_buf)
 
-                if needquote:
-                    result.extend(bs_buf)
-                    result.append('"')
+            # Trailing backslashes must be doubled, since the
+            # close quote mark immediately follows.
+            qarg.extend(bs_buf)
+            qarg.extend(bs_buf)
+            qarg.append('"')
 
-            return ''.join(result)
-
-    # Additional layer of quoting required by cmd.exe.
-    # Backslash is *not* a cmd.exe metacharacter; ^ does what
-    # backslash does in Bourne shell.  Space is also *not* a
-    # cmd.exe metacharacter (because each Windows process is
-    # responsible for chopping up its own argument vector).
-    # However, " *is* a cmd.exe metacharacter, and that's the
-    # problem: "blah\"blah" will be misinterpreted.  We take
-    # the brute-force approach and ^-escape every documented
-    # cmd.exe metacharacter.
-    # See http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
-    def list2shell(seq):
-        crtquoted = list2cmdline(seq)
-        result = []
-        for c in crtquoted:
-            if c in r'!"%&()<>^|':
-                result.append('^')
-            result.append(c)
-        return ''.join(result)
+        # Phase 2: quote for CMD.EXE, for which backslash is *not* a
+        # special character but space, tab, double quote, and several
+        # other punctuators are.  This process is much simpler: escape
+        # each special character with a caret (including caret
+        # itself).
+        qqarg = []
+        for c in qarg:
+            if c in ' \t!"%&()<>^|':
+                qqarg.append('^')
+            qqarg.append(c)
+        return ''.join(qqarg)
 
 else: # not Windows; assume os.system is Bourne-shell-like
     try:
         # shlex.quote is the documented API for Bourne-shell
         # quotation, but was only added very recently.  Note that it
         # only does one argument.
-        import shlex
-        shellquote1 = shlex.quote
+        from shlex import quote as shellquote1
     except (ImportError, AttributeError):
         # pipes.quote is undocumented but has existed all the way back
         # to 2.0.  It is semantically identical to shlex.quote.
-        import pipes
-        shellquote1 = pipes.quote
+        from pipes import quote as shellquote1
 
-    def list2shell(seq):
-        return " ".join([shellquote1(s) for s in seq])
+def list2shell(seq):
+    # Square brackets here required for pre-Python 2.4 compatibility.
+    return " ".join([shellquote1(s) for s in seq])
 
 def invoke(argv):
     """Invoke the command in 'argv' and capture its output."""
