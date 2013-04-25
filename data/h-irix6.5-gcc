@@ -3,7 +3,7 @@
 :category Unix
 :label IRIX
 :version 6.5
-:compiler gcc
+:compiler GCC 3.4
 :gen 1
 a.out.h
 aio.h

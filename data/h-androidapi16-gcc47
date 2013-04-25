@@ -3,7 +3,7 @@
 :category embedded Unix
 :label Android API
 :version 16
-:compiler gcc 4.7
+:compiler GCC 4.7
 :gen 1
 alloca.h
 assert.h
@@ -110,5 +110,5 @@ $ Requires <code>sys/socket.h</code>.
 sys/utsname.h
 sys/wait.h
 # Additional scansys state below, for --recheck.
-:cccmd ['/home/zack/projects/android-ndk-r8d/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc', '-isystem', '/home/zack/projects/android-ndk-r8d/platforms/android-14/arch-arm/usr/include']
+:cccmd ['../android-ndk-r8d/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc', '-isystem', '../android-ndk-r8d/platforms/android-14/arch-arm/usr/include']
 :unameversion 1

@@ -4,7 +4,7 @@
 :category Unix
 :label OpenBSD
 :version 5.1
-:compiler gcc
+:compiler GCC 4.2
 :gen 1
 %a.out.h
 $ Requires <code>sys/types.h</code>.

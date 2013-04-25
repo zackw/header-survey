@@ -3,7 +3,7 @@
 :category Windows
 :label MinGW
 :version 2012
-:compiler gcc
+:compiler GCC 4.7
 :gen 1
 assert.h
 complex.h

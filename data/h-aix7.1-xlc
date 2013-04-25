@@ -4,7 +4,7 @@
 :category Unix
 :label AIX
 :version 7.1
-:compiler xlc
+:compiler XLC 12.1
 :gen 1
 a.out.h
 aio.h

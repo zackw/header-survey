@@ -3,7 +3,7 @@
 :category Unix
 :label HP-UX
 :version 11.23
-:compiler acc
+:compiler HP C 11.11
 :gen 1
 a.out.h
 aio.h

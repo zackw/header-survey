@@ -1,9 +1,9 @@
 # host: Linux 3.2.0-4-amd64 #1 SMP Debian 3.2.41-2
 # cc: arm-linux-androideabi-gcc (GCC) 4.7
-:category unknown
-:label Linux
-:version #1 SMP Debian 3.2.41-2
-:compiler /home/zack/projects/android-ndk-r8d/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc
+:category embedded Unix
+:label Android API
+:version 8
+:compiler GCC 4.7
 :gen 1
 alloca.h
 assert.h
@@ -109,5 +109,5 @@ $ Requires <code>sys/socket.h</code>.
 sys/utsname.h
 sys/wait.h
 # Additional scansys state below, for --recheck.
-:cccmd ['/home/zack/projects/android-ndk-r8d/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc', '-isystem', '/home/zack/projects/android-ndk-r8d/platforms/android-8/arch-arm/usr/include']
+:cccmd ['../android-ndk-r8d/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc', '-isystem', '../android-ndk-r8d/platforms/android-8/arch-arm/usr/include']
 :unameversion 1

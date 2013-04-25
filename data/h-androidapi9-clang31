@@ -5,7 +5,7 @@
 :category embedded Unix
 :label Android API
 :version 9
-:compiler clang 3.1
+:compiler Clang 3.1
 :gen 1
 alloca.h
 assert.h
@@ -110,6 +110,5 @@ $ Requires <code>sys/socket.h</code>.
 sys/utsname.h
 sys/wait.h
 # Additional scansys state below, for --recheck.
-:cccmd ['/home/zack/projects/android-ndk-r8d/toolchains/llvm-3.1/prebuilt/linux-x86/bin/clang', '-target', 'armv7-none-linux-androideabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfpv3-d16', '-nostdinc', '-isystem', '/home/zack/projects/android-ndk-r8d/platforms/android-9/arch-arm/usr/include', '-isystem', '/home/zack/projects/android-ndk-r8d/toolchains/llvm-3.1/prebuilt/linux-x86/lib/clang/3.1/include']
+:cccmd ['../android-ndk-r8d/toolchains/llvm-3.1/prebuilt/linux-x86/bin/clang', '-target', 'armv7-none-linux-androideabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfpv3-d16', '-nostdinc', '-isystem', '../android-ndk-r8d/platforms/android-9/arch-arm/usr/include', '-isystem', '../android-ndk-r8d/toolchains/llvm-3.1/prebuilt/linux-x86/lib/clang/3.1/include']
 :unameversion 1
-:compile_opt -S
