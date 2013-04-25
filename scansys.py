@@ -178,8 +178,6 @@ if sys.platform == "win32":
                         qarg.extend(bs_buf)
                         bs_buf = []
                     qarg.append(c)
-                if bs_buf:
-                    qarg.extend(bs_buf)
 
             # Trailing backslashes must be doubled, since the
             # close quote mark immediately follows.
@@ -717,13 +715,13 @@ class HeaderProber:
         src = self.gensrc("stdarg.h")
         (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
         os.remove(src)
-        os.remove(self.syslabel.compile_opt[-1])
         if rc != 0:
             sys.stderr.write("error: stdarg.h not detected. Something is wrong "
                              "with your compiler:\n")
             for e in errors:
                 sys.stderr.write("# %s\n" % e)
             raise SystemExit(1)
+        os.remove(self.syslabel.compile_opt[-1])
 
     def report(self, f):
         """Write a report on everything we have found to file F."""
@@ -909,6 +907,7 @@ options:
         self.output.write(":unameversion %d\n" % self.unameversion)
         self.output.close()
         if self.recheck is not None:
+            os.remove(self.recheck + "~") # necessary for Windows, grar
             os.rename(self.recheck, self.recheck + "~")
             os.rename(self.recheck + "-new", self.recheck)
 
