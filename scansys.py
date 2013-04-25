@@ -16,23 +16,25 @@
 #
 # On the command line, specify the compiler to use and any additional
 # arguments that may be necessary.  If no arguments are provided,
-# defaults to "cc".  WARNING: because we can't reliably predict all of
-# the files that will be created during the probe process, the script
-# changes into a temporary directory.  Therefore, if the compiler to
-# use isn't in $PATH, it must be named by absolute pathname, and any
-# pathnames in the compiler's arguments must also be absolute.
+# defaults to "cc".
 #
 # You can also control this script's behavior to some extent with
 # command-line options, which must appear before the compiler to use,
-# so they aren't confused with arguments to the compiler. The list of
-# headers to look for is taken from the union of all b- files in the
-# "data/" directory.  You can override the location of this directory
-# with --datadir.  There is also a configuration file which defines
-# "prerequisites" -- headers which cannot just be included in
-# isolation.  This defaults to "prereqs.ini", which can be overridden
-# with --prereqs.  Finally, if results are not as expected, --debug
-# will cause the script to print extra information about failed probes
-# on stderr.
+# so they aren't confused with arguments to the compiler.  For new
+# inventories, you can control all the tags in the file header with
+# the options --cattag (-c), --lbltag (-l), --vertag (-v), --cctag
+# (-C), and --seqtag (-s).  You can regenerate an old inventory using
+# --recheck <FILE>; you're responsible for running this on the correct
+# operating system, but it remembers everything else.
+#
+# The list of headers to look for is taken from the union of all b-
+# files in the "data/" directory.  You can override the location of
+# this directory with --datadir.  There is also a configuration file
+# which defines "prerequisites" -- headers which cannot just be
+# included in isolation.  This defaults to "prereqs.ini", which can be
+# overridden with --prereqs.  Finally, if results are not as expected,
+# --debug will cause the script to print extra information about
+# failed probes on stderr.
 
 # This script is backward compatible all the way to Python 2.0, and
 # therefore uses many constructs which are considered obsolete, and
@@ -44,7 +46,6 @@ import cgi
 import getopt
 import os
 import re
-import shutil
 import sys
 
 # If you make a major change to this program, and it would be
@@ -113,24 +114,6 @@ def maybe_fix_ConfigParser():
         p.readfp(test)
 
 maybe_fix_ConfigParser()
-
-# provide mkdtemp if necessary
-try:
-    from tempfile import mkdtemp
-except ImportError:
-    import errno
-    def mkdtemp():
-        for i in xrange(os.TMP_MAX):
-            name = os.tmpnam()
-            try:
-                os.mkdir(name, 0700)
-                return name
-            except OSError, e:
-                if e.errno == errno.EEXIST:
-                    continue
-                raise
-        raise OSError, (errno.EEXIST,
-                        "No usable temporary directory name found")
 
 # opening a file in "rU" mode on a Python that doesn't support it
 # ... silently succeeds!  So we can't use it at all.  Regex time!
@@ -219,8 +202,7 @@ if sys.platform == "win32":
 else: # not Windows; assume os.system is Bourne-shell-like
     try:
         # shlex.quote is the documented API for Bourne-shell
-        # quotation, but was only added very recently.  Note that it
-        # only does one argument.
+        # quotation, but was only added very recently.
         from shlex import quote as shellquote1
     except (ImportError, AttributeError):
         # pipes.quote is undocumented but has existed all the way back
@@ -240,6 +222,7 @@ def invoke(argv):
     try:
         rc = os.system(cmdline)
         msg.extend(universal_readlines("htest-out.txt"))
+        os.remove("htest-out.txt")
     except EnvironmentError, e:
         if e.filename:
             msg.append("%s: %s" % (e.filename, e.strerror))
@@ -255,6 +238,13 @@ class SysLabel:
         else:
             self.compiler = args.cc[0]
         self.ccid = self.compiler_id(args.cc[0])
+
+        if "Microsoft" in self.ccid:
+            self.compile_opt = ["/c", "/Fo", "htest.x"]
+            self.preproc_opt = ["/P", "/Fi", "htest.x"]
+        else:
+            self.compile_opt = ["-S", "-o", "htest.x"]
+            self.preproc_opt = ["-E", "-o", "htest.x"]
 
         system,release,version = self.platform_id()
         if args.unameversion:
@@ -298,22 +288,26 @@ class SysLabel:
         # some versions of HP cc won't print their version info unless you
         # give them something to compile, le sigh
         if opt.endswith("dummy.i"):
+            made_dummy_i = 1
             f = open("dummy.i", "w")
             f.write("int foo;\n")
             f.close()
-        # we know by construction that 'opt' should _not_ be shell-quoted
-        (stdin, stdout) = os.popen4(list2shell([cc]) + " " + opt)
-        stdin.close()
+        else:
+            made_dummy_i = 0
+
+        cmd = [cc] + opt.split()
+        (rc, msg) = invoke(cmd)
+
+        if made_dummy_i:
+            os.remove("dummy.i")
 
         results = []
-
-        for l in stdout.read().split("\n"):
+        for l in msg[1:]:
             l = l.strip()
             if l == "": continue
             if self._compiler_id_stop_re.search(l): break
             results.append(l)
 
-        stdout.close()
         # this lines up with the "# cc: " put on the first line by write()
         return "\n#     ".join(results)
 
@@ -536,10 +530,6 @@ class HeaderProber:
     def __init__(self, args):
         self.debug = args.debug
         self.cc = args.cc
-        self.compile_opt = args.compile_opt
-        if self.compile_opt is None: self.compile_opt = "-c"
-        self.preproc_opt = args.preproc_opt
-        if self.preproc_opt is None: self.preproc_opt = "-E"
         self.syslabel = SysLabel(args)
         self.read_prereqs(args.prereqs)
         self.read_headers(args.datadir)
@@ -655,8 +645,10 @@ class HeaderProber:
                 sys.stderr.write("%s: trying without special handling\n"
                                  % header)
             src = self.gensrc(header)
-            (rc, errors) = invoke(self.cc + [self.compile_opt, src])
+            (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
             if rc == 0:
+                os.remove(src)
+                os.remove(self.syslabel.compile_opt[-1])
                 self.probe_report(header, "correct", errors, src)
                 self.known_headers[header] = ("","")
                 return
@@ -665,8 +657,10 @@ class HeaderProber:
                 sys.stderr.write("%s: trying with special handling\n"
                                  % header)
             src = self.gensrc(header, dospecial=1)
-            (rc, errors) = invoke(self.cc + [self.compile_opt, src])
+            (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
             if rc == 0:
+                os.remove(src)
+                os.remove(self.syslabel.compile_opt[-1])
                 self.probe_report(header, "dependent", errors, src)
                 self.known_headers[header] = \
                     ("%", special_ann(self.specials[header]))
@@ -685,8 +679,11 @@ class HeaderProber:
                     sys.stderr.write("%s: trying prereqs=%s\n" %
                                      (header, repr(pc)))
                 src = self.gensrc(header, pc)
-                (rc, errors) = invoke(self.cc + [self.compile_opt, src])
+                (rc, errors) = invoke(self.cc +
+                                      self.syslabel.compile_opt + [src])
                 if rc == 0:
+                    os.remove(src)
+                    os.remove(self.syslabel.compile_opt[-1])
                     if len(pc) == 0:
                         self.probe_report(header, "correct", errors, src)
                         self.known_headers[header] = ("","")
@@ -698,13 +695,14 @@ class HeaderProber:
         # If we get here, all prior trials have failed.  See if we can
         # even preprocess this header.
         src = self.gensrc(header, trailer=0)
-        (rc, perrors) = invoke(self.cc + [self.preproc_opt, src])
-        if rc != 0:
+        (rc, perrors) = invoke(self.cc + self.syslabel.preproc_opt + [src])
+        os.remove(src)
+        if rc == 0:
+            os.remove(self.syslabel.preproc_opt[-1])
+            self.probe_report(header, "buggy", errors, src)
+            self.known_headers[header] = ("!", buggy_ann(errors))
+        else:
             self.probe_report(header, "absent", perrors, src)
-            return
-
-        self.probe_report(header, "buggy", errors, src)
-        self.known_headers[header] = ("!", buggy_ann(errors))
 
     def probe(self):
         """Probe for all the headers in self.headers.  Save the results in
@@ -717,7 +715,9 @@ class HeaderProber:
         """Perform a "smoke test": If a probe for stdarg.h fails,
            something is profoundly wrong and we should bail out."""
         src = self.gensrc("stdarg.h")
-        (rc, errors) = invoke(self.cc + [self.compile_opt, src])
+        (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
+        os.remove(src)
+        os.remove(self.syslabel.compile_opt[-1])
         if rc != 0:
             sys.stderr.write("error: stdarg.h not detected. Something is wrong "
                              "with your compiler:\n")
@@ -732,30 +732,6 @@ class HeaderProber:
             v = self.known_headers[h]
             assert type(v) == type((None,))
             f.write("%s%s\n%s" % (v[0], h, v[1]))
-
-class ScratchDir:
-    """RAII class to create and clean up our scratch directory."""
-    def __init__(self):
-        # grab these in case __del__ gets called at a bad time
-        self.rmtree = shutil.rmtree
-        self.cd = os.chdir
-
-        self.oldwd = os.getcwd()
-        self.wd = mkdtemp()
-        self.cd(self.wd)
-
-    def __del__(self):
-        # This is exceedingly paranoid since we want it to work
-        # regardless of how constructed the object got.
-        rmtree = getattr(self, 'rmtree', None)
-        cd = getattr(self, 'cd', None)
-        oldwd = getattr(self, 'oldwd', None)
-        wd = getattr(self, 'wd', None)
-        if (rmtree is not None and cd is not None and
-            oldwd is not None and wd is not None):
-            cd(oldwd)
-            rmtree(wd)
-        self.wd = None
 
 class Args:
     """Command line argument store."""
@@ -787,10 +763,6 @@ options:
   --(no-)uname-version do (not) put `uname -v` in the output (default: yes)
   --recheck FILE       redo the inventory in FILE
   --debug              report all compiler errors
-  --compile-opt OPT    compiler option to request compilation but not linking
-                       (default: -c) (try -S if your assembler doesn't work)
-  --preproc-opt OPT    compiler option to request preprocessing only
-                       (default: -E)
   --datadir DIRECTORY  directory containing lists of header files to probe
   --prereqs FILE       file listing prerequisite sets for each header
 """
@@ -824,8 +796,6 @@ options:
         self.recheck = None
         self.cc = ["cc"]
         self.ccset = 0
-        self.compile_opt = None
-        self.preproc_opt = None
         self.unameversionset = 0
         self.unameversion = 1
         self.category = None
@@ -841,7 +811,6 @@ options:
                                         "cattag=", "lbltag=", "vertag=",
                                         "cctag=", "seqtag=",
                                         "no-uname-version", "uname-version",
-                                        "compile-opt=", "preproc-opt="
                                         ])
         except getopt.GetoptError, e:
             self.usage(str(e))
@@ -859,10 +828,6 @@ options:
             elif o == "--uname-version":
                 self.unameversionset = 1
                 self.unameversion = 1
-            elif o == "--preproc-opt":
-                self.preproc_opt = a
-            elif o == "--compile-opt":
-                self.compile_opt = a
             elif o == "--recheck":
                 self.recheck = a
             elif o in ("-c", "--cattag"):
@@ -906,9 +871,7 @@ options:
             elif (key == 'category' or
                   key == 'label' or
                   key == 'version' or
-                  key == 'compiler' or
-                  key == 'compile_opt' or
-                  key == 'preproc_opt'):
+                  key == 'compiler'):
                 self.load_tag(key, rest)
             elif key == 'unameversion':
                 if self.unameversionset:
@@ -944,10 +907,6 @@ options:
         self.output.write("# Additional scansys state below, for --recheck.\n")
         self.output.write(":cccmd %s\n" % repr(self.cc))
         self.output.write(":unameversion %d\n" % self.unameversion)
-        if self.compile_opt is not None:
-            self.output.write(":compile_opt %s\n" % self.compile_opt)
-        if self.preproc_opt is not None:
-            self.output.write(":preproc_opt %s\n" % self.preproc_opt)
         self.output.close()
         if self.recheck is not None:
             os.rename(self.recheck, self.recheck + "~")
@@ -956,19 +915,14 @@ options:
 def main():
     args = Args(sys.argv)
 
-    scratch = None
     try:
-        try:
-            engine = HeaderProber(args)
-            scratch = ScratchDir()
-            engine.smoke()
-            engine.probe()
-            engine.report(args.output)
-            args.finalize()
+        engine = HeaderProber(args)
+        engine.smoke()
+        engine.probe()
+        engine.report(args.output)
+        args.finalize()
 
-        except EnvironmentError, e:
-            raise SystemExit("%s: %s" % (e.filename, e.strerror))
-    finally:
-        del scratch
+    except EnvironmentError, e:
+        raise SystemExit("%s: %s" % (e.filename, e.strerror))
 
 if __name__ == '__main__': main()
