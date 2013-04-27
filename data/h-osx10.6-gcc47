@@ -4,7 +4,7 @@
 :category Unix
 :label MacOS X
 :version 10.6
-:compiler gcc47
+:compiler GCC 4.7
 :gen 1
 aio.h
 alloca.h

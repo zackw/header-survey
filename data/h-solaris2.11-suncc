@@ -4,7 +4,7 @@
 :category Unix
 :label Solaris
 :version 2.11
-:compiler suncc
+:compiler Sun C 5.12
 :gen 1
 aio.h
 alloca.h

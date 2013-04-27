@@ -6,7 +6,7 @@
 :category Unix
 :label GNU libc
 :version 2.13
-:compiler clang
+:compiler Clang 3.0
 :gen 1
 a.out.h
 aio.h

@@ -3,7 +3,7 @@
 :category Unix
 :label IRIX
 :version 6.5
-:compiler mipspro-cc
+:compiler MIPSpro 7.4
 :gen 1
 a.out.h
 aio.h

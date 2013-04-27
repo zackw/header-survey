@@ -1,10 +1,10 @@
 # host: Windows 7 6.1.7601
-# compile command: cl
-## Microsoft (R) 32-bit C/C++ Optimizing Compiler Version 15.00.21022.08 for 80x86
+# cc: Microsoft (R) 32-bit C/C++ Optimizing Compiler Version 15.00.21022.08 for 80x86
 :category Windows
 :label MSVC
 :version 2008
 :compiler cl
+:gen 1
 assert.h
 ctype.h
 direct.h
@@ -32,3 +32,6 @@ wctype.h
 sys/stat.h
 sys/timeb.h
 sys/types.h
+# Additional scansys state below, for --recheck.
+:cccmd ['C:\\Program Files\\Microsoft Visual Studio 9.0\\VC\\bin\\cl.exe']
+:unameversion 1

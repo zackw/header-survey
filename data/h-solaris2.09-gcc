@@ -4,7 +4,7 @@
 :category Unix
 :label Solaris
 :version 2.9
-:compiler gcc
+:compiler GCC 4.6
 :gen 1
 aio.h
 alloca.h

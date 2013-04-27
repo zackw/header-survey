@@ -6,7 +6,7 @@
 :category Unix
 :label FreeBSD
 :version 9.1
-:compiler clang
+:compiler Clang 3.1
 :gen 1
 a.out.h
 aio.h

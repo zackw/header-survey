@@ -4,7 +4,7 @@
 :category Unix
 :label FreeBSD
 :version 7.4
-:compiler gcc
+:compiler GCC 4.2
 :gen 1
 a.out.h
 aio.h

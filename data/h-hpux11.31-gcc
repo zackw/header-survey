@@ -3,7 +3,7 @@
 :category Unix
 :label HP-UX
 :version 11.31
-:compiler gcc
+:compiler GCC 4.2
 :gen 1
 a.out.h
 aio.h

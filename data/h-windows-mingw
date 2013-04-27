@@ -1,10 +1,10 @@
 # host: Windows 7 6.1.7601
-# compile command: gcc
-## gcc (GCC) 4.7.2
+# cc: gcc (GCC) 4.7.2
 :category Windows
 :label MinGW
 :version 2012
-:compiler gcc
+:compiler GCC 4.7
+:gen 1
 assert.h
 complex.h
 ctype.h
@@ -29,6 +29,7 @@ pthread.h
 sched.h
 search.h
 %semaphore.h
+$ Requires <code>sys/types.h</code>.
 setjmp.h
 signal.h
 stdalign.h
@@ -56,3 +57,6 @@ sys/time.h
 sys/timeb.h
 sys/types.h
 sys/unistd.h
+# Additional scansys state below, for --recheck.
+:cccmd ['c:\\mingw\\bin\\gcc.exe']
+:unameversion 1

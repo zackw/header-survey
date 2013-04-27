@@ -4,7 +4,7 @@
 :category Unix
 :label Tru64
 :version 5.1
-:compiler compaqcc
+:compiler Compaq C 6.5
 :gen 1
 a.out.h
 aio.h

@@ -16,23 +16,25 @@
 #
 # On the command line, specify the compiler to use and any additional
 # arguments that may be necessary.  If no arguments are provided,
-# defaults to "cc".  WARNING: because we can't reliably predict all of
-# the files that will be created during the probe process, the script
-# changes into a temporary directory.  Therefore, if the compiler to
-# use isn't in $PATH, it must be named by absolute pathname, and any
-# pathnames in the compiler's arguments must also be absolute.
+# defaults to "cc".
 #
 # You can also control this script's behavior to some extent with
 # command-line options, which must appear before the compiler to use,
-# so they aren't confused with arguments to the compiler. The list of
-# headers to look for is taken from the union of all b- files in the
-# "data/" directory.  You can override the location of this directory
-# with --datadir.  There is also a configuration file which defines
-# "prerequisites" -- headers which cannot just be included in
-# isolation.  This defaults to "prereqs.ini", which can be overridden
-# with --prereqs.  Finally, if results are not as expected, --debug
-# will cause the script to print extra information about failed probes
-# on stderr.
+# so they aren't confused with arguments to the compiler.  For new
+# inventories, you can control all the tags in the file header with
+# the options --cattag (-c), --lbltag (-l), --vertag (-v), --cctag
+# (-C), and --seqtag (-s).  You can regenerate an old inventory using
+# --recheck <FILE>; you're responsible for running this on the correct
+# operating system, but it remembers everything else.
+#
+# The list of headers to look for is taken from the union of all b-
+# files in the "data/" directory.  You can override the location of
+# this directory with --datadir.  There is also a configuration file
+# which defines "prerequisites" -- headers which cannot just be
+# included in isolation.  This defaults to "prereqs.ini", which can be
+# overridden with --prereqs.  Finally, if results are not as expected,
+# --debug will cause the script to print extra information about
+# failed probes on stderr.
 
 # This script is backward compatible all the way to Python 2.0, and
 # therefore uses many constructs which are considered obsolete, and
@@ -44,7 +46,6 @@ import cgi
 import getopt
 import os
 import re
-import shutil
 import sys
 
 # If you make a major change to this program, and it would be
@@ -114,27 +115,9 @@ def maybe_fix_ConfigParser():
 
 maybe_fix_ConfigParser()
 
-# provide mkdtemp if necessary
-try:
-    from tempfile import mkdtemp
-except ImportError:
-    import errno
-    def mkdtemp():
-        for i in xrange(os.TMP_MAX):
-            name = os.tmpnam()
-            try:
-                os.mkdir(name, 0700)
-                return name
-            except OSError, e:
-                if e.errno == errno.EEXIST:
-                    continue
-                raise
-        raise OSError, (errno.EEXIST,
-                        "No usable temporary directory name found")
-
 # opening a file in "rU" mode on a Python that doesn't support it
 # ... silently succeeds!  So we can't use it at all.  Regex time!
-_universal_readlines_re = re.compile("\r|\n|\r\n")
+_universal_readlines_re = re.compile("\r\n|\r|\n")
 def universal_readlines(fname):
     f = open(fname, "rb")
     s = f.read().strip()
@@ -144,90 +127,89 @@ def universal_readlines(fname):
 
 # We can't use subprocess, it's too new.  We can't use os.popen*,
 # because they don't report the exit code.  So... os.system it is.
-# Which means we have to shell-quote, and shell-quoting for Windows
-# is different than shell-quoting for Unix; the library *may* have
-# the right stuff, somewhere, or then again it may not.
+# Which means we have to shell-quote, which is different on Windows.
+# It is convenient to express the platform-specific logic as a
+# function which quotes *one* argument; it then works on both Windows
+# and Unix to map this function over the argument list and join the
+# result list with spaces.
 if sys.platform == "win32":
-    try:
-        from subprocess import list2cmdline
-    except ImportError:
-        def list2cmdline(seq):
-            # See http://msdn.microsoft.com/en-us/library/17w5ykft.aspx
-            # or search http://msdn.microsoft.com for "Parsing C++
-            # Command-Line Arguments".
-            result = []
-            needquote = 0
-            for arg in seq:
-                bs_buf = []
-
-                # Add a space to separate this argument from the others
-                if result:
-                    result.append(' ')
-
-                needquote = (" " in arg) or ("\t" in arg) or not arg
-                if needquote:
-                    result.append('"')
-
-                for c in arg:
-                    if c == '\\':
-                        # Don't know if we need to double yet.
-                        bs_buf.append(c)
-                    elif c == '"':
-                        # Double backslashes.
-                        result.append('\\' * len(bs_buf)*2)
+    # We could look for subprocess.list2cmdline, but that only quotes
+    # for CreateProcess() [or, rather, the MSVC runtime's
+    # CommandLineToArgvW()] whereas what we need is quoting for
+    # CommandLineToArgvW *plus* quoting for CMD.EXE, and it turns out
+    # that it's easier to do both steps ourselves than to requote what
+    # subprocess.list2cmdline returns, because we need to know the
+    # boundaries between arguments for both steps.  Code borrowed with
+    # extensive modification from Py2.7's subprocess.list2cmdline.
+    # See also http://msdn.microsoft.com/en-us/library/17w5ykft.aspx and
+    # http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
+    def shellquote1(arg):
+        # Phase 1: quote for CommandLineToArgvW.  The only characters
+        # that require quotation are space, tab, and double quote.  If
+        # any of the above are present, then the whole argument must
+        # be surrounded by double quotes, any literal double quotes
+        # must be escaped with backslashes, and any backslashes *which
+        # immediately precede a double quote* must be escaped with
+        # more backslashes.  Note that backslash is *only* significant
+        # if it's part of a train of backslashes immediately followed
+        # by a double quote. It is technically not necessary to wrap
+        # arguments that contain double quotes but *not* spaces or
+        # tabs in more double quotes, but it is logically simpler.
+        if arg == '':
+            qarg = ['"', '"']
+        elif (' ' not in arg and '\t' not in arg and '"' not in arg):
+            qarg = [c for c in arg]
+        else:
+            qarg = ['"']
+            bs_buf = []
+            for c in arg:
+                if c == '\\':
+                    # Don't know if we need to double yet.
+                    bs_buf.append(c)
+                elif c == '"':
+                    # Double backslashes.
+                    qarg.extend(bs_buf)
+                    qarg.extend(bs_buf)
+                    bs_buf = []
+                    qarg.append('\\"')
+                else:
+                    # Normal char
+                    if bs_buf:
+                        qarg.extend(bs_buf)
                         bs_buf = []
-                        result.append('\\"')
-                    else:
-                        # Normal char
-                        if bs_buf:
-                            result.extend(bs_buf)
-                            bs_buf = []
-                        result.append(c)
+                    qarg.append(c)
 
-                # Add remaining backslashes, if any.
-                if bs_buf:
-                    result.extend(bs_buf)
+            # Trailing backslashes must be doubled, since the
+            # close quote mark immediately follows.
+            qarg.extend(bs_buf)
+            qarg.extend(bs_buf)
+            qarg.append('"')
 
-                if needquote:
-                    result.extend(bs_buf)
-                    result.append('"')
-
-            return ''.join(result)
-
-    # Additional layer of quoting required by cmd.exe.
-    # Backslash is *not* a cmd.exe metacharacter; ^ does what
-    # backslash does in Bourne shell.  Space is also *not* a
-    # cmd.exe metacharacter (because each Windows process is
-    # responsible for chopping up its own argument vector).
-    # However, " *is* a cmd.exe metacharacter, and that's the
-    # problem: "blah\"blah" will be misinterpreted.  We take
-    # the brute-force approach and ^-escape every documented
-    # cmd.exe metacharacter.
-    # See http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
-    def list2shell(seq):
-        crtquoted = list2cmdline(seq)
-        result = []
-        for c in crtquoted:
-            if c in r'!"%&()<>^|':
-                result.append('^')
-            result.append(c)
-        return ''.join(result)
+        # Phase 2: quote for CMD.EXE, for which backslash is *not* a
+        # special character but space, tab, double quote, and several
+        # other punctuators are.  This process is much simpler: escape
+        # each special character with a caret (including caret
+        # itself).
+        qqarg = []
+        for c in qarg:
+            if c in ' \t!"%&()<>^|':
+                qqarg.append('^')
+            qqarg.append(c)
+        return ''.join(qqarg)
 
 else: # not Windows; assume os.system is Bourne-shell-like
     try:
         # shlex.quote is the documented API for Bourne-shell
-        # quotation, but was only added very recently.  Note that it
-        # only does one argument.
-        import shlex
-        shellquote1 = shlex.quote
+        # quotation, but was only added very recently.
+        from shlex import quote as shellquote1
     except (ImportError, AttributeError):
         # pipes.quote is undocumented but has existed all the way back
         # to 2.0.  It is semantically identical to shlex.quote.
-        import pipes
-        shellquote1 = pipes.quote
+        from pipes import quote as shellquote1
 
-    def list2shell(seq):
-        return " ".join([shellquote1(s) for s in seq])
+def list2shell(seq):
+    # Square brackets here required for pre-Python 2.4 compatibility.
+    return " ".join([shellquote1(s) for s in seq])
 
 def invoke(argv):
     """Invoke the command in 'argv' and capture its output."""
@@ -238,6 +220,7 @@ def invoke(argv):
     try:
         rc = os.system(cmdline)
         msg.extend(universal_readlines("htest-out.txt"))
+        os.remove("htest-out.txt")
     except EnvironmentError, e:
         if e.filename:
             msg.append("%s: %s" % (e.filename, e.strerror))
@@ -253,6 +236,13 @@ class SysLabel:
         else:
             self.compiler = args.cc[0]
         self.ccid = self.compiler_id(args.cc[0])
+
+        if "Microsoft" in self.ccid:
+            self.compile_opt = ["/c", "/Fo", "htest.x"]
+            self.preproc_opt = ["/P", "/Fi", "htest.x"]
+        else:
+            self.compile_opt = ["-S", "-o", "htest.x"]
+            self.preproc_opt = ["-E", "-o", "htest.x"]
 
         system,release,version = self.platform_id()
         if args.unameversion:
@@ -296,22 +286,26 @@ class SysLabel:
         # some versions of HP cc won't print their version info unless you
         # give them something to compile, le sigh
         if opt.endswith("dummy.i"):
+            made_dummy_i = 1
             f = open("dummy.i", "w")
             f.write("int foo;\n")
             f.close()
-        # we know by construction that 'opt' should _not_ be shell-quoted
-        (stdin, stdout) = os.popen4(list2shell([cc]) + " " + opt)
-        stdin.close()
+        else:
+            made_dummy_i = 0
+
+        cmd = [cc] + opt.split()
+        (rc, msg) = invoke(cmd)
+
+        if made_dummy_i:
+            os.remove("dummy.i")
 
         results = []
-
-        for l in stdout.read().split("\n"):
+        for l in msg[1:]:
             l = l.strip()
             if l == "": continue
             if self._compiler_id_stop_re.search(l): break
             results.append(l)
 
-        stdout.close()
         # this lines up with the "# cc: " put on the first line by write()
         return "\n#     ".join(results)
 
@@ -649,8 +643,10 @@ class HeaderProber:
                 sys.stderr.write("%s: trying without special handling\n"
                                  % header)
             src = self.gensrc(header)
-            (rc, errors) = invoke(self.cc + ["-c", src])
+            (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
             if rc == 0:
+                os.remove(src)
+                os.remove(self.syslabel.compile_opt[-1])
                 self.probe_report(header, "correct", errors, src)
                 self.known_headers[header] = ("","")
                 return
@@ -659,8 +655,10 @@ class HeaderProber:
                 sys.stderr.write("%s: trying with special handling\n"
                                  % header)
             src = self.gensrc(header, dospecial=1)
-            (rc, errors) = invoke(self.cc + ["-c", src])
+            (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
             if rc == 0:
+                os.remove(src)
+                os.remove(self.syslabel.compile_opt[-1])
                 self.probe_report(header, "dependent", errors, src)
                 self.known_headers[header] = \
                     ("%", special_ann(self.specials[header]))
@@ -679,8 +677,11 @@ class HeaderProber:
                     sys.stderr.write("%s: trying prereqs=%s\n" %
                                      (header, repr(pc)))
                 src = self.gensrc(header, pc)
-                (rc, errors) = invoke(self.cc + ["-c", src])
+                (rc, errors) = invoke(self.cc +
+                                      self.syslabel.compile_opt + [src])
                 if rc == 0:
+                    os.remove(src)
+                    os.remove(self.syslabel.compile_opt[-1])
                     if len(pc) == 0:
                         self.probe_report(header, "correct", errors, src)
                         self.known_headers[header] = ("","")
@@ -692,13 +693,14 @@ class HeaderProber:
         # If we get here, all prior trials have failed.  See if we can
         # even preprocess this header.
         src = self.gensrc(header, trailer=0)
-        (rc, perrors) = invoke(self.cc + ["-E", src])
-        if rc != 0:
+        (rc, perrors) = invoke(self.cc + self.syslabel.preproc_opt + [src])
+        os.remove(src)
+        if rc == 0:
+            os.remove(self.syslabel.preproc_opt[-1])
+            self.probe_report(header, "buggy", errors, src)
+            self.known_headers[header] = ("!", buggy_ann(errors))
+        else:
             self.probe_report(header, "absent", perrors, src)
-            return
-
-        self.probe_report(header, "buggy", errors, src)
-        self.known_headers[header] = ("!", buggy_ann(errors))
 
     def probe(self):
         """Probe for all the headers in self.headers.  Save the results in
@@ -711,13 +713,15 @@ class HeaderProber:
         """Perform a "smoke test": If a probe for stdarg.h fails,
            something is profoundly wrong and we should bail out."""
         src = self.gensrc("stdarg.h")
-        (rc, errors) = invoke(self.cc + ["-c", src])
+        (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
+        os.remove(src)
         if rc != 0:
             sys.stderr.write("error: stdarg.h not detected. Something is wrong "
                              "with your compiler:\n")
             for e in errors:
                 sys.stderr.write("# %s\n" % e)
             raise SystemExit(1)
+        os.remove(self.syslabel.compile_opt[-1])
 
     def report(self, f):
         """Write a report on everything we have found to file F."""
@@ -726,30 +730,6 @@ class HeaderProber:
             v = self.known_headers[h]
             assert type(v) == type((None,))
             f.write("%s%s\n%s" % (v[0], h, v[1]))
-
-class ScratchDir:
-    """RAII class to create and clean up our scratch directory."""
-    def __init__(self):
-        # grab these in case __del__ gets called at a bad time
-        self.rmtree = shutil.rmtree
-        self.cd = os.chdir
-
-        self.oldwd = os.getcwd()
-        self.wd = mkdtemp()
-        self.cd(self.wd)
-
-    def __del__(self):
-        # This is exceedingly paranoid since we want it to work
-        # regardless of how constructed the object got.
-        rmtree = getattr(self, 'rmtree', None)
-        cd = getattr(self, 'cd', None)
-        oldwd = getattr(self, 'oldwd', None)
-        wd = getattr(self, 'wd', None)
-        if (rmtree is not None and cd is not None and
-            oldwd is not None and wd is not None):
-            cd(oldwd)
-            rmtree(wd)
-        self.wd = None
 
 class Args:
     """Command line argument store."""
@@ -828,7 +808,7 @@ options:
                                         "datadir=", "prereqs=", "recheck=",
                                         "cattag=", "lbltag=", "vertag=",
                                         "cctag=", "seqtag=",
-                                        "no-uname-version", "uname-version"
+                                        "no-uname-version", "uname-version",
                                         ])
         except getopt.GetoptError, e:
             self.usage(str(e))
@@ -881,7 +861,7 @@ options:
 
     def prep_recheck(self):
         for l in universal_readlines(self.recheck):
-            if l[0] != ':': continue
+            if len(l) > 0 and l[0] != ':': continue
             (key, rest) = l.split(' ', 1)
             key = key[1:]
             if key == 'sequence':
@@ -927,25 +907,21 @@ options:
         self.output.write(":unameversion %d\n" % self.unameversion)
         self.output.close()
         if self.recheck is not None:
+            os.remove(self.recheck + "~") # necessary for Windows, grar
             os.rename(self.recheck, self.recheck + "~")
             os.rename(self.recheck + "-new", self.recheck)
 
 def main():
     args = Args(sys.argv)
 
-    scratch = None
     try:
-        try:
-            engine = HeaderProber(args)
-            scratch = ScratchDir()
-            engine.smoke()
-            engine.probe()
-            engine.report(args.output)
-            args.finalize()
+        engine = HeaderProber(args)
+        engine.smoke()
+        engine.probe()
+        engine.report(args.output)
+        args.finalize()
 
-        except EnvironmentError, e:
-            raise SystemExit("%s: %s" % (e.filename, e.strerror))
-    finally:
-        del scratch
+    except EnvironmentError, e:
+        raise SystemExit("%s: %s" % (e.filename, e.strerror))
 
 if __name__ == '__main__': main()
