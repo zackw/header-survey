@@ -163,4 +163,79 @@ th { font-size: 12px; font-family: sans-serif; }
 .ypn { background-position: -30px -45px; }
 .ybn { background-position: -45px -15px; }
 .pbn { background-position: -45px -30px; }
-.ypbn{ background-position: -45px -45px; }
+.ypbn{ background-position: -45px -45px; }@charset "utf-8";
+/* These are reset rules which need to be applied even if <details>
+   is natively supported (at least right now).  Adjust as necessary
+   for your presentation.  */
+details { display: block; overflow: hidden; position: relative; }
+details[open] { overflow: visible }
+details > div { visibility: hidden; position: absolute; }
+details[open] > div {
+  visibility: visible;
+  background: white;
+  z-index: 1;
+  width: 25em;
+  height: auto;
+  border: 1px solid blue;
+  margin-top: -1px;
+  padding: 5px;
+}
+details > summary {
+  position: relative;
+  visibility: visible;
+  display: inline-block;
+  border: 1px solid transparent;
+  border-bottom: none;
+  padding: 0;
+  padding-bottom: 1px;
+}
+details[open] > summary {
+  background-color: white;
+  border-color: blue;
+  z-index: 2;
+}
+summary:focus {
+  outline: none;
+  background-color: #e5e5f2;
+}
+details[open] > summary:focus {
+  background-color: #e5e5f2;
+}
+
+/* The .polyfilla class is applied to all <details> elements when
+   native support for <details> is unavailable.  If you want a marker,
+   comment out this rule and uncomment the next two. */
+::-webkit-details-marker { display: none }
+/*
+details.polyfilla > summary:first-child::before {
+  content: "►";
+  padding-right: 5px;
+  font-size: 11px;
+}
+details.polyfilla[open] > summary:first-child::before {
+  content: "▼";
+}
+*/
+
+/* These rules are necessary for .sticky to work correctly.  Aspects
+   can be tweaked as appropriate for your presentation.  */
+
+.sticky {
+  background: white;
+}
+.sticky.above {
+}
+.sticky.stuck {
+  position: fixed;
+  top: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  z-index: 3; /* because details uses 1 and 2 */
+}
+.sticky.below {
+  position: absolute;
+  margin-top: 0;
+  margin-bottom: 0;
+  bottom: 0;
+  z-index: 3;
+}
