@@ -19,7 +19,7 @@
 from __future__ import unicode_literals
 
 import argparse
-import ConfigParser
+import copy
 import errno
 import itertools
 import os
@@ -27,52 +27,44 @@ import re
 import sys
 import tempfile
 
-from genshi.core import TEXT
-from genshi.builder import tag as Tag
-from genshi.input import HTML
-from genshi.output import HTMLSerializer
-from genshi.template import TemplateLoader
+import genshi
+import genshi.builder
+import genshi.input
+import genshi.output
+import genshi.template
+
 from string import punctuation as _punctuation
 
-# Sort a list of pathnames, ASCII case-insensitively.  All
-# one-component pathnames are sorted ahead of all longer pathnames;
-# within a group of multicomponent pathnames with the same leading
-# component, all two-component pathnames are sorted ahead of all
-# longer pathnames; and so on, recursively.
-
-def hsortkey(h):
-    def hsortkey_r(hd, *tl):
-        if len(tl) == 0: return (0, hd)
-        return (1, hd) + hsortkey_r(*tl)
-
-    segs = h.lower().replace("\\", "/").split("/")
-    return hsortkey_r(*segs)
+# Generation number expected by the current revision of this program.
+# Should match scansys.py.
+INPUT_GENERATION_NO = 1
 
 def sorthdr(hs):
-    return sorted(hs, key=hsortkey)
+    """Sort a list of pathnames, ASCII case-insensitively.
+       All one-component pathnames are sorted ahead of all longer
+       pathnames; within a group of multicomponent pathnames with the
+       same leading component, all two-component pathnames are sorted
+       ahead of all longer pathnames; and so on, recursively."""
+    def hsortkey(h):
+        def hsortkey_r(hd, *tl):
+            if len(tl) == 0: return (0, hd)
+            return (1, hd) + hsortkey_r(*tl)
 
-make_id_re=re.compile(r'[^A-Za-z0-9_]')
-def make_id(s):
-    s = make_id_re.sub("_", s)
-    if s[0] in "0123456789": s = "_"+s
-    return s
+        segs = h.lower().replace("\\", "/").split("/")
+        return hsortkey_r(*segs)
+
+    return sorted(hs, key=hsortkey)
 
 # hat tip to http://code.activestate.com/recipes/285264-natural-string-sorting/
 _natsort_split_re = re.compile(r'(\d+|\D+)')
 def natsort_key(s):
+    """Produce a sort key for 's' which causes runs of nondigits to be
+       sorted ASCII case-insensitively, and runs of digits to be sorted
+       numerically."""
     def try_int(s):
         try: return int(s)
         except: return s.lower()
     return tuple(try_int(c) for c in _natsort_split_re.findall(s))
-
-# http://code.activestate.com/recipes/511480-interleaving-sequences/
-def interleave(*args):
-    for idx in range(0, max(len(arg) for arg in args)):
-        for arg in args:
-            try:
-                yield arg[idx]
-            except IndexError:
-                continue
 
 # Create/update files only if necessary.
 # This may not be as thorough as it needs to be.
@@ -87,6 +79,11 @@ def ensure_all_directories(path):
             raise
 
 class UpdateIfChange(file):
+    """Acts like a file, implements the Unix atomic update pattern:
+       data is actually written to a temporary file in the same
+       directory, then renamed over the original name on close.  In
+       addition, if the new file's contents are identical to the old
+       file, the old file is not modified."""
     def __init__(self, fname, binary=False):
         self.path = os.path.realpath(fname)
         dname = os.path.dirname(self.path)
@@ -202,119 +199,197 @@ def update_directory_tree(srcdir, dstdir, process_file):
     if not success:
         raise SystemExit(1)
 
+class HeaderNotes(object):
+    """Data object representing what we know about one header on one
+       OS.  The identity of the header and the OS are implicit.  It
+       has a summary symbol, which is a set of letter codes, and a
+       dictionary of annotations; annotations are keyed by a compiler
+       label and each value is a list of strings."""
+
+    _T = genshi.builder.tag
+
+    def __init__(self, sym, cc1):
+        self.sym = set(sym)
+        self.cc1 = cc1
+        self.ann = {}
+
+    # Notes are not ordered, but can be equal or unequal.
+    def __eq__(self, other):
+        return self.sym == other.sym and self.ann == other.ann
+    def __ne__(self, other):
+        return self.sym != other.sym or  self.ann != other.ann
+
+    def add_aline(self, line):
+        if self.cc1 not in self.ann:
+            self.ann[self.cc1] = []
+        self.ann[self.cc1].append(line)
+
+    def merge(self, h, other):
+        """Merge OTHER's summary and annotations into this object."""
+        self.sym |= other.sym
+        for k, v in other.ann.items():
+            if k in self.ann:
+                if v == ['Absent.']:
+                    assert self.ann[k] == ['Absent.']
+                else:
+                    self.ann[k].extend(v)
+            else:
+                self.ann[k] = v[:]
+        if self.sym == set(('Y','N')):
+            sys.stderr.write("YN: {}: {!r}\n".format(h, self.ann))
+
+    def output_sym(self):
+        """Generate HTML representing this object's symbol."""
+        label = ''.join(c for c in ('Y', 'P', 'B', 'N')
+                           if c in self.sym)
+        if label == 'Y':
+            if len(self.ann) != 0:
+                raise RuntimeError("inconsistent notes: "
+                                   "label={} sym={!r} ann={!r}"
+                                   .format(label, self.sym, self.ann))
+            elt = self._T.div
+        elif label == 'N':
+            for c, a in self.ann.iteritems():
+                if a != ["Absent."]:
+                    raise RuntimeError("inconsistent notes: "
+                                       "label={} sym={!r} ann={!r}"
+                                       .format(label, self.sym, self.ann))
+            elt = self._T.div
+        else:
+            assert len(self.ann) > 0
+            elt = self._T.summary
+
+        return elt(label, class_ = label.lower())
+
+    def output_ann(self):
+        """Generate HTML representing this object's annotations."""
+        _H = genshi.input.HTML
+        _T = self._T
+
+        assert len(self.ann) > 0
+        merged_anns = {}
+        final_anns = {}
+        for k, v in self.ann.iteritems():
+            v = " ".join(v)
+            if v not in merged_anns: merged_anns[v] = []
+            merged_anns[v].append(k)
+        for k, v in merged_anns.iteritems():
+            v.sort(key=natsort_key)
+            final_anns[", ".join(v)] = k
+
+        if len(final_anns) == 1:
+            return _T.div(_H(final_anns.values()[0]))
+        else:
+            rv = _T.dl()
+            for k in sorted(final_anns.iterkeys(), key=natsort_key):
+                rv.append(_T.dt(k))
+                rv.append(_T.dd(_H(final_anns[k])))
+            return rv
+
+    def output(self):
+        """Generate HTML for this object."""
+        sym = self.output_sym()
+        if sym.tag != 'summary':
+            return sym
+        return self._T.details(sym, self.output_ann())
 
 class Dataset(object):
-    def __init__(self, *args, **kwargs):
-        if len(args) == 1 and len(kwargs) == 0:
-            other = args[0]
-            self.items = other.items
-            self.label = other.label
-            self.version = other.version
-            self.compiler = "<merged>"
-            self.category = other.category
-            self.sequence = other.sequence
-            self.catkey = other.catkey
-            self.labelkey = other.labelkey
-            self.verskey = other.verskey
-        else:
-            assert len(args) == 0
-            self.items = kwargs['items']
-            self.label = kwargs['label']
-            self.version = kwargs['version']
-            self.compiler = kwargs['compiler']
-            self.category = kwargs['category']
-            self.sequence = kwargs['sequence']
-            # "embedded X" sorts immediately after X; otherwise,
-            # categories are case-insensitive alphabetical
-            if self.category.startswith("embedded "):
-                self.catkey = (self.category[9:].lower(), 1)
+
+    # These are the known metadata tags.  The default value also
+    # controls the acceptable type.  A fully constructed instance
+    # of this class will have all of these tags as attributes.
+    tagdefaults = { "gen"      : 0,
+                    "sequence" : 50,
+                    "category" : "Uncategorized",
+                    "compiler" : "Unknown",
+                    "version"  : "Unknown",
+                    "label"    : "Unknown",
+                    }
+
+    def __init__(self, items, tags):
+        self.items = items
+
+        # Set metadata from the tag dict. Ignore unrecognized tags.
+        for tag, default in self.tagdefaults.iteritems():
+            val = tags.get(tag)
+            if val is not None:
+                setattr(self, tag, type(default)(val))
             else:
-                self.catkey = (self.category.lower(), 0)
-            # numbers within labels are sorted numerically
-            self.labelkey = natsort_key(self.label)
-            self.verskey = natsort_key(self.version)
+                setattr(self, tag, default)
+
+        self.absent = HeaderNotes('N', self.compiler)
+        self.absent.add_aline("Absent.")
+
+        # Set sort keys for specially sorted tags.
+        # "embedded X" sorts immediately after X; otherwise,
+        # categories are case-insensitive alphabetical
+        if self.category.startswith("embedded "):
+            self.catkey = (self.category[9:].lower(), 1)
+        else:
+            self.catkey = (self.category.lower(), 0)
+        # numbers within label and version are sorted numerically
+        self.labelkey = natsort_key(self.label)
+        self.verskey = natsort_key(self.version)
 
     @classmethod
     def from_file(cls, fname):
-        label = fname
-        if fname.startswith("b-") or fname.startswith("h-"):
-            label = label[2:]
-        if fname.endswith(".txt"):
-            label = label[:-4]
-        label = label.replace("-", " ")
-        sequence = 50
-        category = "Uncategorized"
-        compiler = "unknown"
-        version = "unknown"
+        def file_label(fname):
+            label = fname
+            if fname.startswith("b-") or fname.startswith("h-"):
+                label = label[2:]
+            if fname.endswith(".txt"):
+                label = label[:-4]
+            label = label.replace("-", " ")
 
+        tags = { 'label' : file_label(fname) }
         items = {}
+        prev_item = None
+
         with open(fname, "rU") as fp:
-            for line in fp:
+            for lno, line in enumerate(fp):
                 line = line.strip()
                 if line == "" or line[0] == "#": continue
                 if line[0] == ":":
-                    if line.startswith(":label "):
-                        label = line[7:]
-                    elif line.startswith(":version "):
-                        version = line[9:]
-                    elif line.startswith(":category "):
-                        category = line[10:]
-                    elif line.startswith(":compiler "):
-                        compiler = line[10:]
-                    elif line.startswith(":sequence "):
-                        sequence = int(line[10:])
-                    else:
-                        raise RuntimeError("{}: unknown directive-line {0!r}"
-                                           .format(fname, line))
-                    continue
-
-                line = line.replace('\\', '/')
-                if line[0] in _punctuation:
-                    p = line[0]
-                    l = line[1:]
-                    if p == '!': p = 'B'
-                    elif p == '%': p = 'P'
-                    else:
-                        raise RuntimeError("{}: {}: unsupported tag symbol: {}"
-                                           .format(fname, l, p))
-
+                    prev_item = None
+                    k, v = line[1:].split(None, 1)
+                    d = cls.tagdefaults.get(k)
+                    if d is not None:
+                        tags[k] = type(d)(v)
+                    # else: ignore unrecognized tags
+                elif line[0] == '$':
+                    l = line[1:].strip()
+                    if prev_item is None:
+                        raise RuntimeError("{}:{}: {!r}:"
+                                           "annotation without header"
+                                           .format(fname, lno+1, l))
+                    prev_item.add_aline(l)
                 else:
-                    p = 'Y'
-                    l = line
-                if l in items:
-                    raise RuntimeError("{}: duplicate header-line {0!r}"
-                                       .format(fname, line))
-                items[l] = p
+                    line = line.replace('\\', '/')
+                    if line[0] in _punctuation:
+                        p = line[0]
+                        l = line[1:]
+                        if p == '!': p = 'B'
+                        elif p == '%': p = 'P'
+                        else:
+                            raise RuntimeError("{}:{}: "
+                                               "unsupported tag symbol: {}"
+                                               .format(fname, lno+1, p))
+                    else:
+                        p = 'Y'
+                        l = line
+                    if l in items:
+                        raise RuntimeError("{}: duplicate header-line {!r}"
+                                           .format(fname, line))
+                    items[l] = prev_item = HeaderNotes(p, tags.get('compiler',
+                                                                   ''))
 
-        return cls(items=items,
-                   label=label,
-                   version=version,
-                   category=category,
-                   compiler=compiler,
-                   sequence=sequence)
+        return cls(items, tags)
 
     def merge_compiler(self, other):
-        def merge_compiler_1(mine, theirs):
-            assert mine != '' or theirs != ''
-            if mine == theirs:
-                return mine
-            new = ''
-            if 'Y' in mine or 'Y' in theirs: new += 'Y'
-            if 'P' in mine or 'P' in theirs: new += 'P'
-            if 'B' in mine or 'B' in theirs: new += 'B'
-            if ('N' in mine or 'N' in theirs
-                or '' == mine or '' == theirs): new += 'N'
-            return new
-
         assert self.label == other.label and self.version == other.version
-        allh = frozenset(itertools.chain(self.items.iterkeys(),
-                                         other.items.iterkeys()))
-        mergeh = {}
-        for h in allh:
-            mine   = self.items.get(h, '')
-            theirs = other.items.get(h, '')
-            mergeh[h] = merge_compiler_1(mine, theirs)
-        self.items = mergeh
+
+        for (h, theirs) in other.items.iteritems():
+            self.items[h].merge(h, theirs)
 
     def maybe_merge_versions(self, other):
         assert self.label == other.label and self.version != other.version
@@ -353,8 +428,9 @@ class Dataset(object):
     def __getitem__(self, x):
         return self.items[x]
 
-    def get(self, x, d=None):
-        return self.items.get(x, d)
+    def ensure(self, h):
+        if h not in self.items:
+            self.items[h] = copy.copy(self.absent)
 
 def preprocess_osgrp(osgroup):
     assert len(frozenset(os.label for os in osgroup)) == 1
@@ -365,7 +441,7 @@ def preprocess_osgrp(osgroup):
         if merged is not None:
             merged.merge_compiler(os)
         else:
-            versions[os.version] = Dataset(os)
+            versions[os.version] = os
     verlist = versions.values()
     verlist.sort()
 
@@ -392,6 +468,13 @@ def preprocess(datasets):
             else:
                 osgrps[d.label] = [d]
     stds.sort()
+
+    # expand all os-sets to include stub entries for all headers
+    for og in osgrps.itervalues():
+        for o in og:
+            for s in stds:
+                for h in s:
+                    o.ensure(h)
 
     # compute version ranges and compiler dependencies
     oses = []
@@ -442,61 +525,6 @@ def load_datasets(dirname):
     if rv != 0: raise SystemExit(rv)
     return datasets
 
-def load_prereqs(fname):
-    """Read prereqs.ini and generate a table of each header's prerequisites.
-       The return value is a dictionary mapping each header in the .ini to
-       an *expanded* (transitive) list of its prerequisites.
-       For specials, the dictionary entry is instead the text of the
-       first comment in the special declaration."""
-
-    ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
-    def extract_comment(text):
-        m = ecre.search(text)
-        if not m: return "???special without explanation???"
-        return HTML(m.group(1).decode('utf-8'))
-
-    def expand_prereq(h, prereqs):
-        r = set()
-        for p in prereqs.get(h, []):
-            r.add(p)
-            r |= expand_prereq(p, prereqs)
-        return r
-
-    def prereq_note(prereqs):
-        pq = sorthdr(prereqs)
-        if len(pq) == 1:
-            return Tag("May require ", Tag.code(pq[0]), ".")
-        elif len(pq) == 2:
-            return Tag("May require ", Tag.code(pq[0]),
-                       " and/or ", Tag.code(pq[1]), ".")
-        else:
-            l = [Tag.code(p) for p in pq]
-            s = (", ",)*(len(l) - 2) + (", and ",)
-            r = tuple(interleave(l, s))
-            return Tag(*(("May require some or all of: ",) + r + (".",)))
-
-    prerequisites = {}
-    specials = {}
-    parser = ConfigParser.ConfigParser()
-    parser.read(fname)
-
-    if parser.has_section("prerequisites"):
-        for h in parser.options("prerequisites"):
-            prerequisites[h.strip()] = \
-                parser.get("prerequisites", h).split()
-    if parser.has_section("special"):
-        for h in parser.options("special"):
-            specials[h] = parser.get("special", h).strip()
-
-    expanded = {}
-    for h in prerequisites:
-        expanded[h] = [prereq_note(expand_prereq(h, prerequisites))]
-    for h in specials:
-        assert h not in expanded
-        expanded[h] = [extract_comment(specials[h])]
-
-    return expanded
-
 
 # If someone can suggest a more elegant, or at least less repetitive,
 # way to write this transform, I am all ears.
@@ -505,6 +533,7 @@ def collapse_ws_xml(stream):
     wsre = _wsre
     tqueue_data = None
     tqueue_pos = None
+    TEXT = genshi.core.TEXT
 
     for kind, data, pos in stream:
         if kind == TEXT:
@@ -531,10 +560,9 @@ def collapse_ws_xml(stream):
 class PageWriter(object):
     def __init__(self, args):
         datasets = load_datasets(args.datadir)
-        self.notes = load_prereqs(args.prereqs)
         self.oscats, self.stds = preprocess(datasets)
         self.tmpldir = args.template
-        self.loader = TemplateLoader(self.tmpldir)
+        self.loader = genshi.template.TemplateLoader(self.tmpldir)
 
     def __call__(self, srcdir, dstdir, fname):
         # ignore editor backup files
@@ -563,14 +591,12 @@ class PageWriter(object):
         tmpl = self.loader.load(os.path.relpath(srcname, self.tmpldir))
         stream = tmpl.generate(oscats=self.oscats,
                                stds=self.stds,
-                               notes=self.notes,
                                enumerate=enumerate,
                                sorthdr=sorthdr,
-                               make_id=make_id,
                                cycle=itertools.cycle)
         stream = collapse_ws_xml(stream)
         with UpdateIfChange(dstname) as f:
-            for chunk in HTMLSerializer(doctype='html5')(stream):
+            for chunk in genshi.output.HTMLSerializer(doctype='html5')(stream):
                 f.write(chunk.encode('utf-8'))
 
 def main():
@@ -578,8 +604,8 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="""
 Generate a webpage showing per-OS availability of header files, from
-the data files in DATADIR, the prerequisite table PREREQS, and the
-templates in TMPLDIR.  The page is written to OUTDIR.
+the data files in DATADIR and the templates in TMPLDIR.  The page is
+written to OUTDIR.
 """)
     # Monkey-patch out the stupid hardwired names for arguments and options.
     # There doesn't appear to be any better way to do this (stuffing
@@ -594,9 +620,6 @@ templates in TMPLDIR.  The page is written to OUTDIR.
     argp.add_argument('-d', '--datadir', metavar='DATADIR',
                       help='directory containing lists of header files per OS',
                       default='data')
-    argp.add_argument('-p', '--prereqs', metavar='PREREQS',
-                      help='file listing prerequisite sets for each header',
-                      default='prereqs.ini')
     argp.add_argument('-t', '--template', metavar='TMPLDIR',
                       help='directory containing template for webpage',
                       default='tmpl')
