@@ -606,6 +606,54 @@ def collapse_ws_xml(stream):
             tqueue_data = wsre.sub(" ", tqueue_data)
             yield TEXT, tqueue_data, tqueue_pos
 
+# Similarly.
+def inline_styles_and_scripts(stream, tmpldir):
+    def contents(fname):
+        with open(os.path.join(tmpldir, fname), "rU") as f:
+            return f.read()
+    TEXT = genshi.core.TEXT
+    START = genshi.core.START
+    END = genshi.core.END
+
+    discard_until = None
+    discard_nest = 0
+    for (kind, data, pos) in stream:
+        if discard_until is not None:
+            if kind == END and data == discard_until:
+                discard_nest -= 1
+                if not discard_nest:
+                    discard_until = None
+            elif kind == START and data[0] == discard_until:
+                discard_nest += 1
+            continue
+
+        if kind == START:
+            if ((data[0] == genshi.QName("link") or
+                 data[0] == genshi.QName("http://www.w3.org/1999/xhtml}link"))
+                and data[1].get("rel") == "stylesheet"):
+
+                yield (START, (genshi.QName("style"),
+                                 genshi.Attrs()), pos)
+                yield (TEXT, contents(data[1].get("href")), pos)
+                yield (END, genshi.QName("style"), pos)
+
+                discard_until = data[0]
+                discard_nest = 1
+                continue
+            elif ((data[0] == genshi.QName("script") or
+                   data[0] == genshi.QName("http://www.w3.org/1999/xhtml}script"))
+                  and data[1].get("src") is not None):
+
+                yield (START, (data[0], genshi.Attrs()), pos)
+                yield (TEXT, contents(data[1].get("src")), pos)
+                yield (END, data[0], pos)
+
+                discard_until = data[0]
+                discard_nest = 1
+                continue
+
+        yield (kind, data, pos)
+
 class PageWriter(object):
     def __init__(self, args):
         datasets = load_datasets(args.datadir)
@@ -626,7 +674,7 @@ class PageWriter(object):
         if ext == '.tmpl':
             dstname += '.html'
             self.write_tmpl(srcname, dstname)
-        else:
+        elif ext == '.png':
             dstname += ext
             self.copy_file(srcname, dstname)
 
@@ -645,7 +693,8 @@ class PageWriter(object):
                                sorthdr=sorthdr,
                                cycle=itertools.cycle,
                                update_date=self.update_date)
-        stream = collapse_ws_xml(stream)
+        stream = collapse_ws_xml(inline_styles_and_scripts(stream,
+                                                           self.tmpldir))
         with UpdateIfChange(dstname) as f:
             for chunk in genshi.output.HTMLSerializer(doctype='html5')(stream):
                 f.write(chunk.encode('utf-8'))
