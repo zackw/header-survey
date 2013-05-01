@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:t="http://genshi.edgewall.org/"
-      t:with="title='Cross-platform availability of C header files'">
+      t:with="title='Survey of Commonly Available C System Header Files'">
 <head>
 <meta charset="utf-8"/>
 <title t:content="title"/>
@@ -9,6 +9,19 @@
 </head>
 <body>
 <h1 t:content="title"/>
+<p>Many C programs' build harnesses are unnecessarily cautious in
+checking whether various system headers are available, and/or retain
+checks for headers that passed into obsolescence more than a decade
+ago.  The table below shows which headers are ubiquitous and which are
+less common; which are standardized, which are merely widespread, and
+which are obsolete; and finally marks headers that might be
+troublesome.</p>
+<p>The code and data used to produce this table may be found at
+<a href="https://github.com/zackw/header-analysis/"
+>https://github.com/zackw/header-analysis/</a>. Comments,
+suggestions, improvements, additional OS inventories, etc. are
+welcome; please suggest them via the Github issue tracker.</p>
+<p>Compiled by Zack Weinberg. Last updated ${update_date}.</p>
 <table>
   <thead class="sticky">
     <tr>
@@ -55,6 +68,6 @@
     </t:for>
   </tbody>
 </table>
-<script defer="defer" src="s.src.js"/>
+<script defer="defer" src="s.js"/>
 </body>
 </html>

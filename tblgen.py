@@ -27,6 +27,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 
 import genshi
 import genshi.builder
@@ -611,6 +612,7 @@ class PageWriter(object):
         self.oscats, self.stds = preprocess(datasets)
         self.tmpldir = args.template
         self.loader = genshi.template.TemplateLoader(self.tmpldir)
+        self.update_date = time.strftime("%e %B %Y").strip()
 
     def __call__(self, srcdir, dstdir, fname):
         # ignore editor backup files
@@ -641,7 +643,8 @@ class PageWriter(object):
                                stds=self.stds,
                                enumerate=enumerate,
                                sorthdr=sorthdr,
-                               cycle=itertools.cycle)
+                               cycle=itertools.cycle,
+                               update_date=self.update_date)
         stream = collapse_ws_xml(stream)
         with UpdateIfChange(dstname) as f:
             for chunk in genshi.output.HTMLSerializer(doctype='html5')(stream):
