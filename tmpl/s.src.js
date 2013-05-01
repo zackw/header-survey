@@ -27,7 +27,7 @@
         isOpera = false,
         detailsNotSupported = false,
         stickyEls,
-        stickyPHs,
+        stickyClones,
         stickyTops,
         stickyBottoms,
         ticking = 0,
@@ -154,55 +154,6 @@
                 bodyEl).scrollTop;
     }
 
-    function trueTableColumns (tbl) {
-        var colcount = 0, colcount1,
-            rows = tbl.querySelectorAll('tr'),
-            cells, i, j;
-        for (i = 0; i < rows.length; i++) {
-            colcount1 = 0;
-            cells = rows[i].querySelectorAll('td,th');
-            for (j = 0; j < cells.length; j++) {
-                if (cells[j].hasAttribute('colspan'))
-                    colcount1 += (+cells[j].getAttribute('colspan'));
-                else
-                    colcount1 += 1;
-            }
-            if (colcount1 > colcount)
-                colcount = colcount1;
-        }
-        return colcount;
-    }
-
-    function makePlaceholder (l, dim) {
-        var width   = dim.right  - dim.left,
-            height  = dim.bottom - dim.top,
-            pholder, c1, c2;
-        // Note: other table types may need similar treatment.
-        if (l.tagName.toLowerCase() === 'thead') {
-            c2 = doc.createElement('td');
-            c2.setAttribute('colspan', trueTableColumns(l.parentNode));
-            c2.setAttribute('style',
-                            'width:' + width + 'px;' +
-                            'height:' + height + 'px;' +
-                            'margin:0;padding:0;border:none')
-            c2.appendChild(doc.createTextNode('\xA0'));
-            c1 = doc.createElement('tr');
-            c1.appendChild(c2);
-            c1.setAttribute('style', 'margin:0;padding:0;border:none');
-            pholder = doc.createElement('thead');
-            pholder.appendChild(c1);
-            pholder.setAttribute('style',
-                                 'margin:0;padding:0;border:none;display:none');
-        } else {
-            pholder = doc.createElement('div');
-            pholder.setAttribute('style',
-                                 'width:' + width + 'px;' +
-                                 'height:' + height + 'px;' +
-                                 'display:none');
-        }
-        return pholder;
-    }
-
     // requestAnimationFrame is used to throttle scroll-triggered updates
     // to a rate at which it should not cause jank.
     // Technique from http://www.html5rocks.com/en/tutorials/speed/animations/#debouncing-scroll-events
@@ -214,32 +165,29 @@
         // Theoretically, at most two elements should need an update,
         // but by iterating over the entire list we ensure that we
         // never miss one.
-        for (i = 0; i < stickyEls.length; i++) {
-            l = stickyEls[i];
+        for (i = 0; i < stickyClones.length; i++) {
+            l = stickyClones[i];
             if (y < stickyTops[i]) {
-                addClass(l, 'above');
-                removeClass(l, 'stuck');
-                removeClass(l, 'below');
-                stickyPHs[i].style.display = 'none';
+                addClass(l, 'stickyAbove');
+                removeClass(l, 'stickyStuck');
+                removeClass(l, 'stickyBelow');
             } else if (y < stickyBottoms[i]) {
-                removeClass(l, 'above');
-                addClass(l, 'stuck');
-                removeClass(l, 'below');
-                stickyPHs[i].style.removeProperty('display');
+                removeClass(l, 'stickyAbove');
+                addClass(l, 'stickyStuck');
+                removeClass(l, 'stickyBelow');
             } else {
-                removeClass(l, 'above');
-                removeClass(l, 'stuck');
-                addClass(l, 'below');
-                stickyPHs[i].style.removeProperty('display');
+                removeClass(l, 'stickyAbove');
+                removeClass(l, 'stickyStuck');
+                addClass(l, 'stickyBelow');
             }
         }
     }
 
     function stickyRecalculate () {
         var i, y, l, p, lRect, pRect;
-        if (stickyPHs !== undefined) {
-            for (i = 0; i < stickyPHs.length; i++) {
-                p = stickyPHs[i];
+        if (stickyClones !== undefined) {
+            for (i = 0; i < stickyClones.length; i++) {
+                p = stickyClones[i];
                 p.parentNode.removeChild(p);
             }
         }
@@ -247,13 +195,15 @@
         stickyEls = doc.getElementsByClassName('sticky');
         stickyTops = Array(stickyEls.length);
         stickyBottoms = Array(stickyEls.length);
-        stickyPHs = Array(stickyEls.length);
+        stickyClones = Array(stickyEls.length);
         for (i = 0; i < stickyEls.length; i++) {
             l = stickyEls[i];
             p = l.parentNode;
             lRect = l.getBoundingClientRect();
             pRect = p.getBoundingClientRect();
-            stickyPHs[i] = makePlaceholder(l, lRect);
+            stickyClones[i] = l.cloneNode(true);
+            removeClass(stickyClones[i], 'sticky');
+            addClass(stickyClones[i], 'stickyAbove');
 
             // The top threshold for element i is just its vertical
             // offset from the top of the page.  The bottom threshold
@@ -265,7 +215,7 @@
             stickyBottoms[i] = y + pRect.bottom - (lRect.bottom - lRect.top);
 
         }
-        // Insert placeholders and adjust parent styles in a second
+        // Insert clones and adjust parent styles in a second
         // loop so that they don't interfere with the position
         // calculations above.
         for (i = 0; i < stickyEls.length; i++) {
@@ -275,7 +225,7 @@
             // .sticky must be an abspos container.
             if (win.getComputedStyle(p).position === 'static')
                 p.style.position = 'relative';
-            p.insertBefore(stickyPHs[i], l);
+            p.insertBefore(stickyClones[i], l.nextSibling);
         }
         stickyUpdate();
     }
@@ -307,3 +257,4 @@
         stickyInit();
     });
 })(document, window);
+

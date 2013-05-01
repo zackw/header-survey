@@ -10,17 +10,17 @@
 <body>
 <h1 t:content="title"/>
 <table>
-  <thead>
+  <thead class="sticky">
     <tr>
-      <th class="key" colspan="2">
-        <div>
-          <div>
-            <span class="key-y">Y</span>: present<br/>
-            <span class="key-p">P</span>: has prerequisites<br/>
+      <th class="keyholder" colspan="2">
+        <div class="key-outer">
+          <div class="key-inner">
+            <span class="key-y">Y</span>: usable<br/>
+            <span class="key-p">P</span>: not usable by itself<br/>
             <span class="key-b">B</span>: unusably buggy<br/>
             <span class="key-n">N</span>: absent<br/>
-            If more than one symbol appears, any of<br/>them may apply,
-            depending on the<br/>compiler in use. Click for details.
+            If more than one symbol appears, the state<br/>
+            depends on the compiler in use.<br/>Click for details.
           </div>
         </div>
       </th>
@@ -28,8 +28,9 @@
         <div class="cl">${oc.name}</div>
       </th>
     </tr>
-    <tr t:with="alt=cycle(('o','e'))">
-      <th>Standard</th><th>Header></th>
+    <tr t:with="alt=cycle(('o','e'))" class="cb">
+      <th class="stdholder">Standard</th>
+      <th class="headerholder">Header</th>
       <t:for each="oc in oscats">
         <th t:for="i, o in enumerate(oc)" class="skew">
           <div class="${alt.next()}${' cl' if i==0 else ''}">
@@ -42,18 +43,18 @@
   <tbody>
     <t:for each="std in stds">
       <tr t:for="i, h in enumerate(sorthdr(std))"
-          t:with="alt=cycle(('o','e'))">
-        <th t:if="i==0" rowspan="${len(std)}" class="std ct">${std.label}</th>
-        <th class="h${' ct' if i==0 else ''}">${h}</th>
+          t:with="alt=cycle(('o','e'))"
+          t:attrs="{ 'class': 'cb' if i==len(std)-1 else None }">
+        <th t:if="i==0" rowspan="${len(std)}" class="std">${std.label}</th>
+        <th class="h">${h}</th>
         <t:for each="oc in oscats">
           <td t:for="j, o in enumerate(oc)"
-           class="${alt.next()}${' ct' if i==0 else ''}${' cl' if j==0 else ''}"
-           >${o[h].output()}</td>
+              >${o[h].output(alt.next(), 'cl' if j==0 else '')}</td>
         </t:for>
       </tr>
     </t:for>
   </tbody>
 </table>
-<script defer="defer" src="s.js"/>
+<script defer="defer" src="s.src.js"/>
 </body>
 </html>

@@ -21,66 +21,66 @@
 </symbol>
 </defs>
 <g id="y" transform="translate(0,30)">
-  <use xlink:href="#sY" x="0" y="0" width="30" height="30"/>
+  <use xlink:href="#sY" x="7.5" y="7.5" width="15" height="15"/>
 </g>
 <g id="p" transform="translate(0,60)">
-  <use xlink:href="#sP" x="0" y="0" width="30" height="30"/>
+  <use xlink:href="#sP" x="7.5" y="7.5" width="15" height="15"/>
 </g>
 <g id="b" transform="translate(30,0)">
-  <use xlink:href="#sB" x="0" y="0" width="30" height="30"/>
+  <use xlink:href="#sB" x="7.5" y="7.5" width="15" height="15"/>
 </g>
 <g id="n" transform="translate(60,0)">
-  <use xlink:href="#sN" x="0" y="0" width="30" height="30"/>
+  <use xlink:href="#sN" x="7.5" y="7.5" width="15" height="15"/>
 </g>
 <g id="yp" transform="translate(0,90)">
-  <use xlink:href="#sY" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sP" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sP" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="yb" transform="translate(30,30)">
-  <use xlink:href="#sY" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sB" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sB" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="yn" transform="translate(60,30)">
-  <use xlink:href="#sY" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sN" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="pb" transform="translate(30,60)">
-  <use xlink:href="#sP" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sB" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sP" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sB" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="pn" transform="translate(60,60)">
-  <use xlink:href="#sP" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sN" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sP" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="bn" transform="translate(90,0)">
-  <use xlink:href="#sB" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sN" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sB" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="ypb" transform="translate(30,90)">
-  <use xlink:href="#sY" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sP" x="15" y="0" width="15" height="15"/>
-  <use xlink:href="#sB" x="7.5" y="15" width="15" height="15"/>
+  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sP" x="15" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sB" x="7.5" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="ypn" transform="translate(60,90)">
-  <use xlink:href="#sY" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sP" x="15" y="0" width="15" height="15"/>
-  <use xlink:href="#sN" x="7.5" y="15" width="15" height="15"/>
+  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sP" x="15" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sN" x="7.5" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="ybn" transform="translate(90,30)">
-  <use xlink:href="#sY" x="7.5" y="0" width="15" height="15"/>
-  <use xlink:href="#sB" x="0" y="15" width="15" height="15"/>
-  <use xlink:href="#sN" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sB" x="7.5" y="15" width="7.5" height="7.5"/>
+  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="pbn" transform="translate(90,60)">
-  <use xlink:href="#sP" x="7.5" y="0" width="15" height="15"/>
-  <use xlink:href="#sB" x="0" y="15" width="15" height="15"/>
-  <use xlink:href="#sN" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sP" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sB" x="7.5" y="15" width="7.5" height="7.5"/>
+  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 <g id="ypbn" transform="translate(90,90)">
-  <use xlink:href="#sY" x="0" y="0" width="15" height="15"/>
-  <use xlink:href="#sP" x="15" y="0" width="15" height="15"/>
-  <use xlink:href="#sB" x="0" y="15" width="15" height="15"/>
-  <use xlink:href="#sN" x="15" y="15" width="15" height="15"/>
+  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sP" x="15" y="7.5" width="7.5" height="7.5"/>
+  <use xlink:href="#sB" x="7.5" y="15" width="7.5" height="7.5"/>
+  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
 </g>
 
 </svg>

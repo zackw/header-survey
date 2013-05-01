@@ -19,6 +19,7 @@
 from __future__ import unicode_literals
 
 import argparse
+import collections
 import copy
 import errno
 import itertools
@@ -29,7 +30,6 @@ import tempfile
 
 import genshi
 import genshi.builder
-import genshi.input
 import genshi.output
 import genshi.template
 
@@ -201,97 +201,127 @@ def update_directory_tree(srcdir, dstdir, process_file):
 
 class HeaderNotes(object):
     """Data object representing what we know about one header on one
-       OS.  The identity of the header and the OS are implicit.  It
-       has a summary symbol, which is a set of letter codes, and a
-       dictionary of annotations; annotations are keyed by a compiler
-       label and each value is a list of strings."""
+       OS.  It records the _state_ and the _annotations_ for each
+       compiler; the state is a single-letter code and the annotations
+       are a (possibly empty) list of strings.  It knows how to
+       combine two instances (representing two different compilers)
+       and how to generate a nice HTML representation of itself."""
 
-    _T = genshi.builder.tag
+    def __init__(self, header, compiler, state):
+        self.header      = header
+        self.state       = { compiler: (state, []) }
 
-    def __init__(self, sym, cc1):
-        self.sym = set(sym)
-        self.cc1 = cc1
-        self.ann = {}
+    def annotate(self, compiler, line):
+        self.state[compiler][1].append(line)
 
     # Notes are not ordered, but can be equal or unequal.
     def __eq__(self, other):
-        return self.sym == other.sym and self.ann == other.ann
+        return (self.header == other.header and
+                self.state == other.state)
     def __ne__(self, other):
-        return self.sym != other.sym or  self.ann != other.ann
+        return not self.__eq__(other)
 
-    def add_aline(self, line):
-        if self.cc1 not in self.ann:
-            self.ann[self.cc1] = []
-        self.ann[self.cc1].append(line)
-
-    def merge(self, h, other):
-        """Merge OTHER's summary and annotations into this object."""
-        self.sym |= other.sym
-        for k, v in other.ann.items():
-            if k in self.ann:
-                if v == ['Absent.']:
-                    assert self.ann[k] == ['Absent.']
-                else:
-                    self.ann[k].extend(v)
-            else:
-                self.ann[k] = v[:]
-        if self.sym == set(('Y','N')):
-            sys.stderr.write("YN: {}: {!r}\n".format(h, self.ann))
+    def __or__(self, other):
+        """Combine SELF with OTHER, forming a new object."""
+        rv = copy.copy(self)
+        for k, v1 in other.state.items():
+            v2 = rv.state.get(k, None)
+            if v2 is None:
+                rv.state[k] = v1
+            elif v1 != v2:
+                raise RuntimeError("{}/{}: inconsistent states: {!r}, {!r}"
+                                   .format(self.header, k, v1, v2))
+        return rv
 
     def output_sym(self):
-        """Generate HTML representing this object's symbol."""
-        label = ''.join(c for c in ('Y', 'P', 'B', 'N')
-                           if c in self.sym)
-        if label == 'Y':
-            if len(self.ann) != 0:
-                raise RuntimeError("inconsistent notes: "
-                                   "label={} sym={!r} ann={!r}"
-                                   .format(label, self.sym, self.ann))
-            elt = self._T.div
-        elif label == 'N':
-            for c, a in self.ann.iteritems():
-                if a != ["Absent."]:
-                    raise RuntimeError("inconsistent notes: "
-                                       "label={} sym={!r} ann={!r}"
-                                       .format(label, self.sym, self.ann))
-            elt = self._T.div
+        """Generate HTML representing this object's summary symbol.
+           Also decides whether there are (possibly synthetic)
+           annotations to be emitted."""
+
+        T = genshi.builder.tag
+
+        states = set(v[0] for v in self.state.itervalues())
+        label = ''
+        for c in ('Y', 'P', 'B', 'N'):
+            if c in states:
+                label += c
+                states.remove(c)
+        if len(states) > 0:
+            raise RuntimeError("{}: unrecognized label char(s) {}. Data: {!r}"
+                               .format(self.header,
+                                       ''.join(c for c in states),
+                                       self.state))
+
+        if label == 'Y' or label == 'N':
+            elt = T.div
+            for v in self.state.itervalues():
+                if len(v[1]) > 0:
+                    elt = T.summary
+                    break
         else:
-            assert len(self.ann) > 0
-            elt = self._T.summary
+            elt = T.summary
 
         return elt(label, class_ = label.lower())
 
     def output_ann(self):
         """Generate HTML representing this object's annotations."""
-        _H = genshi.input.HTML
-        _T = self._T
+        H = genshi.HTML
+        T = genshi.builder.tag
 
-        assert len(self.ann) > 0
-        merged_anns = {}
-        final_anns = {}
-        for k, v in self.ann.iteritems():
-            v = " ".join(v)
-            if v not in merged_anns: merged_anns[v] = []
-            merged_anns[v].append(k)
+        merged_anns = collections.defaultdict(list)
+        for compiler, notes in self.state.iteritems():
+            if len(notes[1]) > 0:
+                text = " ".join(notes[1])
+            else:
+                if notes[0] == 'P' or notes[0] == 'B':
+                    sys.stderr.write("{}: warning: details missing for {}"
+                                     " (state {})".format(self.header, compiler,
+                                                          notes[0]))
+                text = ({ 'Y': "Usable.",
+                          'P': "Requires something [DETAILS MISSING].",
+                          'B': "Unusably buggy [DETAILS MISSING].",
+                          'N': "Absent." })[notes[0]]
+            merged_anns[text].append(compiler)
+
+        final_anns = []
         for k, v in merged_anns.iteritems():
             v.sort(key=natsort_key)
-            final_anns[", ".join(v)] = k
+            final_anns.append( (", ".join(v), k) )
 
         if len(final_anns) == 1:
-            return _T.div(_H(final_anns.values()[0]))
+            return T.div(H(final_anns[0][1]))
         else:
-            rv = _T.dl()
-            for k in sorted(final_anns.iterkeys(), key=natsort_key):
-                rv.append(_T.dt(k))
-                rv.append(_T.dd(_H(final_anns[k])))
-            return rv
+            dl = T.dl()
+            for ccs, notes in sorted(final_anns,
+                                     key = lambda x: natsort_key(x[0])):
+                dl.append(T.dt(ccs))
+                dl.append(T.dd(H(notes)))
+            return T.div(dl)
 
-    def output(self):
+    def output(self, *xclasses):
         """Generate HTML for this object."""
+        T = genshi.builder.tag
+        class_ = genshi.QName("class")
+
         sym = self.output_sym()
-        if sym.tag != 'summary':
-            return sym
-        return self._T.details(sym, self.output_ann())
+        if sym.tag == 'div':
+            result = sym
+        elif sym.tag == 'summary':
+            xclasses += tuple(sym.attrib.get(class_).split())
+            sym.attrib -= [class_]
+            result = T.details(sym, self.output_ann())
+        else:
+            result = T.div(sym)
+
+        addclasses = " ".join(xclasses)
+        if class_ in result.attrib:
+            oldclasses = result.attrib.get(class_)
+            newclasses = (oldclasses + " " + addclasses).strip()
+            result.attrib = ((result.attrib - [class_])
+                             | [(class_, newclasses)])
+        else:
+            result.attrib = result.attrib | [(class_, addclasses)]
+        return result
 
 class Dataset(object):
 
@@ -317,9 +347,6 @@ class Dataset(object):
             else:
                 setattr(self, tag, default)
 
-        self.absent = HeaderNotes('N', self.compiler)
-        self.absent.add_aline("Absent.")
-
         # Set sort keys for specially sorted tags.
         # "embedded X" sorts immediately after X; otherwise,
         # categories are case-insensitive alphabetical
@@ -341,7 +368,8 @@ class Dataset(object):
                 label = label[:-4]
             label = label.replace("-", " ")
 
-        tags = { 'label' : file_label(fname) }
+        tags = { 'label'    : file_label(fname),
+                 'compiler' : 'unknown' }
         items = {}
         prev_item = None
 
@@ -362,7 +390,7 @@ class Dataset(object):
                         raise RuntimeError("{}:{}: {!r}:"
                                            "annotation without header"
                                            .format(fname, lno+1, l))
-                    prev_item.add_aline(l)
+                    prev_item.annotate(tags['compiler'], l)
                 else:
                     line = line.replace('\\', '/')
                     if line[0] in _punctuation:
@@ -380,18 +408,30 @@ class Dataset(object):
                     if l in items:
                         raise RuntimeError("{}: duplicate header-line {!r}"
                                            .format(fname, line))
-                    items[l] = prev_item = HeaderNotes(p, tags.get('compiler',
-                                                                   ''))
+                    items[l] = prev_item = HeaderNotes(l, tags['compiler'], p)
 
         return cls(items, tags)
 
-    def merge_compiler(self, other):
-        assert self.label == other.label and self.version == other.version
+    def __or__(self, other):
+        tags = {"compiler":"<merged>"}
+        for k in self.tagdefaults:
+            if k == "compiler": continue
+            v = getattr(self, k)
+            assert getattr(other, k) == v
+            tags[k] = v
 
-        for (h, theirs) in other.items.iteritems():
-            self.items[h].merge(h, theirs)
+        merged = {}
+        mine   = self.items
+        theirs = other.items
 
-    def maybe_merge_versions(self, other):
+        for h in theirs.iterkeys():
+            assert h in mine
+        for (h, n) in mine.iteritems():
+            assert h in theirs
+            merged[h] = n | theirs[h]
+        return Dataset(merged, tags)
+
+    def maybe_combine_versions(self, other):
         assert self.label == other.label and self.version != other.version
         assert self.verskey < other.verskey
 
@@ -430,7 +470,7 @@ class Dataset(object):
 
     def ensure(self, h):
         if h not in self.items:
-            self.items[h] = copy.copy(self.absent)
+            self.items[h] = HeaderNotes(h, self.compiler, 'N')
 
 def preprocess_osgrp(osgroup):
     assert len(frozenset(os.label for os in osgroup)) == 1
@@ -439,7 +479,7 @@ def preprocess_osgrp(osgroup):
     for os in osgroup:
         merged = versions.get(os.version, None)
         if merged is not None:
-            merged.merge_compiler(os)
+            versions[os.version] = merged | os
         else:
             versions[os.version] = os
     verlist = versions.values()
@@ -448,7 +488,7 @@ def preprocess_osgrp(osgroup):
     nverlist = []
     one = verlist[0]
     for two in verlist[1:]:
-        if not one.maybe_merge_versions(two):
+        if not one.maybe_combine_versions(two):
             nverlist.append(one)
             one = two
     nverlist.append(one)
@@ -513,7 +553,15 @@ def load_datasets(dirname):
         if not (fname.startswith("b-") or fname.startswith("h-")):
             continue
         try:
-            datasets.append(Dataset.from_file(os.path.join(dirname, fname)))
+            d = Dataset.from_file(os.path.join(dirname, fname))
+            if d.gen != INPUT_GENERATION_NO and d.category != 'standard':
+                sys.stderr.write("{}: skipping dataset, {}\n"
+                                 .format(fname, ("out of date"
+                                                 if d.gen < INPUT_GENERATION_NO
+                                                 else "too new")))
+            else:
+                datasets.append(d)
+
         except EnvironmentError, e:
             # silently skip directories
             # report all other errors and continue
