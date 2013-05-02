@@ -1,4 +1,10 @@
 <?xml version="1.0"?>
+<!-- Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+     http://www.apache.org/licenses/LICENSE-2.0
+     There is NO WARRANTY. -->
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:t="http://genshi.edgewall.org/"
       t:with="title='Survey of Commonly Available C System Header Files'">
@@ -9,19 +15,20 @@
 </head>
 <body>
 <h1 t:content="title"/>
-<p>Many C programs' build harnesses are unnecessarily cautious in
+<p>Many C programs’ build harnesses are unnecessarily cautious in
 checking whether various system headers are available, and/or retain
 checks for headers that passed into obsolescence more than a decade
-ago.  The table below shows which headers are ubiquitous and which are
+ago.  This table documents which headers are ubiquitous and which are
 less common; which are standardized, which are merely widespread, and
-which are obsolete; and finally marks headers that might be
-troublesome.</p>
-<p>The code and data used to produce this table may be found at
+which are obsolete; and which might be troublesome other than by not
+existing everywhere.</p>
+<p>This table was last updated on ${update_date}.  The raw data set
+and all associated code may be found at
 <a href="https://github.com/zackw/header-analysis/"
->https://github.com/zackw/header-analysis/</a>. Comments,
-suggestions, improvements, additional OS inventories, etc. are
-welcome; please suggest them via the Github issue tracker.</p>
-<p>Compiled by Zack Weinberg. Last updated ${update_date}.</p>
+>https://github.com/zackw/header-analysis/</a>. Comments, suggestions,
+improvements, additional OS inventories, etc. are all welcome; please
+see <a href="https://github.com/zackw/header-analysis#readme">the
+  README</a> in the source repository.</p>
 <table>
   <thead class="sticky">
     <tr>
@@ -32,8 +39,11 @@ welcome; please suggest them via the Github issue tracker.</p>
             <span class="key-p">P</span>: not usable by itself<br/>
             <span class="key-b">B</span>: unusably buggy<br/>
             <span class="key-n">N</span>: absent<br/>
-            If more than one symbol appears, the state<br/>
-            depends on the compiler in use.<br/>Click for details.
+            If more than one symbol appears in a square,<br/>
+            which one applies depends on the compiler in use.<br/>
+            Click on any symbol
+            other than <span class="key-y">Y</span> or
+            <span class="key-n">N</span> for more details.
           </div>
         </div>
       </th>
@@ -68,6 +78,10 @@ welcome; please suggest them via the Github issue tracker.</p>
     </t:for>
   </tbody>
 </table>
+<p>Copyright 2013 Zack Weinberg <code>&lt;zackw@panix.com&gt;</code>
+   and other contributors.  Licensed under
+   the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache
+   License, Version 2.0</a>.</p>
 <script defer="defer" src="s.js"/>
 </body>
 </html>

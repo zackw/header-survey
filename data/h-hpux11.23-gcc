@@ -161,7 +161,7 @@ sys/shm.h
 sys/signal.h
 sys/socket.h
 !sys/socketvar.h
-$ gcc objects to <code>extern struct sotimeq sotimeq_hash[];</code> when
+$ Objects to <code>extern struct sotimeq sotimeq_hash[];</code> when
 $ <code>struct sotimeq</code> is an incomplete type.  In this case, the
 $ necessary definition is immediately below the offending declaration.
 ## gcc -c htest.c > htest-out.txt 2>&1

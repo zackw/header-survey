@@ -1,18 +1,23 @@
-/*!Polyfill for <details> and position:sticky.
+/* Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+   http://www.apache.org/licenses/LICENSE-2.0
+   There is NO WARRANTY.
+
    Based on https://github.com/uniqname/Details-Polyfill/
    and https://github.com/jmosbech/StickyTableHeaders
    with refinements from https://github.com/mathiasbynens/jquery-details
-   MIT License: http://www.opensource.org/licenses/mit-license.php */
 
-/* CAVEAT AUCTORES: In the interest of simplicity and reliability,
+   CAVEAT AUCTORES: In the interest of simplicity and reliability,
    this code and the associated CSS do not attempt to handle <details>
    elements with any structure other than
 
        <details><summary>...</summary><div>...</div></details>
 
-   The management hopes this is not a major inconvenience.  */
+   The management hopes this is not a major inconvenience.
 
-/* IMPLEMENTATION NOTE: We don't actually bother trying to use
+   IMPLEMENTATION NOTE: We don't actually bother trying to use
    position:sticky, because it's only supported in some versions
    of Webkit and only if you toggle experimental features on, and
    even then doesn't work with <thead>, and there's no good way to
@@ -257,4 +262,3 @@
         stickyInit();
     });
 })(document, window);
-

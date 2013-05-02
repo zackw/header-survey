@@ -1,10 +1,12 @@
 #! /usr/bin/env python
+
 # Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
-#
-# Copying and distribution of this program, with or without
-# modification, is permitted in any medium without royalty provided
-# the copyright notice and this notice are preserved.  It is offered
-# as-is, without any warranty.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0
+# There is NO WARRANTY.
+
 
 # This script determines which subset of a large list of "common"
 # header files (many are standard, some are not) are present on your

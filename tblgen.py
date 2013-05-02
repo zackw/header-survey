@@ -1,16 +1,28 @@
 #! /usr/bin/env python
 # -*- encoding: utf-8 -*-
-# Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
-#
-# Copying and distribution of this program, with or without
-# modification, is permitted in any medium without royalty provided
-# the copyright notice and this notice are preserved.  It is offered
-# as-is, without any warranty.
 
-# Note to contributors: Unlike scansys.py, this program only needs to
-# work with Python 2.7.  Some code is functionally duplicated from
-# scansys.py but with the compatibility contortions removed; this is
-# why there is no shared support library.
+# Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0
+# There is NO WARRANTY.
+
+
+# This program generates an HTML table summarizing all of the
+# inventories in 'data', using template and resource files in 'tmpl',
+# and writes it (and its resources) to the 'web' directory.  Each of
+# these directory locations can be overridden on the command line,
+# with the -d, -t, and -o options respectively.  Note that the HTML
+# template file (index.tmpl) is so intertwined with the data
+# structures constructed by the code in this file that it should be
+# considered part of this program; to a lesser extent, the same is
+# true of the other files in tmpl/.
+#
+# Unlike scansys.py, this program only needs to work with Python 2.7.
+# Some code is functionally duplicated from scansys.py but with the
+# compatibility contortions removed; this is why there is no shared
+# support library.
 #
 # It requires the Genshi template library, and is likely to grow
 # dependencies on other third-party libraries in the future (such as
@@ -583,9 +595,12 @@ def collapse_ws_xml(stream):
     tqueue_data = None
     tqueue_pos = None
     TEXT = genshi.core.TEXT
+    COMMENT = genshi.core.COMMENT
 
     for kind, data, pos in stream:
-        if kind == TEXT:
+        if kind == COMMENT:
+            continue
+        elif kind == TEXT:
             if tqueue_pos is not None:
                 tqueue_data += data
             else:
