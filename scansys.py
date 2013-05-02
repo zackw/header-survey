@@ -647,10 +647,10 @@ class HeaderProber:
             src = self.gensrc(header)
             (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
             if rc == 0:
-                os.remove(src)
-                os.remove(self.syslabel.compile_opt[-1])
                 self.probe_report(header, "correct", errors, src)
                 self.known_headers[header] = ("","")
+                os.remove(src)
+                os.remove(self.syslabel.compile_opt[-1])
                 return
 
             if self.debug:
@@ -659,11 +659,11 @@ class HeaderProber:
             src = self.gensrc(header, dospecial=1)
             (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
             if rc == 0:
-                os.remove(src)
-                os.remove(self.syslabel.compile_opt[-1])
                 self.probe_report(header, "dependent", errors, src)
                 self.known_headers[header] = \
                     ("%", special_ann(self.specials[header]))
+                os.remove(src)
+                os.remove(self.syslabel.compile_opt[-1])
                 return
 
         else:
@@ -682,27 +682,28 @@ class HeaderProber:
                 (rc, errors) = invoke(self.cc +
                                       self.syslabel.compile_opt + [src])
                 if rc == 0:
-                    os.remove(src)
-                    os.remove(self.syslabel.compile_opt[-1])
                     if len(pc) == 0:
                         self.probe_report(header, "correct", errors, src)
                         self.known_headers[header] = ("","")
                     else:
                         self.probe_report(header, "dependent", errors, src)
                         self.known_headers[header] = ("%", prereq_ann(pc))
+                    os.remove(src)
+                    os.remove(self.syslabel.compile_opt[-1])
                     return
 
         # If we get here, all prior trials have failed.  See if we can
         # even preprocess this header.
         src = self.gensrc(header, trailer=0)
         (rc, perrors) = invoke(self.cc + self.syslabel.preproc_opt + [src])
-        os.remove(src)
         if rc == 0:
-            os.remove(self.syslabel.preproc_opt[-1])
             self.probe_report(header, "buggy", errors, src)
             self.known_headers[header] = ("!", buggy_ann(errors))
+            os.remove(self.syslabel.preproc_opt[-1])
+            os.remove(src)
         else:
             self.probe_report(header, "absent", perrors, src)
+            os.remove(src)
 
     def probe(self):
         """Probe for all the headers in self.headers.  Save the results in
