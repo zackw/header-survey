@@ -239,7 +239,7 @@ class SysLabel:
             self.compiler = args.cc[0]
         self.ccid = self.compiler_id(args.cc[0])
 
-        if "Microsoft" in self.ccid:
+        if self.ccid.find("Microsoft") != -1:
             self.compile_opt = ["/c", "/Fo", "htest.x"]
             self.preproc_opt = ["/P", "/Fi", "htest.x"]
         else:
