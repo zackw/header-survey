@@ -16,7 +16,6 @@ lastlog.h
 link.h
 malloc.h
 mntent.h
-omp.h
 paths.h
 resolv.h
 stab.h

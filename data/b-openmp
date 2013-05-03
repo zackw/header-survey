@@ -1,0 +1,9 @@
+# This header is specified by OpenMP, a bolt-on specification for
+# shared-memory parallel programming via compiler-recognized
+# annotations to otherwise serial code.  It's clustered with the
+# base language standards because it is fundamentally a language
+# feature rather than an OS feature.
+:category standard
+:sequence 5
+:label OpenMP
+omp.h

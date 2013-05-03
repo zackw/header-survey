@@ -48,7 +48,7 @@ td {
 }
 .std {
   vertical-align: top;
-  padding: 10px 6px;
+  padding: 8px 6px 0;
 }
 
 .y, .p, .b, .n,

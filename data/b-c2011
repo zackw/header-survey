@@ -5,7 +5,6 @@
 :label ISO C2011
 stdalign.h
 stdatomic.h
-stdfix.h
 stdnoreturn.h
 threads.h
 uchar.h
