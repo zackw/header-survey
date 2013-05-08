@@ -241,6 +241,12 @@ tell the difference between a header that doesn’t exist and a header
 that fails to *preprocess* successfully, and failures on this score
 are invisible.  We don’t have any better ideas; do you?
 
+## Credits
+
+Thanks to Russ Allbery, Ralf Corsepius, Jason Curl, Paul Eggert, Trent
+Nelson, Tim Rice, and Keith Thompson for helpful suggestions and
+contributions.
+
 ## Licensing
 
 Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
