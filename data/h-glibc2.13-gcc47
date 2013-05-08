@@ -1,11 +1,11 @@
-# host: Linux 3.8-trunk-amd64 #1 SMP Debian 3.8.5-1~experimental.1
-# cc: gcc (Debian 4.7.2-5) 4.7.2
+# host: Linux 3.8-1-amd64 #1 SMP Debian 3.8.11-1
+# cc: gcc (Debian 4.7.3-3) 4.7.3
 :sequence 20
 :category Unix
 :label GNU libc
 :version 2.13
 :compiler GCC 4.7
-:gen 1
+:gen 2
 a.out.h
 aio.h
 alloca.h
@@ -14,9 +14,11 @@ assert.h
 complex.h
 cpio.h
 ctype.h
+-direct.h
 dirent.h
 dlfcn.h
 elf.h
+endian.h
 err.h
 errno.h
 fcntl.h
@@ -33,6 +35,7 @@ grp.h
 iconv.h
 ifaddrs.h
 inttypes.h
+-iohw.h
 iso646.h
 langinfo.h
 lastlog.h
@@ -46,6 +49,7 @@ memory.h
 mntent.h
 monetary.h
 mqueue.h
+-ndbm.h
 netdb.h
 nl_types.h
 omp.h
@@ -70,6 +74,7 @@ spawn.h
 stab.h
 stdalign.h
 stdarg.h
+-stdatomic.h
 stdbool.h
 stddef.h
 stdfix.h
@@ -88,13 +93,19 @@ termio.h
 termios.h
 tgmath.h
 thread_db.h
+-threads.h
 time.h
+-trace.h
+-uchar.h
 ucontext.h
 ulimit.h
 unistd.h
 utime.h
 utmp.h
 utmpx.h
+!varargs.h
+$ Explicitly unimplemented: contains only an <code>#error</code> directive
+$ telling the programmer to use <code>stdarg.h</code> instead.
 wchar.h
 wctype.h
 wordexp.h
@@ -184,6 +195,7 @@ sys/time.h
 sys/timeb.h
 sys/times.h
 sys/timex.h
+-sys/ttold.h
 sys/types.h
 sys/ucontext.h
 sys/uio.h

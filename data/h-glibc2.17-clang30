@@ -7,7 +7,7 @@
 :label GNU libc
 :version 2.17
 :compiler Clang 3.0
-:gen 1
+:gen 2
 a.out.h
 aio.h
 alloca.h
@@ -16,9 +16,11 @@ assert.h
 complex.h
 cpio.h
 ctype.h
+-direct.h
 dirent.h
 dlfcn.h
 elf.h
+endian.h
 err.h
 errno.h
 fcntl.h
@@ -35,6 +37,7 @@ grp.h
 iconv.h
 ifaddrs.h
 inttypes.h
+-iohw.h
 iso646.h
 langinfo.h
 lastlog.h
@@ -48,6 +51,7 @@ memory.h
 mntent.h
 monetary.h
 mqueue.h
+-ndbm.h
 netdb.h
 nl_types.h
 omp.h
@@ -70,13 +74,16 @@ sgtty.h
 signal.h
 spawn.h
 stab.h
+-stdalign.h
 stdarg.h
+-stdatomic.h
 stdbool.h
 stddef.h
 stdfix.h
 stdint.h
 stdio.h
 stdlib.h
+-stdnoreturn.h
 string.h
 strings.h
 stropts.h
@@ -88,7 +95,9 @@ termio.h
 termios.h
 tgmath.h
 thread_db.h
+-threads.h
 time.h
+-trace.h
 uchar.h
 ucontext.h
 ulimit.h
@@ -96,6 +105,9 @@ unistd.h
 utime.h
 utmp.h
 utmpx.h
+!varargs.h
+$ Explicitly unimplemented: contains only an <code>#error</code> directive
+$ telling the programmer to use <code>stdarg.h</code> instead.
 wchar.h
 wctype.h
 wordexp.h
@@ -185,6 +197,7 @@ sys/time.h
 sys/timeb.h
 sys/times.h
 sys/timex.h
+-sys/ttold.h
 sys/types.h
 sys/ucontext.h
 sys/uio.h
