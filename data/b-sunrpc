@@ -1,0 +1,35 @@
+# Sun RPC is the transport layer underlying NFS and NIS.  Historically
+# it was provided by the C library, but e.g. glibc 2.14+ label it as
+# offered for backward compatibility only.
+:category standard
+:sequence 98
+:label Sun RPC
+rpc/auth.h
+rpc/auth_des.h
+rpc/auth_unix.h
+rpc/clnt.h
+rpc/des_crypt.h
+rpc/key_prot.h
+rpc/pmap_clnt.h
+rpc/pmap_prot.h
+rpc/pmap_rmt.h
+rpc/rpc.h
+rpc/rpc_msg.h
+rpc/svc.h
+rpc/svc_auth.h
+rpc/types.h
+rpc/xdr.h
+rpcsvc/bootparam_prot.h
+rpcsvc/mount.h
+rpcsvc/nfs_prot.h
+rpcsvc/nis.h
+rpcsvc/nislib.h
+rpcsvc/nlm_prot.h
+rpcsvc/rex.h
+rpcsvc/rquota.h
+rpcsvc/rstat.h
+rpcsvc/sm_inter.h
+rpcsvc/spray.h
+rpcsvc/yp_prot.h
+rpcsvc/ypclnt.h
+rpcsvc/yppasswd.h
