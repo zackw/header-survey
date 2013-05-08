@@ -7,6 +7,7 @@ a.out.h
 alloca.h
 ar.h
 elf.h
+endian.h
 err.h
 fstab.h
 fts.h

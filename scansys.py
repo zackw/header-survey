@@ -53,7 +53,11 @@ import sys
 # If you make a major change to this program, and it would be
 # worthwhile to regenerate all previously-taken inventories with the
 # new version, increase this number.
-OUTPUT_GENERATION_NO = 1
+# v1 2013-04-20 Exact prereq-set computation
+# v2 2013-05-08 Distinguish nonexistent headers from other cpp failures;
+#               list all headers in the output file so we can detect the
+#               state of having no data about a header
+OUTPUT_GENERATION_NO = 2
 
 # suppress all Python warnings, since we deliberately use deprecated
 # things (that were the only option in 2.0)
@@ -84,6 +88,12 @@ try:
 except ImportError:
     def rewrap(text, prefix):
         return prefix + text.strip().replace("\n", " ") + "\n"
+
+def fatal(msg, errors=[]):
+    sys.stderr.write(rewrap("fatal error: " + msg, ""))
+    for e in errors:
+        sys.stderr.write("# %s\n" % e)
+    raise SystemExit(1)
 
 # used out of an overabundance of caution; falling back to eval with
 # no globals or locals is probably safe enough
@@ -337,6 +347,16 @@ class SysLabel:
         f.write(":version %s\n" % self.version)
         f.write(":compiler %s\n" % self.compiler)
         f.write(":gen %s\n" % OUTPUT_GENERATION_NO)
+
+def failure_due_to_nonexistence(errors, header):
+    """Return true if ERRORS appear to have a root cause of
+       HEADER not existing."""
+    for e in errors:
+        if (e.find(header) != -1 and
+            (e.find("No such file or directory") != -1 or
+             e.find("file not found") != -1)):
+            return 1
+    return 0
 
 # from http://code.activestate.com/recipes/578272-topological-sort/
 def toposort(data):
@@ -629,12 +649,13 @@ class HeaderProber:
              the maximal set of prerequisites (conveniently, this is
              always the last compilation) and attempt to preprocess
              (cc -E) a source file containing _only_ "#include <header>".
-             If this succeeds, the header is considered to be _buggy_
-             and is added to known_headers with value
-             ("!", buggy_ann(error messages)).
+             If this succeeds, or if it fails and
+             failure_due_to_nonexistence(errors, header) is false, the
+             header is considered to be _buggy_ and is added to
+             known_headers with value ("!", buggy_ann(errors)).
 
-           * But if that too failed, the header is _absent_ and is not
-             added to known_headers.
+           * Otherwise the header is _absent_ and is added to
+             known_headers with value ("-", "").
 
            The values set in known_headers are chosen for the
            convenience of report(), which see, and ultimately wind up
@@ -696,13 +717,15 @@ class HeaderProber:
         # even preprocess this header.
         src = self.gensrc(header, trailer=0)
         (rc, perrors) = invoke(self.cc + self.syslabel.preproc_opt + [src])
-        if rc == 0:
+        if rc == 0 or not failure_due_to_nonexistence(perrors, header):
             self.probe_report(header, "buggy", errors, src)
             self.known_headers[header] = ("!", buggy_ann(errors))
-            os.remove(self.syslabel.preproc_opt[-1])
+            if rc == 0:
+                os.remove(self.syslabel.preproc_opt[-1])
             os.remove(src)
         else:
             self.probe_report(header, "absent", perrors, src)
+            self.known_headers[header] = ("-", "")
             os.remove(src)
 
     def probe(self):
@@ -713,18 +736,31 @@ class HeaderProber:
             self.probe_one(h)
 
     def smoke(self):
-        """Perform a "smoke test": If a probe for stdarg.h fails,
-           something is profoundly wrong and we should bail out."""
+        """Perform a "smoke test": if these tests fail, something is
+           profoundly wrong and we should bail out."""
+
+        # We should be able to detect the presence of stdarg.h.
         src = self.gensrc("stdarg.h")
         (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
         os.remove(src)
         if rc != 0:
-            sys.stderr.write("error: stdarg.h not detected. Something is wrong "
-                             "with your compiler:\n")
-            for e in errors:
-                sys.stderr.write("# %s\n" % e)
-            raise SystemExit(1)
+            fatal("stdarg.h not detected. Something is wrong "
+                  "with your compiler:", errors)
         os.remove(self.syslabel.compile_opt[-1])
+
+        # We should be able to detect the absence of nonexistent.h.
+        src = self.gensrc("nonexistent.h")
+        (rc, errors) = invoke(self.cc + self.syslabel.preproc_opt + [src])
+        os.remove(src)
+        if rc == 0:
+            os.remove(self.syslabel.preproc_opt[-1])
+            fatal("'#include <nonexistent.h>' preprocessed "
+                  "with successful exit code. Something is wrong with "
+                  "how we are invoking your compiler.", errors)
+        if not failure_due_to_nonexistence(errors, "nonexistent.h"):
+            fatal("Failed to confirm nonexistence of <nonexistent.h>. "
+                  "This probably means scansys.py doesn't understand your "
+                  "compiler. Diagnostics were: ", errors)
 
     def report(self, f):
         """Write a report on everything we have found to file F."""
@@ -910,7 +946,7 @@ options:
         self.output.write(":unameversion %d\n" % self.unameversion)
         self.output.close()
         if self.recheck is not None:
-            # necessary for Windows, grar 
+            # necessary for Windows, grar
             try: os.remove(self.recheck + "~")
             except EnvironmentError: pass
 
