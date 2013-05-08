@@ -910,7 +910,10 @@ options:
         self.output.write(":unameversion %d\n" % self.unameversion)
         self.output.close()
         if self.recheck is not None:
-            os.remove(self.recheck + "~") # necessary for Windows, grar
+            # necessary for Windows, grar 
+            try: os.remove(self.recheck + "~")
+            except EnvironmentError: pass
+
             os.rename(self.recheck, self.recheck + "~")
             os.rename(self.recheck + "-new", self.recheck)
 
