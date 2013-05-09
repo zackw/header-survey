@@ -4,7 +4,7 @@
 :label AIX
 :version 7.1
 :compiler GCC 4.7
-:gen 1
+:gen 2
 a.out.h
 aio.h
 alloca.h
@@ -13,8 +13,12 @@ assert.h
 complex.h
 cpio.h
 ctype.h
+-direct.h
 dirent.h
 dlfcn.h
+-elf.h
+-endian.h
+-err.h
 errno.h
 fcntl.h
 fenv.h
@@ -22,15 +26,21 @@ float.h
 fmtmsg.h
 fnmatch.h
 fstab.h
+-fts.h
 ftw.h
+-getopt.h
 glob.h
 grp.h
 iconv.h
+-ifaddrs.h
 inttypes.h
+-iohw.h
 iso646.h
 langinfo.h
+-lastlog.h
 libgen.h
 limits.h
+-link.h
 locale.h
 malloc.h
 math.h
@@ -60,8 +70,10 @@ setjmp.h
 sgtty.h
 signal.h
 spawn.h
+-stab.h
 stdalign.h
 stdarg.h
+-stdatomic.h
 stdbool.h
 stddef.h
 stdfix.h
@@ -75,11 +87,15 @@ stropts.h
 sysexits.h
 syslog.h
 tar.h
+-termcap.h
 termio.h
 termios.h
 tgmath.h
+-thread_db.h
+-threads.h
 time.h
 trace.h
+-uchar.h
 ucontext.h
 ulimit.h
 unistd.h
@@ -87,6 +103,9 @@ utime.h
 %utmp.h
 $ Requires <code>sys/types.h</code>.
 utmpx.h
+!varargs.h
+$ Explicitly unimplemented: contains only an <code>#error</code> directive
+$ telling the programmer to use <code>stdarg.h</code> instead.
 wchar.h
 wctype.h
 wordexp.h
@@ -100,6 +119,7 @@ arpa/telnet.h
 $ Requires <code>sys/types.h</code>.
 net/if.h
 net/if_arp.h
+-net/ppp_defs.h
 net/route.h
 %netinet/icmp6.h
 $ Requires <code>netinet/in.h</code>.
@@ -129,6 +149,7 @@ $ Requires <code>rpc/rpc.h</code>.
 $ Requires <code>rpc/rpc.h</code>.
 %rpc/clnt.h
 $ Requires <code>rpc/rpc.h</code>.
+-rpc/des_crypt.h
 %rpc/key_prot.h
 $ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_clnt.h
@@ -144,6 +165,7 @@ $ Requires <code>rpc/rpc.h</code>.
 rpc/svc_auth.h
 rpc/types.h
 rpc/xdr.h
+-rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 rpcsvc/nfs_prot.h
 rpcsvc/nis.h
@@ -162,11 +184,14 @@ rpcsvc/yppasswd.h
 sys/acct.h
 sys/dir.h
 sys/errno.h
+-sys/fcntl.h
 sys/file.h
 sys/ioctl.h
 sys/ipc.h
 sys/mman.h
+-sys/mount.h
 sys/msg.h
+-sys/mtio.h
 sys/param.h
 sys/poll.h
 sys/procfs.h
@@ -183,14 +208,19 @@ sys/socketvar.h
 sys/stat.h
 sys/statfs.h
 sys/statvfs.h
+-sys/syscall.h
 sys/syslog.h
+-sys/termios.h
 sys/time.h
 sys/timeb.h
 sys/times.h
+-sys/timex.h
+-sys/ttold.h
 sys/types.h
 sys/ucontext.h
 sys/uio.h
 sys/un.h
+-sys/unistd.h
 sys/user.h
 sys/utsname.h
 sys/wait.h

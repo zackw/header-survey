@@ -4,7 +4,7 @@
 :label HP-UX
 :version 11.31
 :compiler GCC 4.2
-:gen 1
+:gen 2
 a.out.h
 aio.h
 alloca.h
@@ -13,9 +13,12 @@ assert.h
 complex.h
 cpio.h
 ctype.h
+-direct.h
 dirent.h
 dlfcn.h
 elf.h
+-endian.h
+-err.h
 errno.h
 fcntl.h
 fenv.h
@@ -23,15 +26,21 @@ float.h
 fmtmsg.h
 fnmatch.h
 fstab.h
+-fts.h
 ftw.h
+-getopt.h
 glob.h
 grp.h
 iconv.h
+-ifaddrs.h
 inttypes.h
+-iohw.h
 iso646.h
 langinfo.h
+-lastlog.h
 libgen.h
 limits.h
+-link.h
 locale.h
 malloc.h
 math.h
@@ -43,6 +52,7 @@ ndbm.h
 netdb.h
 nl_types.h
 omp.h
+-paths.h
 poll.h
 pthread.h
 pwd.h
@@ -55,12 +65,18 @@ semaphore.h
 setjmp.h
 sgtty.h
 signal.h
+-spawn.h
+-stab.h
+-stdalign.h
 stdarg.h
+-stdatomic.h
 stdbool.h
 stddef.h
+-stdfix.h
 stdint.h
 stdio.h
 stdlib.h
+-stdnoreturn.h
 string.h
 strings.h
 stropts.h
@@ -71,13 +87,20 @@ termcap.h
 termio.h
 termios.h
 tgmath.h
+-thread_db.h
+-threads.h
 time.h
+-trace.h
+-uchar.h
 ucontext.h
 ulimit.h
 unistd.h
 utime.h
 utmp.h
 utmpx.h
+!varargs.h
+$ Explicitly unimplemented: contains only an <code>#error</code> directive
+$ telling the programmer to use <code>stdarg.h</code> instead.
 wchar.h
 wctype.h
 wordexp.h
@@ -90,6 +113,7 @@ arpa/tftp.h
 net/if.h
 %net/if_arp.h
 $ Requires <code>sys/socket.h</code>.
+-net/ppp_defs.h
 net/route.h
 netinet/icmp6.h
 %netinet/if_ether.h
@@ -109,8 +133,10 @@ $ <code>netinet/ip.h</code>.
 $ Requires <code>sys/types.h</code>.
 %netinet/udp.h
 $ Requires <code>sys/types.h</code>.
+-protocols/routed.h
 %protocols/rwhod.h
 $ Requires <code>sys/types.h</code>.
+-protocols/timed.h
 rpc/auth.h
 rpc/auth_des.h
 rpc/auth_unix.h
@@ -126,9 +152,14 @@ rpc/svc.h
 rpc/svc_auth.h
 rpc/types.h
 rpc/xdr.h
+-rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
+-rpcsvc/nfs_prot.h
+-rpcsvc/nis.h
+-rpcsvc/nislib.h
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
+-rpcsvc/rquota.h
 rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
@@ -150,6 +181,8 @@ sys/msg.h
 $ Requires <code>sys/types.h</code>.
 sys/param.h
 sys/poll.h
+-sys/procfs.h
+-sys/queue.h
 sys/reboot.h
 sys/resource.h
 sys/select.h
@@ -159,18 +192,22 @@ sys/signal.h
 sys/socket.h
 sys/socketvar.h
 sys/stat.h
+-sys/statfs.h
 sys/statvfs.h
 sys/syscall.h
+-sys/syslog.h
 sys/termios.h
 sys/time.h
 sys/timeb.h
 sys/times.h
+-sys/timex.h
 sys/ttold.h
 sys/types.h
 sys/ucontext.h
 sys/uio.h
 sys/un.h
 sys/unistd.h
+-sys/user.h
 sys/utsname.h
 sys/wait.h
 # Additional scansys state below, for --recheck.

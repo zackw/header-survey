@@ -4,7 +4,7 @@
 :label IRIX
 :version 6.5
 :compiler MIPSpro 7.4
-:gen 1
+:gen 2
 a.out.h
 aio.h
 alloca.h
@@ -13,27 +13,35 @@ assert.h
 complex.h
 cpio.h
 ctype.h
+-direct.h
 dirent.h
 dlfcn.h
 elf.h
+-endian.h
+-err.h
 errno.h
 fcntl.h
 fenv.h
 float.h
 fmtmsg.h
 fnmatch.h
+-fstab.h
+-fts.h
 ftw.h
 getopt.h
 glob.h
 grp.h
 iconv.h
+-ifaddrs.h
 inttypes.h
+-iohw.h
 iso646.h
 langinfo.h
 %lastlog.h
 $ Requires <code>time.h</code>.
 libgen.h
 limits.h
+-link.h
 locale.h
 malloc.h
 math.h
@@ -63,22 +71,33 @@ semaphore.h
 setjmp.h
 sgtty.h
 signal.h
+-spawn.h
+-stab.h
+-stdalign.h
 stdarg.h
+-stdatomic.h
 stdbool.h
 stddef.h
+-stdfix.h
 stdint.h
 stdio.h
 stdlib.h
+-stdnoreturn.h
 string.h
 strings.h
 stropts.h
 sysexits.h
 syslog.h
 tar.h
+-termcap.h
 termio.h
 termios.h
 tgmath.h
+-thread_db.h
+-threads.h
 time.h
+-trace.h
+-uchar.h
 ucontext.h
 ulimit.h
 unistd.h
@@ -92,11 +111,13 @@ wordexp.h
 arpa/ftp.h
 arpa/inet.h
 arpa/nameser.h
+-arpa/nameser_compat.h
 arpa/telnet.h
 arpa/tftp.h
 net/if.h
 %net/if_arp.h
 $ Requires <code>sys/socket.h</code>.
+-net/ppp_defs.h
 net/route.h
 netinet/icmp6.h
 netinet/if_ether.h
@@ -146,24 +167,14 @@ rpc/svc_auth.h
 rpc/types.h
 %rpc/xdr.h
 $ Requires <code>rpc/rpc.h</code>.
+-rpcsvc/bootparam_prot.h
 !rpcsvc/mount.h
 $ Declarations depending on a typedef, <code>fhandle_t</code>, which is
 $ only defined in what appear to be private kernel headers.
 $ Other OSes define this type in this header.
-## cc -c htest.c > htest-out.txt 2>&1
-## cc-1020 cc: ERROR File = /usr/include/rpcsvc/mount.h, Line = 44
-##   The identifier "fhandle_t" is undefined.
-##
-##   	fhandle_t fhs_fh;
-##   	^
-##
-## cc-1020 cc: ERROR File = /usr/include/rpcsvc/mount.h, Line = 109
-##   The identifier "fhandle_t" is undefined.
-##
-##   extern bool_t xdr_fhandle(XDR *, fhandle_t *);
-##                                    ^
-##
-## 2 errors detected in the compilation of "htest.c".
+-rpcsvc/nfs_prot.h
+-rpcsvc/nis.h
+-rpcsvc/nislib.h
 %rpcsvc/nlm_prot.h
 $ Requires <code>rpc/rpc.h</code>.
 %rpcsvc/rex.h
@@ -196,6 +207,7 @@ sys/param.h
 sys/poll.h
 sys/procfs.h
 sys/queue.h
+-sys/reboot.h
 sys/resource.h
 sys/select.h
 sys/sem.h
@@ -212,12 +224,14 @@ sys/termios.h
 sys/time.h
 sys/timeb.h
 sys/times.h
+-sys/timex.h
 sys/ttold.h
 sys/types.h
 sys/ucontext.h
 sys/uio.h
 sys/un.h
 sys/unistd.h
+-sys/user.h
 sys/utsname.h
 sys/wait.h
 # Additional scansys state below, for --recheck.

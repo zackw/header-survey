@@ -5,21 +5,27 @@
 :label OpenBSD
 :version 5.1
 :compiler GCC 4.2
-:gen 1
+:gen 2
 %a.out.h
 $ Requires <code>sys/types.h</code>.
+-aio.h
+-alloca.h
 ar.h
 assert.h
 complex.h
 cpio.h
 ctype.h
+-direct.h
 dirent.h
 dlfcn.h
+-elf.h
+-endian.h
 err.h
 errno.h
 fcntl.h
 fenv.h
 float.h
+-fmtmsg.h
 fnmatch.h
 fstab.h
 %fts.h
@@ -28,10 +34,13 @@ ftw.h
 getopt.h
 glob.h
 grp.h
+-iconv.h
 ifaddrs.h
 inttypes.h
+-iohw.h
 iso646.h
 langinfo.h
+-lastlog.h
 libgen.h
 limits.h
 %link.h
@@ -40,9 +49,13 @@ locale.h
 malloc.h
 math.h
 memory.h
+-mntent.h
+-monetary.h
+-mqueue.h
 ndbm.h
 netdb.h
 nl_types.h
+-omp.h
 paths.h
 poll.h
 pthread.h
@@ -57,32 +70,48 @@ semaphore.h
 setjmp.h
 sgtty.h
 signal.h
+-spawn.h
 stab.h
+-stdalign.h
 stdarg.h
+-stdatomic.h
 stdbool.h
 stddef.h
+-stdfix.h
 stdint.h
 stdio.h
 stdlib.h
+-stdnoreturn.h
 string.h
 strings.h
+-stropts.h
 sysexits.h
 syslog.h
 tar.h
 termcap.h
+-termio.h
 termios.h
 tgmath.h
+-thread_db.h
+-threads.h
 time.h
+-trace.h
+-uchar.h
+-ucontext.h
+-ulimit.h
 unistd.h
 utime.h
 %utmp.h
 $ Requires <code>sys/types.h</code>.
+-utmpx.h
 varargs.h
 wchar.h
 wctype.h
+-wordexp.h
 arpa/ftp.h
 arpa/inet.h
 arpa/nameser.h
+-arpa/nameser_compat.h
 arpa/telnet.h
 %arpa/tftp.h
 $ Requires <code>sys/types.h</code>.
@@ -125,10 +154,13 @@ $ Requires <code>sys/types.h</code>.
 $ Requires <code>sys/param.h</code>.
 %rpc/auth.h
 $ Requires <code>rpc/rpc.h</code>.
+-rpc/auth_des.h
 %rpc/auth_unix.h
 $ Requires <code>rpc/rpc.h</code>.
 %rpc/clnt.h
 $ Requires <code>rpc/rpc.h</code>.
+-rpc/des_crypt.h
+-rpc/key_prot.h
 %rpc/pmap_clnt.h
 $ Requires <code>rpc/rpc.h</code>.
 %rpc/pmap_prot.h
@@ -148,6 +180,8 @@ $ Requires <code>rpc/rpc.h</code>.
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 rpcsvc/nfs_prot.h
+-rpcsvc/nis.h
+-rpcsvc/nislib.h
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
 rpcsvc/rquota.h
@@ -176,6 +210,7 @@ $ Requires <code>sys/types.h</code>.
 sys/mtio.h
 sys/param.h
 sys/poll.h
+-sys/procfs.h
 sys/queue.h
 sys/reboot.h
 sys/resource.h
@@ -190,6 +225,7 @@ $ Requires <code>sys/types.h</code>.
 %sys/socketvar.h
 $ Requires <code>sys/types.h</code>.
 sys/stat.h
+-sys/statfs.h
 sys/statvfs.h
 sys/syscall.h
 sys/syslog.h
@@ -198,7 +234,10 @@ sys/time.h
 %sys/timeb.h
 $ Requires <code>time.h</code>.
 sys/times.h
+-sys/timex.h
+-sys/ttold.h
 sys/types.h
+-sys/ucontext.h
 %sys/uio.h
 $ Requires <code>sys/types.h</code>.
 sys/un.h
