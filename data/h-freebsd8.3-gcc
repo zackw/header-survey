@@ -5,17 +5,20 @@
 :label FreeBSD
 :version 8.3
 :compiler GCC 4.2
-:gen 1
+:gen 2
 a.out.h
 aio.h
+-alloca.h
 ar.h
 assert.h
 complex.h
 cpio.h
 ctype.h
+-direct.h
 dirent.h
 dlfcn.h
 elf.h
+-endian.h
 err.h
 errno.h
 fcntl.h
@@ -30,17 +33,24 @@ ftw.h
 getopt.h
 glob.h
 grp.h
+-iconv.h
 %ifaddrs.h
 $ Requires <code>sys/types.h</code>.
 inttypes.h
+-iohw.h
 iso646.h
 langinfo.h
+-lastlog.h
 libgen.h
 limits.h
 link.h
 locale.h
+!malloc.h
+$ Explicitly unimplemented: contains only an <code>#error</code> directive
+$ telling the programmer to use <code>stdlib.h</code> instead.
 math.h
 memory.h
+-mntent.h
 monetary.h
 mqueue.h
 ndbm.h
@@ -59,31 +69,45 @@ sched.h
 search.h
 semaphore.h
 setjmp.h
+-sgtty.h
 signal.h
 spawn.h
 stab.h
+-stdalign.h
 stdarg.h
+-stdatomic.h
 stdbool.h
 stddef.h
+-stdfix.h
 stdint.h
 stdio.h
 stdlib.h
+-stdnoreturn.h
 string.h
 strings.h
+-stropts.h
 sysexits.h
 syslog.h
 tar.h
 termcap.h
+-termio.h
 termios.h
 tgmath.h
 thread_db.h
+-threads.h
 time.h
+-trace.h
+-uchar.h
 ucontext.h
 ulimit.h
 unistd.h
 utime.h
 %utmp.h
 $ Requires <code>sys/types.h</code>.
+-utmpx.h
+!varargs.h
+$ Explicitly unimplemented: contains only an <code>#error</code> directive
+$ telling the programmer to use <code>stdarg.h</code> instead.
 wchar.h
 wctype.h
 wordexp.h
@@ -197,6 +221,7 @@ sys/socket.h
 %sys/socketvar.h
 $ Requires <code>sys/types.h</code>.
 sys/stat.h
+-sys/statfs.h
 sys/statvfs.h
 sys/syscall.h
 sys/syslog.h
@@ -207,6 +232,7 @@ $ Requires <code>time.h</code>.
 sys/times.h
 %sys/timex.h
 $ Requires <code>sys/time.h</code>.
+-sys/ttold.h
 sys/types.h
 sys/ucontext.h
 sys/uio.h
