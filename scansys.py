@@ -1,4 +1,6 @@
 #! /usr/bin/env python
+# -*- encoding: ascii -*-
+# vim: set ai ts=4 sw=4 et:
 
 # Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,6 +47,7 @@
 import ConfigParser
 import StringIO
 import cgi
+import errno
 import getopt
 import os
 import re
@@ -147,6 +150,13 @@ def universal_readlines(fname):
     if s == "": return []
     return _universal_readlines_re.split(s)
 
+# used to clean up after files that may or may not exist
+def delete_if_exists(fname):
+    try: os.remove(fname)
+    except EnvironmentError, e:
+        if e.errno != errno.ENOENT:
+            raise
+
 # We can't use subprocess, it's too new.  We can't use os.popen*,
 # because they don't report the exit code.  So... os.system it is.
 # Which means we have to shell-quote, which is different on Windows.
@@ -247,7 +257,7 @@ def invoke(argv):
             else:
                 msg.append("[exit %d]" % rc)
         msg.extend(universal_readlines("htest-out.txt"))
-        os.remove("htest-out.txt")
+        delete_if_exists("htest-out.txt")
     except EnvironmentError, e:
         if e.filename:
             msg.append("%s: %s" % (e.filename, e.strerror))
@@ -267,15 +277,19 @@ class SysLabel:
         if self.ccid.find("Microsoft") != -1:
             self.compile_opt = ["/c", "/Fohtest.obj"]
             # MSVC 2008 doesn't support /Fi; rely on the input always
-            # being named htest.c"
+            # being named htest.c
             self.preproc_opt = ["/P"]
             self.compile_out = "htest.obj"
             self.preproc_out = "htest.i"
         else:
-            self.compile_opt = ["-S", "-o", "htest.s"]
-            self.preproc_opt = ["-E", "-o", "htest.i"]
+            # Unsuffixed output file used for -E output to make xlc happy.
+            # Tru64 cc objects to "-o htest.s" on the theory that you might
+            # be overwriting a source file, even though -S by itself
+            # will produce htest.s.
+            self.compile_opt = ["-S"]
+            self.preproc_opt = ["-E", "-o", "htest"]
             self.compile_out = "htest.s"
-            self.preproc_out = "htest.i"
+            self.preproc_out = "htest"
 
         system,release,version = self.platform_id()
         if args.unameversion:
@@ -330,7 +344,8 @@ class SysLabel:
         (rc, msg) = invoke(cmd)
 
         if made_dummy_i:
-            os.remove("dummy.i")
+            delete_if_exists("dummy.i")
+            delete_if_exists("dummy.o")
 
         results = []
         for l in msg[1:]:
@@ -376,7 +391,12 @@ def failure_due_to_nonexistence(errors, header):
         e = e.replace("\\", "/")
         if (e.find(header) != -1 and
             (e.find("No such file or directory") != -1 or
-             e.find("file not found") != -1)):
+             e.find("cannot find include file") != -1 or
+             e.find("Cannot find file") != -1 or
+             e.find("cannot open source file") != -1 or
+             e.find("Can't open include file") != -1 or
+             e.find("is unavailable") != -1 or
+             e.find("not found") != -1)):
             return 1
     return 0
 
@@ -701,8 +721,6 @@ class HeaderProber:
             if rc == 0:
                 self.probe_report(header, "correct", errors, src)
                 self.known_headers[header] = ("","")
-                os.remove(src)
-                os.remove(self.syslabel.compile_out)
                 return
 
             if self.debug:
@@ -714,8 +732,6 @@ class HeaderProber:
                 self.probe_report(header, "dependent", errors, src)
                 self.known_headers[header] = \
                     ("%", special_ann(self.specials[header]))
-                os.remove(src)
-                os.remove(self.syslabel.compile_out)
                 return
 
         else:
@@ -740,8 +756,6 @@ class HeaderProber:
                     else:
                         self.probe_report(header, "dependent", errors, src)
                         self.known_headers[header] = ("%", prereq_ann(pc))
-                    os.remove(src)
-                    os.remove(self.syslabel.compile_out)
                     return
 
         # If we get here, all prior trials have failed.  See if we can
@@ -751,13 +765,9 @@ class HeaderProber:
         if rc == 0 or not failure_due_to_nonexistence(perrors, header):
             self.probe_report(header, "buggy", errors, src)
             self.known_headers[header] = ("!", buggy_ann(errors, header))
-            if rc == 0:
-                os.remove(self.syslabel.preproc_out)
-            os.remove(src)
         else:
             self.probe_report(header, "absent", perrors, src)
             self.known_headers[header] = ("-", "")
-            os.remove(src)
 
     def probe(self):
         """Probe for all the headers in self.headers.  Save the results in
@@ -765,6 +775,9 @@ class HeaderProber:
         self.known_headers = {}
         for h in self.headers:
             self.probe_one(h)
+            delete_if_exists("htest.c")
+            delete_if_exists(self.syslabel.preproc_out)
+            delete_if_exists(self.syslabel.compile_out)
 
     def smoke(self):
         """Perform a "smoke test": if these tests fail, something is
@@ -774,19 +787,19 @@ class HeaderProber:
         src = self.gensrc("stdarg.h")
         (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
         self.probe_report("stdarg.h", "smoke, exit %d" % rc, errors, src)
-        os.remove(src)
+        delete_if_exists(src)
+        delete_if_exists(self.syslabel.compile_out)
         if rc != 0:
             fatal("stdarg.h not detected. Something is wrong "
                   "with your compiler:", errors)
-        os.remove(self.syslabel.compile_out)
 
         # We should be able to detect the absence of nonexistent.h.
         src = self.gensrc("nonexistent.h")
         (rc, errors) = invoke(self.cc + self.syslabel.preproc_opt + [src])
         self.probe_report("nonexistent.h", "smoke, exit %d" % rc, errors, src)
-        os.remove(src)
+        delete_if_exists(src)
+        delete_if_exists(self.syslabel.preproc_out)
         if rc == 0:
-            os.remove(self.syslabel.preproc_out)
             fatal("'#include <nonexistent.h>' preprocessed "
                   "with successful exit code. Something is wrong with "
                   "how we are invoking your compiler.", errors)
@@ -848,7 +861,7 @@ options:
         except ValueError:
             if warn:
                 sys.stderr.write("%s: --recheck: bad sequence number '%s' "
-                                 "ignored" % (self.argv0, seqno))
+                                 "ignored\n" % (self.argv0, seqno))
                 return None
             else:
                 self.usage("sequence number must be an integer"
@@ -955,7 +968,7 @@ options:
                     tag = ['--no-uname-version',
                            '--uname-version'][int(rest)]
                     sys.stderr.write("%s: --recheck: command line overrides "
-                                     "%s to %s" % (self.argv0, cmd, tag))
+                                     "%s to %s\n" % (self.argv0, cmd, tag))
                 else:
                     self.unameversion = int(rest)
             elif key == 'cccmd':
@@ -966,14 +979,14 @@ options:
                     if self.ccset:
                         sys.stderr.write("%s: --recheck: command line "
                                          "overrides compile command "
-                                         "'%s' to '%s'"
+                                         "'%s' to '%s'\n"
                                          % (self.argv0, list2shell(cc),
                                             list2shell(self.cc)))
                     else:
                         self.cc = cc
                 except (SyntaxError, ValueError):
                     sys.stderr.write("%s: --recheck: bad compile command %s "
-                                     "ignored" % (self.argv0, repr(rest)))
+                                     "ignored\n" % (self.argv0, repr(rest)))
             elif key == 'ccenv':
                 # This one can't be set from the command line.
                 try:
@@ -982,11 +995,11 @@ options:
                         raise SyntaxError
                     if self.ccenv is not None:
                         sys.stderr.write("%s: --recheck: double setting of "
-                                         ":ccenv ignored" % self.argv0)
+                                         ":ccenv ignored\n" % self.argv0)
                     else:
                         self.ccenv = cce
                 except (SyntaxError, ValueError):
-                    sys.stderr.write("%s: --recheck: bad :ccenv ignored"
+                    sys.stderr.write("%s: --recheck: bad :ccenv ignored\n"
                                      % self.argv0)
 
         self.recheck = os.path.realpath(self.recheck)
@@ -1011,8 +1024,7 @@ options:
         self.output.close()
         if self.recheck is not None:
             # necessary for Windows, grar
-            try: os.remove(self.recheck + "~")
-            except EnvironmentError: pass
+            delete_if_exists(self.recheck + "~")
 
             os.rename(self.recheck, self.recheck + "~")
             os.rename(self.recheck + "-new", self.recheck)
