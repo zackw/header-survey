@@ -22,7 +22,6 @@ resolv.h
 stab.h
 sysexits.h
 thread_db.h
-ucontext.h
 arpa/ftp.h
 arpa/nameser.h
 arpa/telnet.h
