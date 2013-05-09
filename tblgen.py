@@ -50,7 +50,8 @@ from string import punctuation as _punctuation
 
 # Generation number expected by the current revision of this program.
 # Should match scansys.py.
-INPUT_GENERATION_NO = 1
+MIN_ACCEPTABLE_GENERATION_NO = 1
+MAX_ACCEPTABLE_GENERATION_NO = 2
 
 def sorthdr(hs):
     """Sort a list of pathnames, ASCII case-insensitively.
@@ -255,7 +256,7 @@ class HeaderNotes(object):
 
         states = set(v[0] for v in self.state.itervalues())
         label = ''
-        for c in ('Y', 'P', 'B', 'N'):
+        for c in ('Y', 'P', 'B', 'N', 'X'):
             if c in states:
                 label += c
                 states.remove(c)
@@ -274,6 +275,9 @@ class HeaderNotes(object):
         else:
             elt = T.summary
 
+        # We don't have icons for combinations involving X.
+        if 'X' in label: label = 'X'
+
         return elt(label, class_ = label.lower())
 
     def output_ann(self):
@@ -288,12 +292,14 @@ class HeaderNotes(object):
             else:
                 if notes[0] == 'P' or notes[0] == 'B':
                     sys.stderr.write("{}: warning: details missing for {}"
-                                     " (state {})".format(self.header, compiler,
+                                     " (state {})".format(self.header,
+                                                          compiler,
                                                           notes[0]))
                 text = ({ 'Y': "Usable.",
                           'P': "Requires something [DETAILS MISSING].",
                           'B': "Unusably buggy [DETAILS MISSING].",
-                          'N': "Absent." })[notes[0]]
+                          'N': "Absent.",
+                          'X': "No data." })[notes[0]]
             merged_anns[text].append(compiler)
 
         final_anns = []
@@ -411,6 +417,7 @@ class Dataset(object):
                         l = line[1:]
                         if p == '!': p = 'B'
                         elif p == '%': p = 'P'
+                        elif p == '-': p = 'N'
                         else:
                             raise RuntimeError("{}:{}: "
                                                "unsupported tag symbol: {}"
@@ -458,6 +465,35 @@ class Dataset(object):
             self.version = self.version + "–" + other.version
         return True
 
+    def ensure(self, h, tag):
+        if h not in self.items:
+            self.items[h] = HeaderNotes(h, self.compiler, tag)
+
+    def fixup(self, stds):
+        if self.gen == 2:
+            # In a generation 2 data set, any header that isn't listed is
+            # a header that was added to the baselines after the inventory
+            # was taken.
+            for s in stds:
+                for h in s:
+                    self.ensure(h, 'X')
+
+        elif self.gen == 1:
+            # In a generation 1 data set, headers that aren't listed
+            # are assumed to be absent, except that we special-case
+            # the headers we know generation 1 scans got wrong.
+            exceptions = frozenset(('endian.h',
+                                    'ucontext.h',
+                                    'varargs.h'))
+            for s in stds:
+                for h in s:
+                    self.ensure(h, 'X' if h in exceptions else 'N')
+
+        elif self.gen < 1:
+            raise RuntimeError("generation {} is too old".format(self.gen))
+        else:
+            raise RuntimeError("generation {} is too new".format(self.gen))
+
     # We don't use rich comparisons for this class because (a) it'd be
     # harder to write, and (b) sort() doesn't seem to honor them.
     def __cmp__(self, other):
@@ -480,10 +516,6 @@ class Dataset(object):
 
     def __getitem__(self, x):
         return self.items[x]
-
-    def ensure(self, h):
-        if h not in self.items:
-            self.items[h] = HeaderNotes(h, self.compiler, 'N')
 
 def preprocess_osgrp(osgroup):
     assert len(frozenset(os.label for os in osgroup)) == 1
@@ -522,12 +554,10 @@ def preprocess(datasets):
                 osgrps[d.label] = [d]
     stds.sort()
 
-    # expand all os-sets to include stub entries for all headers
+    # apply fixups to all os-sets
     for og in osgrps.itervalues():
         for o in og:
-            for s in stds:
-                for h in s:
-                    o.ensure(h)
+            o.fixup(stds)
 
     # compute version ranges and compiler dependencies
     oses = []
@@ -567,11 +597,14 @@ def load_datasets(dirname):
             continue
         try:
             d = Dataset.from_file(os.path.join(dirname, fname))
-            if d.gen != INPUT_GENERATION_NO and d.category != 'standard':
+            if (d.category != 'standard' and
+                (d.gen < MIN_ACCEPTABLE_GENERATION_NO or
+                 d.gen > MAX_ACCEPTABLE_GENERATION_NO)):
+                explanation = ("out of date"
+                               if d.gen < MIN_ACCEPTABLE_GENERATION_NO
+                               else "too new")
                 sys.stderr.write("{}: skipping dataset, {}\n"
-                                 .format(fname, ("out of date"
-                                                 if d.gen < INPUT_GENERATION_NO
-                                                 else "too new")))
+                                 .format(fname, explanation))
             else:
                 datasets.append(d)
 
