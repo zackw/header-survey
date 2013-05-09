@@ -73,13 +73,8 @@ wordexp.h
 arpa/ftp.h
 arpa/inet.h
 arpa/nameser.h
-!arpa/nameser_compat.h
-$ Requires a command-line definition of the preprocessor macro
-$ <code>BYTE_ORDER</code>, as either <code>LITTLE_ENDIAN</code> or
-$ <code>BIG_ENDIAN</code>.
-## arm-unknown-nto-qnx6.5.0eabi-gcc -S -o htest.x htest.c > htest-out.txt 2>&1
-## In file included from htest.c:2:
-## /opt/qnx650/target/qnx6//usr/include/arpa/nameser_compat.h:106: error: expected '=', ',', ';', 'asm' or '__attribute__' before string constant
+%arpa/nameser_compat.h
+$ Requires <code>sys/param.h</code>.
 arpa/telnet.h
 arpa/tftp.h
 net/if.h
