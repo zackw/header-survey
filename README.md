@@ -236,16 +236,21 @@ doesn’t check whether any of these headers contain the declarations
 they’re supposed to contain.  We’re not wanting to write an entire
 POSIX conformance suite, but a minimal check that each header does
 declare what the standard says it declares shouldn’t be *that*
-hard...right?  On a more immediate note, the probe mechanism can’t
-tell the difference between a header that doesn’t exist and a header
-that fails to *preprocess* successfully, and failures on this score
-are invisible.  We don’t have any better ideas; do you?
+hard...right?
 
 ## Credits
 
-Thanks to Russ Allbery, Ralf Corsepius, Jason Curl, Paul Eggert, Trent
-Nelson, Tim Rice, and Keith Thompson for helpful suggestions and
-contributions.
+Thanks to
+Russ Allbery,
+Ralf Corsepius,
+Jason Curl,
+Paul Eggert,
+Trent Nelson,
+Tim Rice,
+Ed Schouten,
+and
+Keith Thompson
+for helpful suggestions and contributions.
 
 ## Licensing
 
