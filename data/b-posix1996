@@ -12,6 +12,7 @@ grp.h
 netdb.h
 pwd.h
 regex.h
+strings.h
 tar.h
 termios.h
 unistd.h

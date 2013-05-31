@@ -9,7 +9,6 @@ memory.h
 ndbm.h
 regexp.h
 sgtty.h
-strings.h
 stropts.h
 termcap.h
 termio.h
