@@ -595,6 +595,8 @@ def load_datasets(dirname):
     for fname in files:
         if not (fname.startswith("b-") or fname.startswith("h-")):
             continue
+        # ignore backup files
+        if fname[-1] == '~': continue
         try:
             d = Dataset.from_file(os.path.join(dirname, fname))
             if (d.category != 'standard' and
