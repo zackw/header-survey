@@ -1,12 +1,12 @@
-# host: Linux 3.8-1-amd64 #1 SMP Debian 3.8.11-1
-# cc: Debian clang version 3.0-6.2 (tags/RELEASE_30/final) (based on LLVM 3.0)
+# host: Linux 3.9-1-amd64 #1 SMP Debian 3.9.4-1
+# cc: Debian clang version 3.2-7 (tags/RELEASE_32/final) (based on LLVM 3.2)
 #     Target: x86_64-pc-linux-gnu
 #     Thread model: posix
 :sequence 20
 :category Unix
 :label GNU libc
-:version 2.13
-:compiler Clang 3.0
+:version 2.17
+:compiler Clang 3.2
 :gen 2
 a.out.h
 aio.h
@@ -54,7 +54,7 @@ mqueue.h
 -ndbm.h
 netdb.h
 nl_types.h
-omp.h
+-omp.h
 paths.h
 poll.h
 pthread.h
@@ -74,12 +74,12 @@ sgtty.h
 signal.h
 spawn.h
 stab.h
--stdalign.h
+stdalign.h
 stdarg.h
 -stdatomic.h
 stdbool.h
 stddef.h
-stdfix.h
+-stdfix.h
 stdint.h
 stdio.h
 stdlib.h
@@ -98,7 +98,7 @@ thread_db.h
 -threads.h
 time.h
 -trace.h
--uchar.h
+uchar.h
 ucontext.h
 ulimit.h
 unistd.h
@@ -108,6 +108,11 @@ utmpx.h
 !varargs.h
 $ Explicitly unimplemented: contains only an <code>#error</code> directive
 $ telling the programmer to use <code>stdarg.h</code> instead.
+## In file included from htest.c:1:
+## /usr/include/clang/3.2/include/varargs.h:25:4: error: "Please use <stdarg.h> instead of <varargs.h>"
+##   #error "Please use <stdarg.h> instead of <varargs.h>"
+##    ^
+## 1 error generated.
 wchar.h
 wctype.h
 wordexp.h

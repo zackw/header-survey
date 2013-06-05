@@ -1,5 +1,5 @@
-# host: Linux 3.8-1-amd64 #1 SMP Debian 3.8.11-1
-# cc: gcc (Debian 4.7.3-3) 4.7.3
+# host: Linux 3.9-1-amd64 #1 SMP Debian 3.9.4-1
+# cc: gcc (Debian 4.7.3-4) 4.7.3
 :sequence 20
 :category Unix
 :label GNU libc
@@ -106,6 +106,9 @@ utmpx.h
 !varargs.h
 $ Explicitly unimplemented: contains only an <code>#error</code> directive
 $ telling the programmer to use <code>stdarg.h</code> instead.
+## In file included from htest.c:1:0:
+## /usr/lib/gcc/x86_64-linux-gnu/4.7/include/varargs.h:4:2: error: #error "GCC no longer implements <varargs.h>."
+## /usr/lib/gcc/x86_64-linux-gnu/4.7/include/varargs.h:5:2: error: #error "Revise your code to use <stdarg.h>."
 wchar.h
 wctype.h
 wordexp.h
