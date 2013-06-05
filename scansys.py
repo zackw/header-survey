@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# -*- encoding: ascii -*-
+# -*- encoding: us-ascii -*-
 # vim: set ai ts=4 sw=4 et:
 
 # Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
@@ -49,6 +49,7 @@ import StringIO
 import cgi
 import errno
 import getopt
+import locale
 import os
 import re
 import sys
@@ -91,22 +92,16 @@ try:
                                  initial_indent=prefix,
                                  subsequent_indent=prefix,
                                  break_long_words=0,
-                                 break_on_hyphens=0) + "\n"
+                                 break_on_hyphens=0)
         except TypeError:
             return textwrap.fill(text, width=75,
                                  initial_indent=prefix,
                                  subsequent_indent=prefix,
-                                 break_long_words=0) + "\n"
+                                 break_long_words=0)
 
 except ImportError:
     def rewrap(text, prefix):
-        return prefix + text.strip().replace("\n", " ") + "\n"
-
-def fatal(msg, errors=[]):
-    sys.stderr.write(rewrap("fatal error: " + msg, ""))
-    for e in errors:
-        sys.stderr.write("# %s\n" % e)
-    raise SystemExit(1)
+        return prefix + text.strip().replace("\n", " ")
 
 # used out of an overabundance of caution; falling back to eval with
 # no globals or locals is probably safe enough
@@ -116,11 +111,16 @@ except ImportError:
     def literal_eval(expr):
         return eval(expr, {'__builtins__':{}}, {})
 
+# enumerate was added in Python 2.3
+if not globals().has_key("enumerate"):
+    def enumerate(lst):
+        return zip(range(len(lst)), lst)
+
 # It may be necessary to monkey-patch ConfigParser to accept / in an
-# option name.
+# option name.  Test . as well.
 def maybe_fix_ConfigParser():
     p = ConfigParser.ConfigParser()
-    test = StringIO.StringIO("[x]\na/b=c/d\n")
+    test = StringIO.StringIO("[x]\na.b/c.d=e.f/g.h\n")
     try:
         p.readfp(test)
     except ConfigParser.ParsingError:
@@ -150,12 +150,19 @@ def universal_readlines(fname):
     if s == "": return []
     return _universal_readlines_re.split(s)
 
-# used to clean up after files that may or may not exist
-def delete_if_exists(fname):
-    try: os.remove(fname)
-    except EnvironmentError, e:
-        if e.errno != errno.ENOENT:
-            raise
+def platform_id():
+    """Return a 3-tuple identifying the host OS to the extent we can
+       determine."""
+    try:
+        import platform
+        x = platform.uname()
+        return platform.system_alias(x[0], x[2], x[3])
+    except (ImportError, AttributeError):
+        try:
+            x = os.uname()
+            return (x[0], x[2], x[3])
+        except AttributeError:
+            return (sys.platform, "unknown", "unknown")
 
 # We can't use subprocess, it's too new.  We can't use os.popen*,
 # because they don't report the exit code.  So... os.system it is.
@@ -243,183 +250,39 @@ def list2shell(seq):
     # Square brackets here required for pre-Python 2.4 compatibility.
     return " ".join([shellquote1(s) for s in seq])
 
-def invoke(argv):
-    """Invoke the command in 'argv' and capture its output."""
-    # for a wonder, the incantation to redirect both stdout and
-    # stderr to a file is exactly the same on Windows as on Unix!
-    cmdline = list2shell(argv) + " > htest-out.txt 2>&1"
-    msg = [cmdline]
-    try:
-        rc = os.system(cmdline)
-        if rc != 0:
-            if sys.platform == 'win32':
-                msg.append("[exit %08x]" % rc)
-            else:
-                msg.append("[exit %d]" % rc)
-        msg.extend(universal_readlines("htest-out.txt"))
-        delete_if_exists("htest-out.txt")
-    except EnvironmentError, e:
-        if e.filename:
-            msg.append("%s: %s" % (e.filename, e.strerror))
-        else:
-            msg.append("%s: %s" % (argv[0], e.strerror))
-    return (rc, msg)
+# end of old-Python compatibility shims
 
-class SysLabel:
-    """System information label."""
-    def __init__(self, args):
-        if args.compiler is not None:
-            self.compiler = args.compiler
-        else:
-            self.compiler = args.cc[0]
-        self.ccid = self.compiler_id(args.cc[0])
-
-        if self.ccid.find("Microsoft") != -1:
-            self.compile_opt = ["/c", "/Fohtest.obj"]
-            # MSVC 2008 doesn't support /Fi; rely on the input always
-            # being named htest.c
-            self.preproc_opt = ["/P"]
-            self.compile_out = "htest.obj"
-            self.preproc_out = "htest.i"
-        else:
-            # Unsuffixed output file used for -E output to make xlc happy.
-            # Tru64 cc objects to "-o htest.s" on the theory that you might
-            # be overwriting a source file, even though -S by itself
-            # will produce htest.s.
-            self.compile_opt = ["-S"]
-            self.preproc_opt = ["-E", "-o", "htest"]
-            self.compile_out = "htest.s"
-            self.preproc_out = "htest"
-
-        system,release,version = self.platform_id()
-        if args.unameversion:
-            self.hostid = " ".join((system, release, version))
-        else:
-            self.hostid = " ".join((system, release))
-
-        if args.category is not None:
-            self.category = args.category
-        else:
-            self.category = "unknown"
-        if args.label is not None:
-            self.label = args.label
-        else:
-            self.label = system
-        if args.version is not None:
-            self.version = args.version
-        else:
-            self.version = version
-
-        self.sequence = args.sequence
-
-    def platform_id(self):
-        try:
-            import platform
-            x = platform.uname()
-            return platform.system_alias(x[0], x[2], x[3])
-        except (ImportError, AttributeError):
-            try:
-                x = os.uname()
-                return (x[0], x[2], x[3])
-            except AttributeError:
-                return (sys.platform, "unknown", "unknown")
-
-    _compiler_id_stop_re = re.compile(
-        r'unrecognized option|must have argument|not found|warning|error|usage|'
-        r'must have argument|copyright|informational note 404|no input files',
-        re.IGNORECASE)
-
-    def _compiler_id_1(self, cc, opt):
-        # some versions of HP cc won't print their version info unless you
-        # give them something to compile, le sigh
-        if opt.endswith("dummy.i"):
-            made_dummy_i = 1
-            f = open("dummy.i", "w")
-            f.write("int foo;\n")
-            f.close()
-        else:
-            made_dummy_i = 0
-
-        cmd = [cc] + opt.split()
-        (rc, msg) = invoke(cmd)
-
-        if made_dummy_i:
-            delete_if_exists("dummy.i")
-            delete_if_exists("dummy.o")
-
-        results = []
-        for l in msg[1:]:
-            l = l.strip()
-            if l == "" or l.find("[exit") == 0: continue
-            if self._compiler_id_stop_re.search(l): break
-            results.append(l)
-
-        # this lines up with the "# cc: " put on the first line by write()
-        return "\n#     ".join(results)
-
-    def compiler_id(self, cc):
-        # gcc, clang: --version
-        # sun cc, compaq cc, HP CC: -V (possibly with a dummy compilation)
-        # mipspro cc: -version
-        # xlc: -qversion
-        # cl: prints its version number (among other things) upon
-        #     encountering any unrecognized invocation
-        # -qversion is first because xlc's behavior upon receiving an
-        # unrecognized option is to dump out its _entire manpage!_
-        for opt in ("-qversion", "--version", "-V", "-version",
-                    "-V -c dummy.i"):
-            r = self._compiler_id_1(cc, opt)
-            if len(r) > 0:
-                return r
-        return []
-
-    def write(self, f):
-        f.write("# host: %s\n" % self.hostid)
-        f.write("# cc: %s\n" % self.ccid)
-        if self.sequence is not None:
-            f.write(":sequence %d\n" % self.sequence)
-        f.write(":category %s\n" % self.category)
-        f.write(":label %s\n" % self.label)
-        f.write(":version %s\n" % self.version)
-        f.write(":compiler %s\n" % self.compiler)
-        f.write(":gen %s\n" % OUTPUT_GENERATION_NO)
-
-def failure_due_to_nonexistence(errors, header):
-    """Return true if ERRORS appear to have a root cause of
-       HEADER not existing."""
+def fatal(msg, errors=[]):
+    """Report a fatal error and exit."""
+    sys.stderr.write(rewrap("fatal error: " + msg, "") + "\n")
     for e in errors:
-        e = e.replace("\\", "/")
-        if (e.find(header) != -1 and
-            (e.find("No such file or directory") != -1 or
-             e.find("cannot find include file") != -1 or
-             e.find("Cannot find file") != -1 or
-             e.find("cannot open source file") != -1 or
-             e.find("Can't open include file") != -1 or
-             e.find("is unavailable") != -1 or
-             e.find("not found") != -1)):
-            return 1
-    return 0
+        sys.stderr.write("# %s\n" % e)
+    raise SystemExit(1)
+
+def sorted_dict_repr(d):
+    """Print what repr(d) would print if it sorted D's keys first.
+       Assumes D is a dictionary."""
+    ks = d.keys()
+    ks.sort()
+    return "{%s}" % ", ".join(["%r: %r" % (k, d[k]) for k in ks])
+
+def delete_if_exists(fname):
+    """Delete FNAME; do not raise an exception if FNAME already
+       doesn't exist.  Used to clean up files that may or may not
+       have been created by a compile invocation."""
+    try: os.remove(fname)
+    except EnvironmentError, e:
+        if e.errno != errno.ENOENT:
+            raise
 
 # from http://code.activestate.com/recipes/578272-topological-sort/
 def toposort(data):
-    """Dependencies are expressed as a dictionary whose keys are items
-and whose values are lists of dependent items. Output is a list of
-lists in topological order. The first list consists of items with no
-dependences, each subsequent list consists of items that depend upon
-items in the preceding list.  Order within lists is not meaningful.
-
->>> print '\\n'.join(repr(sorted(x)) for x in toposort({
-...     2: [11],
-...     9: [11,8],
-...     10: [11,3],
-...     11: [7,5],
-...     8: [7,3],
-...     }) )
-[3, 5, 7]
-[8, 11]
-[2, 9, 10]
-
-"""
+    """Topological sort on DATA, a dictionary whose keys are items
+       and whose values are lists of dependent items. Output is a list
+       of lists in topological order. The first list consists of items
+       with no dependences, each subsequent list consists of items
+       that depend upon items in the preceding list.  Order within
+       lists is not meaningful."""
     # Convert input lists to dictionaries.
     # Ignore self-dependencies.
     ndata = {}
@@ -462,10 +325,11 @@ items in the preceding list.  Order within lists is not meaningful.
                            + "\n".join([repr(x) for x in data.items()]))
     return result
 
-# Topologically sort the common-headers list according to the prerequisites
-# list, so that gensrc() can safely check whether probable-prerequisite
-# headers are known to exist, and include them only if so.
 def toposort_headers(headers, prerequisites):
+    """Topologically sort the common-headers list according to the
+       prerequisites list, so that gensrc() can safely check whether
+       probable-prerequisite headers are known to exist, and include
+       them only if so."""
     topo_in = {}
     for h in headers:
         topo_in[h] = prerequisites.get(h, [])
@@ -474,21 +338,21 @@ def toposort_headers(headers, prerequisites):
     for l in topo_out: rv.extend(l)
     return rv
 
-# Sort a list of pathnames, ASCII case-insensitively.  All
-# one-component pathnames are sorted ahead of all longer pathnames;
-# within a group of multicomponent pathnames with the same leading
-# component, all two-component pathnames are sorted ahead of all
-# longer pathnames; and so on, recursively.
-
-def hsortkey_r(hd, *tl):
-    if len(tl) == 0: return (0, hd)
-    return (1, hd) + hsortkey_r(*tl)
-
 def hsortkey(h):
+    """Sort key generator for sorthdr."""
     segs = h.lower().replace("\\", "/").split("/")
-    return hsortkey_r(*segs)
+    key = []
+    for s in segs:
+        key.extend((1, s))
+    key[-2] = 0
+    return tuple(key)
 
 def sorthdr(hs):
+    """Sort a list of pathnames, ASCII case-insensitively.
+       All one-component pathnames are sorted ahead of all longer
+       pathnames; within a group of multicomponent pathnames with the
+       same leading component, all two-component pathnames are sorted
+       ahead of all longer pathnames; and so on, recursively."""
     try:
         return sorted(hs, key=hsortkey)
     except NameError:
@@ -497,6 +361,507 @@ def sorthdr(hs):
         khs = [(hsortkey(h), h) for h in hs]
         khs.sort()
         return [x[1] for x in khs]
+
+#
+# Compiler invocation.  System identification.
+#
+
+def prepare_environment(ccenv):
+    """Prepare the environment for compiler invocation."""
+    for k, v in ccenv.items():
+        os.environ[k] = v
+
+    # Force the locale to "C" both for this process and all subsequently
+    # invoked subprocesses.
+    for k in os.environ.keys():
+        if k[:3] == "LC_" or k[:4] == "LANG":
+            del os.environ[k]
+    os.environ["LC_ALL"] = "C"
+    os.environ["LANGUAGE"] = "C"
+
+    locale.setlocale(locale.LC_ALL, "C")
+
+def invoke(argv):
+    """Invoke the command in 'argv' and capture its output."""
+    # For a wonder, the incantation to redirect both stdout and
+    # stderr to a file is exactly the same on Windows as on Unix!
+    # We put the redirections first on the command line because
+    # CMD.EXE may include a trailing space in the string it passes
+    # to CreateProcess() if they're last.  Yeeeeeah.
+    cmdline = ">htest-out.txt 2>&1 " + list2shell(argv)
+    msg = [cmdline]
+    try:
+        rc = os.system(cmdline)
+        if rc != 0:
+            if sys.platform == 'win32':
+                msg.append("[exit %08x]" % rc)
+            else:
+                msg.append("[exit %d]" % rc)
+        msg.extend(universal_readlines("htest-out.txt"))
+        delete_if_exists("htest-out.txt")
+    except EnvironmentError, e:
+        if e.filename:
+            msg.append("%s: %s" % (e.filename, e.strerror))
+        else:
+            msg.append("%s: %s" % (argv[0], e.strerror))
+    return (rc, msg)
+
+def failure_due_to_nonexistence(errors, header):
+    """Return true if ERRORS appear to have a root cause of
+       HEADER not existing."""
+    for e in errors:
+        e = e.replace("\\", "/")
+        if (e.find(header) != -1 and
+            (e.find("No such file or directory") != -1 or
+             e.find("cannot find include file") != -1 or
+             e.find("Cannot find file") != -1 or
+             e.find("cannot open source file") != -1 or
+             e.find("Can't open include file") != -1 or
+             e.find("is unavailable") != -1 or
+             e.find("not found") != -1)):
+            return 1
+    return 0
+
+def compiler_id(cc):
+    stop_re = re.compile(
+        r'unrecognized option|must have argument|not found|warning|error|usage|'
+        r'must have argument|copyright|informational note 404|no input files',
+        re.IGNORECASE)
+
+    # gcc, clang: --version
+    # sun cc, compaq cc, HP CC: -V (possibly with a dummy compilation)
+    # mipspro cc: -version
+    # xlc: -qversion
+    # cl: prints its version number (among other things) upon
+    #     encountering any unrecognized invocation
+    # -qversion is first because xlc's behavior upon receiving an
+    # unrecognized option is to dump out its _entire manpage!_
+    for opt in ("-qversion", "--version", "-V", "-version",
+                "-V -c dummy.i"):
+        # some versions of HP cc won't print their version info unless you
+        # give them something to compile, le sigh
+        if opt.endswith("dummy.i"):
+            made_dummy_i = 1
+            f = open("dummy.i", "w")
+            f.write("int foo;\n")
+            f.close()
+        else:
+            made_dummy_i = 0
+
+        cmd = cc + opt.split()
+        (rc, msg) = invoke(cmd)
+
+        if made_dummy_i:
+            delete_if_exists("dummy.i")
+            delete_if_exists("dummy.o")
+
+        results = []
+        for l in msg[1:]:
+            l = l.strip()
+            if l == "" or l.find("[exit") == 0: continue
+            if stop_re.search(l): break
+            results.append(l)
+
+        # this lines up with the "# cc: " put on the first line by write()
+        ccid = "\n#     ".join(results)
+        if len(ccid) > 0:
+            return ccid
+    return "unidentified"
+
+class Metadata:
+    """Records all the metadata associated with an inventory.
+       Responsible for identifying the OS and compiler, and for
+       telling the engine how to invoke the compiler."""
+
+    def __init__(self):
+        self.gen          = None
+        self.sequence     = None
+        self.unameversion = None
+
+        self.ccid         = None
+        self.compiler     = None
+        self.cccmd        = None
+        self.ccenv        = None
+
+        self.hostid       = None
+        self.category     = None
+        self.label        = None
+        self.version      = None
+
+    def write_top(self, f):
+        f.write("# host: %s\n" % self.hostid)
+        f.write("# cc: %s\n" % self.ccid)
+        if self.sequence is not None:
+            f.write(":sequence %d\n" % self.sequence)
+        f.write(":category %s\n" % self.category)
+        f.write(":label %s\n" % self.label)
+        f.write(":version %s\n" % self.version)
+        f.write(":compiler %s\n" % self.compiler)
+        if self.gen is not None and self.gen > 0:
+            f.write(":gen %s\n" % self.gen)
+
+    def write_bot(self, f):
+        # tags that would be a distraction if they appeared at the top
+        f.write("# Additional scansys state below, for --recheck.\n")
+        f.write(":cccmd %s\n" % repr(self.cccmd))
+        if self.ccenv is not None and len(self.ccenv) > 0:
+            f.write(":ccenv %s\n" % sorted_dict_repr(self.ccenv))
+        f.write(":unameversion %d\n" % self.unameversion)
+
+    def set_defaults(self):
+        if self.unameversion is None: self.unameversion = 1
+        if self.gen          is None: self.gen = 0
+
+        system,release,version = platform_id()
+        if self.label    is None: self.label = system
+        if self.category is None: self.category = "unknown"
+        if self.version  is None:
+            if self.unameversion:
+                self.version = version
+            else:
+                self.version = release
+
+        if self.unameversion:
+            hostid = " ".join((system, release, version))
+        else:
+            hostid = " ".join((system, release))
+        if self.hostid is None:
+            self.hostid = hostid
+        elif self.hostid != hostid:
+            fatal("hostid mismatch: was \"%s\", now \"%s\". "
+                  "Are you running --recheck on the right computer?"
+                  % (self.hostid, hostid))
+
+        if self.compiler is None: self.compiler = "cc"
+        if self.cccmd is None:    self.cccmd = ["cc"]
+        if self.ccenv is None:
+            self.ccenv = {}
+            if sys.platform == "win32":
+                # On Windows we need to record a bunch of environment variable
+                # settings to make --recheck work, especially with MSVC.
+                for ev in ["INCLUDE", "LIB", "LIBPATH", "PATH"]:
+                    val = os.environ.get(ev, None)
+                    if val is not None: self.ccenv[ev] = val
+
+        # This is the earliest point at which we need to
+        # run the compiler.
+        prepare_environment(self.ccenv)
+
+        ccid = compiler_id(self.cccmd)
+        if self.ccid is None:
+            self.ccid = ccid
+        elif self.ccid != ccid:
+            fatal("ccid mismatch: was \"%s\", now \"%s\". "
+                  "Are you running --recheck on the right computer?"
+                  % (self.ccid, ccid))
+
+        # Note that these settings rely to some extent on the
+        # input file always being named htest.c.
+        if self.ccid.find("Microsoft") != -1:
+            self.compile_opt = ["/c"]
+            self.preproc_opt = ["/P"]
+            self.compile_out = "htest.obj"
+            self.preproc_out = "htest.i"
+        else:
+            # Unsuffixed output file used for -E output to make xlc happy.
+            # Tru64 cc objects to "-o htest.s" on the theory that you might
+            # be overwriting a source file, even though -S by itself
+            # will produce htest.s.
+            self.compile_opt = ["-S"]
+            self.preproc_opt = ["-E", "-o", "htest"]
+            self.compile_out = "htest.s"
+            self.preproc_out = "htest"
+
+
+    def set_internal(self, ctxt, attr, value):
+        prev = getattr(self, attr)
+        if prev is not None and prev != value:
+            if getattr(self, attr + "_ctxt") == "<command line>":
+                if ctxt == "<command line>":
+                    sys.stderr.write("%s: duplicate '--%s' ignored\n"
+                                     % (ctxt, attr))
+                else:
+                    sys.stderr.write(
+                        "%s: previous setting of '%s' overridden "
+                        "by command line\n" % (ctxt, attr))
+            else:
+                sys.stderr.write("%s: duplicate '--%s' ignored\n"
+                                 % (ctxt, attr))
+        else:
+            setattr(self, attr, value)
+            setattr(self, attr + "_ctxt", ctxt)
+
+    def set_int(self, ctxt, attr, value, limits=(None, None)):
+        try:
+            value = int(value)
+        except ValueError:
+            sys.stderr.write("%s: invalid value for '%s' ignored "
+                             "(must be an integer)\n"
+                             % (ctxt, attr))
+            return
+        if limits[0] is not None and value < limits[0]:
+            sys.stderr.write("%s: invalid value for '%s' ignored "
+                             "(must be >= %d)\n" % (ctxt, attr, limits[0]))
+            return
+        if limits[1] is not None and value > limits[1]:
+            sys.stderr.write("%s: invalid value for '%s' ignored "
+                             "(must be <= %d)\n" % (ctxt, attr, limits[1]))
+            return
+        self.set_internal(ctxt, attr, value)
+
+    def set_parsed(self, ctxt, attr, value, desired_type):
+        if type(value) != desired_type:
+            try:
+                value = literal_eval(value)
+            except (SyntaxError, ValueError):
+                value = None
+        if type(value) != desired_type or len(value) == 0:
+                sys.stderr.write("%s: invalid value for '%s' ignored\n"
+                                 % (ctxt, attr))
+                return
+        self.set_internal(ctxt, attr, value)
+
+    def set(self, ctxt, attr, value):
+        if attr in ("category", "label", "version", "compiler",
+                    "hostid", "ccid"):
+            self.set_internal(ctxt, attr, value)
+        elif attr == "sequence":
+            self.set_int(ctxt, attr, value, (0, 100))
+        elif attr == "gen":
+            self.set_int(ctxt, attr, value, (0, None))
+        elif attr == "unameversion":
+            self.set_int(ctxt, attr, value, (0, 1))
+        elif attr == "cccmd":
+            self.set_parsed(ctxt, attr, value, type([]))
+        elif attr == "ccenv":
+            self.set_parsed(ctxt, attr, value, type({}))
+        else:
+            sys.stderr.write("%s: unrecognized metadata tag '%s' ignored\n"
+                             % (ctxt, attr))
+
+
+    def compile_cmd(self, src):
+        return self.cccmd + self.compile_opt + [src]
+
+    def preproc_cmd(self, src):
+        return self.cccmd + self.preproc_opt + [src]
+
+#
+# Inventory data structure.
+#
+
+class Header:
+    PRESENT = ""
+    ABSENT  = "-"
+    PREREQS = "%"
+    BUGGY   = "!"
+
+    TAGS = (ABSENT, PREREQS, BUGGY)
+
+    TAGINV = { PRESENT : "PRESENT",
+               ABSENT  : "ABSENT",
+               PREREQS : "DEPENDENT",
+               BUGGY   : "BUGGY" }
+
+    def __init__(self, name, state, avis="", ahid=""):
+        self.name  = name
+        self.state = state
+        if avis == "":
+            self.avis = avis
+        else:
+            self.avis = "\n" + rewrap(avis, prefix="$ ")
+        if ahid == "":
+            self.ahid = ""
+        else:
+            self.ahid = "\n" + rewrap(ahid, prefix="## ")
+
+        if self.state != "" and not (self.state in self.TAGS):
+            sys.stderr.write("bogus state for %s: '%s'\n"
+                             % (self.name, self.state))
+            self.state = self.BUGGY
+
+    def append_avis(self, avis):
+        avis = avis.rstrip()
+        if avis == "": return
+        if self.avis == "":
+            self.avis = "\n$ " + avis
+        else:
+            self.avis = self.avis + "\n$ " + avis
+
+    def append_ahid(self, ahid):
+        ahid = ahid.rstrip()
+        if ahid == "": return
+        if self.ahid == "":
+            self.ahid = "\n## " + ahid
+        else:
+            self.ahid = self.ahid + "\n## " + ahid
+
+    def write(self, f):
+        f.write("%s%s%s%s\n" % (self.state, self.name,
+                                self.avis, self.ahid))
+
+    def merge(self, other):
+        if self.name != other.name:
+            fatal("mismatched merge: self.name=%s other.name=%s"
+                  % (self.name, other.name))
+        if self.state != other.state:
+            sys.stderr.write("%s: changed from %s to %s\n"
+                             % (self.name,
+                                self.TAGINV[self.state],
+                                self.TAGINV[other.state]))
+            self.state = other.state
+        if (other.avis != ""
+            and other.avis[:14] != "$ PLACEHOLDER:"
+            and self.avis != other.avis):
+            if self.avis != "":
+                sys.stderr.write(self.name + ": visible annotation changed:\n")
+                sys.stderr.write("".join(["-"+l+"\n"
+                                          for l in self.avis.split("\n")]))
+                sys.stderr.write("".join(["+"+l+"\n"
+                                          for l in other.avis.split("\n")]))
+            self.avis = other.avis
+        if (other.ahid != ""
+            and self.ahid != other.ahid):
+            if self.ahid != "":
+                sys.stderr.write(self.name + ": hidden annotation changed:\n")
+                sys.stderr.write("".join(["-"+l+"\n"
+                                          for l in self.ahid.split("\n")]))
+                sys.stderr.write("".join(["+"+l+"\n"
+                                          for l in other.ahid.split("\n")]))
+            self.ahid = other.ahid
+
+# Annotation generation.
+# Annotation lines starting with $ are consumed by tblgen.py and
+# attached to the relevant header/OS entry.  They can contain
+# arbitrary HTML.
+# Annotation lines starting with # are ignored; we use them for
+# "raw" error messages needing human editing.
+
+def ann_prereq(header, prereqs):
+    if len(prereqs) == 1:
+        ann = "Requires <code>%s</code>." % cgi.escape(prereqs[0])
+    elif len(prereqs) == 2:
+        ann = ("Requires <code>%s</code> and <code>%s</code>."
+               % (cgi.escape(prereqs[0]), cgi.escape(prereqs[1])))
+    else:
+        ann = "Requires "
+        for p in prereqs[:-1]:
+            ann += ("<code>%s</code>, " % cgi.escape(p))
+        ann += ("and <code>%s</code>." % cgi.escape(prereqs[-1]))
+
+    return Header(header, Header.PREREQS, avis=ann)
+
+
+ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
+def ann_special(header, text):
+    m = ecre.search(text)
+    if m:
+        m = m.group(1)
+    else:
+        m = "???special without explanation???"
+    return Header(header, Header.PREREQS, avis=m)
+
+def ann_buggy(header, errors):
+    # This mostly relies on human auditing, but some very common issues
+    # have canned messages.
+    avis = "PLACEHOLDER: Write an explanation of the problem!"
+    if header == "varargs.h":
+        for e in errors:
+            if e.find("#error") != -1 and e.find("stdarg.h") != -1:
+                avis = ("Explicitly unimplemented: contains only an "
+                        "<code>#error</code> directive\ntelling the "
+                        "programmer to use <code>stdarg.h</code> instead.")
+                break
+
+    elif header == "malloc.h":
+        for e in errors:
+            if e.find("#error") != -1 and e.find("stdlib.h") != -1:
+                avis = ("Explicitly unimplemented: contains only an "
+                        "<code>#error</code> directive\ntelling the "
+                        "programmer to use <code>stdlib.h</code> instead.")
+                break
+    else:
+        pass
+
+    # Preserve the original linebreaking of the error messages.
+    # Discard the compiler command line and exit status.
+    h = Header(header, Header.BUGGY, avis=avis)
+    for e in errors[2:]:
+        h.append_ahid(e)
+    return h
+
+
+class Dataset:
+    def __init__(self, metadata):
+        self.headers  = {}
+        self.metadata = metadata
+        self.from_scratch = 1
+
+    def read(self, fname):
+        self.from_scratch = 0
+        last_header = None
+        hashstrip_re = re.compile(r"^#+ ?")
+        dollarstrip_re = re.compile(r"^\$+ ?")
+        ccid = ""
+        for i, l in enumerate(universal_readlines(fname)):
+            l = l.rstrip()
+            if l == "": continue
+            if l[0] == ":":
+                (key, rest) = l.split(" ", 1)
+                key = key[1:]
+                self.metadata.set("%s:%d" % (fname, i), key, rest)
+
+            elif l[0] == "#":
+                if l == "# Additional scansys state below, for --recheck.":
+                    pass
+                elif l[:8] == "# host: ":
+                    self.metadata.set("%s:%d" % (fname, i), "hostid", l[8:])
+                elif l[:6] == "# cc: ":
+                    self.metadata.set("%s:%d" % (fname, i), "ccid", l[6:])
+                elif l[:6] == "#     " and self.metadata.ccid is not None:
+                    self.metadata.ccid = self.metadata.ccid + "\n" + l
+                elif last_header is not None:
+                    last_header.append_ahid(hashstrip_re.sub("", l))
+                else:
+                    sys.stderr.write("%s:%d: unclaimed '#' line\n"
+                                     % (fname, i))
+
+            elif l[0] == "$":
+                if last_header is not None:
+                    last_header.append_avis(dollarstrip_re.sub("", l))
+                else:
+                    sys.stderr.write("%s:%d: unclaimed '$' line\n"
+                                     % (fname, i))
+
+            else:
+                state = ""
+                if l[0] in Header.TAGS:
+                    state = l[0]
+                    l = l[1:]
+                if self.headers.has_key(l):
+                    sys.stderr.write("%s:%d: duplicate header '%s'\n"
+                                     % (fname, i, l))
+                    last_header = None
+                else:
+                    self.headers[l] = last_header = Header(l, state)
+
+    def record(self, header):
+        if self.headers.has_key(header.name):
+            if self.from_scratch:
+                fatal("why did we probe %s twice?" % header.name)
+            self.headers[header.name].merge(header)
+        else:
+            self.headers[header.name] = header
+
+    def write(self, f):
+        self.metadata.write_top(f)
+        for h in sorthdr(self.headers.keys()):
+            self.headers[h].write(f)
+        self.metadata.write_bot(f)
+
+#
+# Prerequisite generation.
+#
 
 def all_prereqs_r(h, prereqs, known, rv):
     """Recursive worker subroutine of all_prereqs (see below)."""
@@ -512,7 +877,10 @@ def all_prereqs_r(h, prereqs, known, rv):
         all_prereqs_r(p, prereqs, known, rv)
 
     # skip headers known to not exist or to be buggy
-    if known.get(h, ("!",))[0] == "!": return
+    if (not known.has_key(h) or
+        known[h].state == Header.BUGGY or
+        known[h].state == Header.ABSENT):
+        return
 
     rv.append(h)
 
@@ -556,52 +924,14 @@ def prereq_combs(prereqs):
         prereq_combs_r(0, i, prereqs, work, rv)
     return rv
 
-# Annotation generation.
-# Annotation lines starting with $ are consumed by tblgen.py and
-# attached to the relevant header/OS entry.  They can contain
-# arbitrary HTML.
-# Annotation lines starting with # are ignored; we use them for
-# "raw" error messages needing human editing.
-
-def prereq_ann(prereqs):
-    if len(prereqs) == 1:
-        rv = "Requires <code>%s</code>." % cgi.escape(prereqs[0])
-    elif len(prereqs) == 2:
-        rv = ("Requires <code>%s</code> and <code>%s</code>."
-                % (cgi.escape(prereqs[0]), cgi.escape(prereqs[1])))
-    else:
-        rv = "Requires "
-        for p in prereqs[:-1]:
-            rv += ("<code>%s</code>, " % cgi.escape(p))
-        rv += ("and <code>%s</code>." % cgi.escape(prereqs[-1]))
-    return rewrap(rv, prefix="$ ")
-
-ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
-def special_ann(text):
-    m = ecre.search(text)
-    if not m: return "$ ???special without explanation???\n"
-    return rewrap(m.group(1), prefix="$ ")
-
-def buggy_ann(errors, header):
-    # This mostly relies on human auditing, but some very common issues
-    # have canned messages.
-    if header == "varargs.h":
-        for e in errors:
-            if e.find("#error") != -1 and e.find("stdarg.h") != -1:
-                return ("$ Explicitly unimplemented: contains only an "
-                        "<code>#error</code> directive\n$ telling the "
-                        "programmer to use <code>stdarg.h</code> instead.\n")
-
-    return ("$ PLACEHOLDER: Write an explanation of the problem!\n## "
-            + "\n## ".join(errors) + "\n")
+# Main probe logic.
 
 class HeaderProber:
     """Engine class - this does all the real work."""
 
-    def __init__(self, args):
+    def __init__(self, metadata, args):
+        self.metadata = metadata
         self.debug = args.debug
-        self.cc = args.cc
-        self.syslabel = SysLabel(args)
         self.read_prereqs(args.prereqs)
         self.read_headers(args.datadir)
 
@@ -644,6 +974,8 @@ class HeaderProber:
         self.headers = toposort_headers(headers.keys(), self.prerequisites)
 
     def probe_report(self, header, state, errors, src):
+        """Report the results of one probe on stderr.
+           Only active in --debug mode."""
         if not self.debug: return
         sys.stderr.write("%s: %s\n" % (header, state))
         if len(errors) > 1:
@@ -656,10 +988,10 @@ class HeaderProber:
 
     def include(self, f, h, dospecial):
         """Subroutine of gensrc, handles one header."""
-        s = self.specials.get(h)
-        if s is not None and (dospecial or
-                              self.known_headers.get(h, ("",))[0] == '%'):
-            f.write(s)
+        if dospecial:
+            s = self.specials.get(h)
+            if s is not None:
+                f.write(s)
         f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
 
     def gensrc(self, header, prereqs=[], dospecial=0, trailer=1):
@@ -677,23 +1009,58 @@ class HeaderProber:
         f.close()
         return src
 
-    def probe_one(self, header):
+    def smoke(self):
+        """Perform a "smoke test": if these tests fail, something is
+           profoundly wrong and we should bail out."""
+
+        # We should be able to detect the presence of stdarg.h.
+        src = self.gensrc("stdarg.h")
+        (rc, errors) = invoke(self.metadata.compile_cmd(src))
+        self.probe_report("stdarg.h", "smoke, exit %d" % rc, errors, src)
+        delete_if_exists(src)
+        delete_if_exists(self.metadata.compile_out)
+        if rc != 0:
+            fatal("stdarg.h not detected. Something is wrong "
+                  "with your compiler:", errors)
+
+        # We should be able to detect the absence of nonexistent.h.
+        src = self.gensrc("nonexistent.h")
+        (rc, errors) = invoke(self.metadata.preproc_cmd(src))
+        self.probe_report("nonexistent.h", "smoke, exit %d" % rc, errors, src)
+        delete_if_exists(src)
+        delete_if_exists(self.metadata.preproc_out)
+        if rc == 0:
+            fatal("'#include <nonexistent.h>' preprocessed "
+                  "with successful exit code. Something is wrong with "
+                  "how we are invoking your compiler.", errors)
+        if not failure_due_to_nonexistence(errors, "nonexistent.h"):
+            fatal("Failed to confirm nonexistence of <nonexistent.h>. "
+                  "This probably means scansys.py doesn't understand your "
+                  "compiler. Diagnostics were: ", errors)
+
+    def probe(self, dataset):
+        """Probe for all the headers in self.headers.  Save the results in
+           DATASET."""
+
+        for h in self.headers:
+            self.probe_one(h, dataset)
+            delete_if_exists("htest.c")
+            delete_if_exists(self.metadata.preproc_out)
+            delete_if_exists(self.metadata.compile_out)
+
+    def probe_one(self, header, dataset):
         """Probe for one header.  This goes in several stages:
 
            * First, we loop over the sets of possible prerequisites
              provided by prereq_combs(), attempting to compile a
              source file (cc -c) that includes HEADER plus the
-             prerequisite set.  If this succeeds, the header is
-             considered to be available, and is added to
-             known_headers.  If the prerequisite set used was empty,
-             the value in known_headers is ("", "") otherwise it is
-             ("%", prereq_ann(prereqs)).
+             prerequisite set.  If any iteration succeeds, the header
+             is recorded as _available_, annotated with the set of
+             prerequisites that were required.
 
              If the header is in the "specials" set, we just try it
-             first without, then with, the special text.  If it
-             succeeds without the special text, the value in
-             known_headers is ("", "") otherwise it is
-             ("%", special_ann(special text)).
+             first without, then with, the special text, and record
+             which way it succeeded.
 
            * If none of the compilations in stage one succeeded, we
              save the error messages emitted from the compilation with
@@ -702,41 +1069,36 @@ class HeaderProber:
              (cc -E) a source file containing _only_ "#include <header>".
              If this succeeds, or if it fails and
              failure_due_to_nonexistence(errors, header) is false, the
-             header is considered to be _buggy_ and is added to
-             known_headers with value ("!", buggy_ann(errors, header)).
+             header is recorded as _buggy_ and annotated with the
+             error messages.
 
-           * Otherwise the header is _absent_ and is added to
-             known_headers with value ("-", "").
-
-           The values set in known_headers are chosen for the
-           convenience of report(), which see, and ultimately wind up
-           being used by tblgen.py."""
+           * Otherwise the header is _absent_ and is recorded as such.
+        """
 
         if self.specials.get(header, None) is not None:
             if self.debug:
                 sys.stderr.write("%s: trying without special handling\n"
                                  % header)
             src = self.gensrc(header)
-            (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
+            (rc, errors) = invoke(self.metadata.compile_cmd(src))
             if rc == 0:
                 self.probe_report(header, "correct", errors, src)
-                self.known_headers[header] = ("","")
+                dataset.record(Header(header, Header.PRESENT))
                 return
 
             if self.debug:
                 sys.stderr.write("%s: trying with special handling\n"
                                  % header)
             src = self.gensrc(header, dospecial=1)
-            (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
+            (rc, errors) = invoke(self.metadata.compile_cmd(src))
             if rc == 0:
                 self.probe_report(header, "dependent", errors, src)
-                self.known_headers[header] = \
-                    ("%", special_ann(self.specials[header]))
+                dataset.record(ann_special(header, self.specials[header]))
                 return
 
         else:
             prereqs = all_prereqs(header, self.prerequisites,
-                                  self.known_headers)
+                                  dataset.headers)
             if self.debug:
                 sys.stderr.write("%s: possible prereqs %s\n" %
                                  (header, repr(prereqs)))
@@ -747,74 +1109,26 @@ class HeaderProber:
                     sys.stderr.write("%s: trying prereqs=%s\n" %
                                      (header, repr(pc)))
                 src = self.gensrc(header, pc)
-                (rc, errors) = invoke(self.cc +
-                                      self.syslabel.compile_opt + [src])
+                (rc, errors) = invoke(self.metadata.compile_cmd(src))
                 if rc == 0:
                     if len(pc) == 0:
                         self.probe_report(header, "correct", errors, src)
-                        self.known_headers[header] = ("","")
+                        dataset.record(Header(header, Header.PRESENT))
                     else:
                         self.probe_report(header, "dependent", errors, src)
-                        self.known_headers[header] = ("%", prereq_ann(pc))
+                        dataset.record(ann_prereq(header, pc))
                     return
 
         # If we get here, all prior trials have failed.  See if we can
         # even preprocess this header.
         src = self.gensrc(header, trailer=0)
-        (rc, perrors) = invoke(self.cc + self.syslabel.preproc_opt + [src])
+        (rc, perrors) = invoke(self.metadata.preproc_cmd(src))
         if rc == 0 or not failure_due_to_nonexistence(perrors, header):
             self.probe_report(header, "buggy", errors, src)
-            self.known_headers[header] = ("!", buggy_ann(errors, header))
+            dataset.record(ann_buggy(header, errors))
         else:
             self.probe_report(header, "absent", perrors, src)
-            self.known_headers[header] = ("-", "")
-
-    def probe(self):
-        """Probe for all the headers in self.headers.  Save the results in
-           self.known_headers."""
-        self.known_headers = {}
-        for h in self.headers:
-            self.probe_one(h)
-            delete_if_exists("htest.c")
-            delete_if_exists(self.syslabel.preproc_out)
-            delete_if_exists(self.syslabel.compile_out)
-
-    def smoke(self):
-        """Perform a "smoke test": if these tests fail, something is
-           profoundly wrong and we should bail out."""
-
-        # We should be able to detect the presence of stdarg.h.
-        src = self.gensrc("stdarg.h")
-        (rc, errors) = invoke(self.cc + self.syslabel.compile_opt + [src])
-        self.probe_report("stdarg.h", "smoke, exit %d" % rc, errors, src)
-        delete_if_exists(src)
-        delete_if_exists(self.syslabel.compile_out)
-        if rc != 0:
-            fatal("stdarg.h not detected. Something is wrong "
-                  "with your compiler:", errors)
-
-        # We should be able to detect the absence of nonexistent.h.
-        src = self.gensrc("nonexistent.h")
-        (rc, errors) = invoke(self.cc + self.syslabel.preproc_opt + [src])
-        self.probe_report("nonexistent.h", "smoke, exit %d" % rc, errors, src)
-        delete_if_exists(src)
-        delete_if_exists(self.syslabel.preproc_out)
-        if rc == 0:
-            fatal("'#include <nonexistent.h>' preprocessed "
-                  "with successful exit code. Something is wrong with "
-                  "how we are invoking your compiler.", errors)
-        if not failure_due_to_nonexistence(errors, "nonexistent.h"):
-            fatal("Failed to confirm nonexistence of <nonexistent.h>. "
-                  "This probably means scansys.py doesn't understand your "
-                  "compiler. Diagnostics were: ", errors)
-
-    def report(self, f):
-        """Write a report on everything we have found to file F."""
-        self.syslabel.write(f)
-        for h in sorthdr(self.known_headers.keys()):
-            v = self.known_headers[h]
-            assert type(v) == type((None,))
-            f.write("%s%s\n%s" % (v[0], h, v[1]))
+            dataset.record(Header(header, Header.ABSENT))
 
 class Args:
     """Command line argument store."""
@@ -852,22 +1166,7 @@ options:
                 % self.argv0)
         raise SystemExit(exitcode)
 
-    def validate_seqno(self, seqno, warn=0):
-        try:
-            seqno = int(seqno)
-            if 0 <= seqno <= 100:
-                return seqno
-            raise ValueError
-        except ValueError:
-            if warn:
-                sys.stderr.write("%s: --recheck: bad sequence number '%s' "
-                                 "ignored\n" % (self.argv0, seqno))
-                return None
-            else:
-                self.usage("sequence number must be an integer"
-                           "between 0 and 100 (inclusive)" % o)
-
-    def __init__(self, argv):
+    def __init__(self, argv, metadata):
         """Parse the command line."""
 
         # defaults
@@ -877,16 +1176,6 @@ options:
         self.prereqs = "prereqs.ini"
         self.output = sys.stdout
         self.recheck = None
-        self.cc = ["cc"]
-        self.ccset = 0
-        self.ccenv = None
-        self.unameversionset = 0
-        self.unameversion = 1
-        self.category = None
-        self.label = None
-        self.version = None
-        self.compiler = None
-        self.sequence = None
 
         try:
             opts, args = getopt.getopt(argv[1:], "hc:l:v:C:s:",
@@ -906,121 +1195,35 @@ options:
                 self.prereqs = a
             elif o == "--debug":
                 self.debug = 1
-            elif o == "--no-uname-version":
-                self.unameversionset = 1
-                self.unameversion = 0
-            elif o == "--uname-version":
-                self.unameversionset = 1
-                self.unameversion = 1
             elif o == "--recheck":
                 self.recheck = a
+
+            elif o == "--no-uname-version":
+                metadata.set("<command line>", "unameversion", 0)
+            elif o == "--uname-version":
+                metadata.set("<command line>", "unameversion", 1)
             elif o in ("-c", "--cattag"):
-                self.category = a
+                metadata.set("<command line>", "category", a)
             elif o in ("-l", "--lbltag"):
-                self.label = a
+                metadata.set("<command line>", "label", a)
             elif o in ("-v", "--vertag"):
-                self.version = a
+                metadata.set("<command line>", "version", a)
             elif o in ("-C", "--cctag"):
-                self.compiler = a
+                metadata.set("<command line>", "compiler", a)
             elif o in ("-s", "--seqtag"):
-                self.sequence = self.validate_seqno(a)
+                metadata.set("<command line>", "sequence", a)
             elif o in ("-h", "--help"):
                 self.usage()
             else:
                 self.usage("impossible argument %s %s" % (o, a))
 
         if len(args) > 0:
-            self.ccset = 1
-            self.cc = args
+            metadata.set("<command line>", "cccmd", args)
 
         if self.recheck is not None:
-            self.prep_recheck()
-
-        if self.ccenv is not None:
-            for k, v in self.ccenv.items():
-                os.environ[k] = v
-
-    def load_tag(self, tag, val):
-        cval = getattr(self, tag)
-        if cval is None:
-            setattr(self, tag, val)
-        else:
-            sys.stderr.write("%s: --recheck: command line overrides "
-                             "%s %s to %s\n"
-                             % (self.argv0, tag, repr(val), repr(cval)))
-
-    def prep_recheck(self):
-        for l in universal_readlines(self.recheck):
-            if len(l) > 0 and l[0] != ':': continue
-            (key, rest) = l.split(' ', 1)
-            key = key[1:]
-            if key == 'sequence':
-                self.load_tag(key, self.validate_seqno(rest))
-            elif (key == 'category' or
-                  key == 'label' or
-                  key == 'version' or
-                  key == 'compiler'):
-                self.load_tag(key, rest)
-            elif key == 'unameversion':
-                if self.unameversionset:
-                    cmd = ['--no-uname-version',
-                           '--uname-version'][self.unameversion]
-                    tag = ['--no-uname-version',
-                           '--uname-version'][int(rest)]
-                    sys.stderr.write("%s: --recheck: command line overrides "
-                                     "%s to %s\n" % (self.argv0, cmd, tag))
-                else:
-                    self.unameversion = int(rest)
-            elif key == 'cccmd':
-                try:
-                    cc = literal_eval(rest)
-                    if (type(cc) != type([]) or len(cc) == 0):
-                        raise SyntaxError
-                    if self.ccset:
-                        sys.stderr.write("%s: --recheck: command line "
-                                         "overrides compile command "
-                                         "'%s' to '%s'\n"
-                                         % (self.argv0, list2shell(cc),
-                                            list2shell(self.cc)))
-                    else:
-                        self.cc = cc
-                except (SyntaxError, ValueError):
-                    sys.stderr.write("%s: --recheck: bad compile command %s "
-                                     "ignored\n" % (self.argv0, repr(rest)))
-            elif key == 'ccenv':
-                # This one can't be set from the command line.
-                try:
-                    cce = literal_eval(rest)
-                    if (type(cce) != type({}) or len(cce) == 0):
-                        raise SyntaxError
-                    if self.ccenv is not None:
-                        sys.stderr.write("%s: --recheck: double setting of "
-                                         ":ccenv ignored\n" % self.argv0)
-                    else:
-                        self.ccenv = cce
-                except (SyntaxError, ValueError):
-                    sys.stderr.write("%s: --recheck: bad :ccenv ignored\n"
-                                     % self.argv0)
-
-        self.recheck = os.path.realpath(self.recheck)
-        self.output = open(self.recheck + "-new", "w")
+            self.output = open(self.recheck + "-new", "w")
 
     def finalize(self):
-        # tags that would be a distraction if they appeared at the top
-        self.output.write("# Additional scansys state below, for --recheck.\n")
-        self.output.write(":cccmd %s\n" % repr(self.cc))
-        if self.ccenv is not None:
-            self.output.write(":ccenv %s\n" % repr(self.ccenv))
-        elif sys.platform == 'win32':
-            # On Windows we need to record a bunch of environment variable
-            # settings to make --recheck work, especially with MSVC.
-            ccenv = {}
-            for ev in ["PATH", "INCLUDE", "LIB", "LIBPATH"]:
-                val = os.environ.get(ev, None)
-                if val is not None: ccenv[ev] = val
-            self.output.write(":ccenv %s\n" % repr(ccenv))
-
-        self.output.write(":unameversion %d\n" % self.unameversion)
         self.output.close()
         if self.recheck is not None:
             # necessary for Windows, grar
@@ -1030,16 +1233,18 @@ options:
             os.rename(self.recheck + "-new", self.recheck)
 
 def main():
-    args = Args(sys.argv)
+    metadata = Metadata()
+    args = Args(sys.argv, metadata)
+    dataset = Dataset(metadata)
+    if args.recheck is not None:
+        dataset.read(args.recheck)
+    metadata.set_defaults()
 
-    try:
-        engine = HeaderProber(args)
-        engine.smoke()
-        engine.probe()
-        engine.report(args.output)
-        args.finalize()
+    engine = HeaderProber(metadata, args)
+    engine.smoke()
+    engine.probe(dataset)
 
-    except EnvironmentError, e:
-        raise SystemExit("%s: %s" % (e.filename, e.strerror))
+    dataset.write(args.output)
+    args.finalize()
 
 if __name__ == '__main__': main()
