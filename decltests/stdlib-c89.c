@@ -8,7 +8,8 @@ void tm(void)
   div_t c;
   ldiv_t d;
   long int *e = NULL;
-  int h = RAND_MAX;
+  int f = RAND_MAX;
+  int g = MB_CUR_MAX;
 
   c.quot = 0;
   c.rem  = 12;
@@ -22,10 +23,10 @@ void cleanup(void)
 {
 }
 
-int compar(void *a, void *b)
+int compar(const void *a, const void *b)
 {
-  int aa = *(int *)a;
-  int bb = *(int *)b;
+  int aa = *(const int *)a;
+  int bb = *(const int *)b;
   return bb - aa;
 }
 
@@ -60,13 +61,13 @@ void fn(void)
   ldiv_t t = ldiv(14123415L, 12);
 
   wchar_t w[4];
-  char x[MB_CUR_MAX];
+  char x[4];
   int u = mblen("\xe2\x80\x94", 3);
   int v = mbtowc(w, "\xe2\x80\x94", 3);
   int y = wctomb(x, w[0]);
 
   v = mbstowcs(w, "\xe2\x80\x94", 4);
-  y = wcstombs(x, w, MB_CUR_MAX);
+  y = wcstombs(x, w, 4);
 
   /* these are last because they return no value */
   qsort(n, 24, sizeof(int), compar);

@@ -83,11 +83,13 @@ void f(FILE *ff, int bb, wint_t cc, wchar_t dd,
 void vf(FILE *ff, const wchar_t *ss, wchar_t *uu, size_t nn, ...)
 {
   va_list ap;
+  int a, b, c;
+
   va_start(ap, nn);
 
-  int a = vfwprintf(ff, ss, ap);
-  int b = vwprintf(ss, ap);
-  int c = vswprintf(uu, nn, ss, ap);
+  a = vfwprintf(ff, ss, ap);
+  b = vwprintf(ss, ap);
+  c = vswprintf(uu, nn, ss, ap);
 
   va_end(ap);
 }

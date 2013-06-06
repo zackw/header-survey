@@ -37,7 +37,7 @@ void fn(void)
 
   a = setvbuf(h, j, _IOFBF, BUFSIZ);
   a = setvbuf(h, j, _IOLBF, BUFSIZ);
-  a = setbbuf(h, NULL, _IONBF, 0);
+  a = setvbuf(h, NULL, _IONBF, 0);
 
   a = fprintf(h, "%s\n", "text");
   a = fscanf(h, "%s\n", j);
