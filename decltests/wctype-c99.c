@@ -1,5 +1,4 @@
 /* C99 additions */
-#define _ISOC99_SOURCE
 #include <wctype.h>
 
 /* note: C89/C99 distinction for this header deduced by comparing SUSv2 to C99,

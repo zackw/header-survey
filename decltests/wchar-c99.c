@@ -1,5 +1,4 @@
 /* C99 additions */
-#define _ISOC99_SOURCE
 #include <wchar.h>
 
 /* note: C89/C99 distinction for this header deduced by comparing
@@ -17,6 +16,8 @@ void f(const wchar_t *ss)
 }
 
 #include <stdarg.h>
+/* in strict ISO C compliance mode FILE is not visible from wchar.h */
+#include <stdio.h>
 
 void vf(FILE *ff, const wchar_t *bb, const wchar_t *ss, ...)
 {

@@ -15,7 +15,7 @@ void c(void)
   char   *d = NULL;
 }
 
-void f(FILE *ff, int bb, wint_t cc, wchar_t dd,
+void f(int bb, wint_t cc, wchar_t dd,
        const char *rr,
        const wchar_t *ss, const wchar_t *tt,
        wchar_t *uu, char *vv, size_t nn,
@@ -28,24 +28,14 @@ void f(FILE *ff, int bb, wint_t cc, wchar_t dd,
   int ii, jj, kk;
 
   wint_t   a  = btowc(bb);
-  int      b  = fwprintf(ff, ss, 1, 2, 3);
-  int      c  = fwscanf(ff, ss, &ii, &jj, &kk);
-  wint_t   d  = fgetwc(ff);
-  wchar_t *e  = fgetws(uu, bb, ff);
-  wint_t   f  = fputwc(dd, ff);
-  int      g  = fputws(ss, ff);
-  int      h  = fwide(ff, 0);
-  wint_t   i  = getwc(ff);
   wint_t   j  = getwchar();
   int      k  = mbsinit(&mbs);
   size_t   l  = mbrlen(rr, nn, &mbs);
   size_t   m  = mbrtowc(uu, rr, nn, &mbs);
   size_t   n  = mbsrtowcs(uu, rrp, nn, &mbs);
-  wint_t   o  = putwc(dd, ff);
   wint_t   p  = putwchar(dd);
   int      q  = swprintf(uu, nn, ss, 1, 2, 3);
   int      r  = swscanf(ss, tt, &ii, &jj, &kk);
-  wint_t   s  = ungetwc(cc, ff);
   size_t   t  = wcrtomb(vv, dd, &mbs);
   wchar_t *u  = wcscat(uu, ss);
   wchar_t *v  = wcschr(ss, dd);
@@ -76,6 +66,25 @@ void f(FILE *ff, int bb, wint_t cc, wchar_t dd,
   wchar_t *av = wmemset(uu, dd, nn);
   int      aw = wprintf(ss, 1, 2, 3);
   int      ax = wscanf(ss, &ii, &jj, &kk);
+}
+
+/* in strict ISO C compliance mode FILE is not visible from wchar.h */
+#include <stdio.h>
+
+void fs(FILE *ff, int bb, wint_t cc, wchar_t dd, const wchar_t *ss, wchar_t *uu)
+{
+  int ii, jj, kk;
+
+  int      b  = fwprintf(ff, ss, 1, 2, 3);
+  int      c  = fwscanf(ff, ss, &ii, &jj, &kk);
+  wint_t   d  = fgetwc(ff);
+  wchar_t *e  = fgetws(uu, bb, ff);
+  wint_t   f  = fputwc(dd, ff);
+  int      g  = fputws(ss, ff);
+  int      h  = fwide(ff, 0);
+  wint_t   i  = getwc(ff);
+  wint_t   o  = putwc(dd, ff);
+  wint_t   s  = ungetwc(cc, ff);
 }
 
 #include <stdarg.h>

@@ -1,5 +1,5 @@
-/* POSIX.1-1996: additional functions */
-#define _POSIX_C_SOURCE 199506L
+/* SUSv2: additional functions */
+#define _XOPEN_SOURCE 500
 #include <string.h>
 
 void f(char *a, char *b, size_t c)

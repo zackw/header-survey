@@ -1,5 +1,4 @@
 /* C99: additions and tightenings */
-#define _ISOC99_SOURCE
 #include <float.h>
 
 /* New constants in C99. */
