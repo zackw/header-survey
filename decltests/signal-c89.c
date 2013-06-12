@@ -1,7 +1,7 @@
 /* baseline */
 #include <signal.h>
 
-static sig_atomic_t v;
+static volatile sig_atomic_t v;
 
 static void handler(int x)
 {
