@@ -11,10 +11,11 @@ void fn(int c)
   int g = islower(c);
   int h = isprint(c);
   int i = ispunct(c);
-  int j = isupper(c);
-  int k = isxdigit(c);
-  int l = tolower(c);
-  int m = toupper(c);
+  int j = isspace(c);
+  int k = isupper(c);
+  int l = isxdigit(c);
+  int m = tolower(c);
+  int n = toupper(c);
 }
 
 /* some pre-standard C libraries only provided these as macros;
@@ -29,8 +30,9 @@ void fn2(int c)
   int g = (islower)(c);
   int h = (isprint)(c);
   int i = (ispunct)(c);
-  int j = (isupper)(c);
-  int k = (isxdigit)(c);
-  int l = (tolower)(c);
-  int m = (toupper)(c);
+  int j = (isspace)(c);
+  int k = (isupper)(c);
+  int l = (isxdigit)(c);
+  int m = (tolower)(c);
+  int n = (toupper)(c);
 }
