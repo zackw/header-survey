@@ -2,9 +2,13 @@
 #include <limits.h>
 
 /* "The values given below shall be replaced by constant expressions
-   suitable for use in #if directives. Their implementation-defined
+   suitable for use in #if directives...Their implementation-defined
    values shall be equal or greater in magnitude (absolute value) to
    those given below, with the same sign." */
+
+/* C89 requires that #if do its calculations in [unsigned] long.
+   Therefore, we only need to worry about signedness on the constants
+   for [U]LONG_(MIN|MAX), but we annotate everything properly anyway. */
 
 #if CHAR_BIT < 8
 #error "CHAR_BIT"
@@ -20,7 +24,7 @@
 #if SCHAR_MAX <  127
 #error "SCHAR_MAX"
 #endif
-#if UCHAR_MAX <  255
+#if UCHAR_MAX <  255U
 #error "UCHAR_MAX"
 #endif
 
@@ -37,7 +41,7 @@
 #if SHRT_MAX <  32767
 #error "SHRT_MAX"
 #endif
-#if USHRT_MAX < 65535
+#if USHRT_MAX < 65535U
 #error "USHRT_MAX"
 #endif
 
@@ -47,17 +51,17 @@
 #if INT_MAX <  32767
 #error "INT_MAX"
 #endif
-#if UINT_MAX < 65535
+#if UINT_MAX < 65535U
 #error "UINT_MAX"
 #endif
 
-#if LONG_MIN > -2147483647
+#if LONG_MIN > -2147483647L
 #error "LONG_MIN"
 #endif
-#if LONG_MAX <  2147483647
+#if LONG_MAX <  2147483647L
 #error "LONG_MAX"
 #endif
-#if ULONG_MAX < 4294967295
+#if ULONG_MAX < 4294967295UL
 #error "ULONG_MAX"
 #endif
 

@@ -11,10 +11,10 @@ void tm(void)
   int f = RAND_MAX;
   int g = MB_CUR_MAX;
 
-  c.quot = 0;
-  c.rem  = 12;
-  d.quot = 45;
-  d.rem  = 78;
+  int *q = &c.quot;
+  int *r = &c.rem;
+  long int *qq = &d.quot;
+  long int *rr = &d.rem;
 }
 
 extern int A, B, C;

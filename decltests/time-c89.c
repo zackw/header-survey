@@ -9,6 +9,14 @@ void ty(void)
   time_t d;
   static struct tm tm; /* static so reads below are not uninitialized */
 
+  /* C89 and C99 specify that all of these have type 'int', but an
+     implementation might reasonably pick a different type for some of
+     them, whether to save space (sec, min, hour, mday, mon, wday,
+     isdst are all packable into 'unsigned char', and yday would fit
+     into a 9-bit bitfield) or to extend the range (a 64-bit
+     second-counting time_t can reach well past Gregorian year
+     2,147,485,547) so we don't aggressively validate that as we do
+     for e.g. ldiv_t. */
   int e = tm.tm_sec;
   int f = tm.tm_min;
   int g = tm.tm_hour;
