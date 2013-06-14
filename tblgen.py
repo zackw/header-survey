@@ -481,10 +481,17 @@ class Dataset(object):
         elif self.gen == 1:
             # In a generation 1 data set, headers that aren't listed
             # are assumed to be absent, except that we special-case
-            # the headers we know generation 1 scans got wrong.
-            exceptions = frozenset(('endian.h',
+            # the headers that have been added to the baselines since
+            # generation 2.  (We can stop doing this when we no longer
+            # have any generation 1 data sets.)
+            exceptions = frozenset(('curses.h',
+                                    'endian.h',
+                                    're_comp.h',
+                                    'term.h',
                                     'ucontext.h',
-                                    'varargs.h'))
+                                    'unctrl.h',
+                                    'varargs.h',
+                                    'xti.h'))
             for s in stds:
                 for h in s:
                     self.ensure(h, 'X' if h in exceptions else 'N')

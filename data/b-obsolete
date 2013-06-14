@@ -4,19 +4,24 @@
 :category standard
 :sequence 99
 :label Obsolete
+curses.h
 direct.h
 memory.h
 ndbm.h
+re_comp.h
 regexp.h
 sgtty.h
 stropts.h
+term.h
 termcap.h
 termio.h
 trace.h
 ulimit.h
+unctrl.h
 utime.h
 utmp.h
 varargs.h
+xti.h
 arpa/nameser_compat.h
 sys/dir.h
 sys/errno.h
