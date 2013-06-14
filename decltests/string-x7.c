@@ -1,6 +1,4 @@
 /* POSIX.1-2008: additional functions */
-#define _XOPEN_SOURCE 700
-#define _XOPEN_SOURCE_EXTENDED
 #define _REENTRANT
 #define _THREAD_SAFE
 #include <string.h>

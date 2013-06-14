@@ -1,5 +1,4 @@
 /* SUSv2: additional functions */
-#define _XOPEN_SOURCE 500
 #include <string.h>
 
 void f(char *a, char *b, size_t c)
