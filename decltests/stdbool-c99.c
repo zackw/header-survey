@@ -11,8 +11,10 @@
 #error "__bool_true_false_are_defined"
 #endif
 
-void f(bool x)
+void f(void)
 {
-  x = true;
-  x = false;
+  bool a = true;
+  bool b = false;
+  _Bool c = 1;
+  _Bool d = 0;
 }

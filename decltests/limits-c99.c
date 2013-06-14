@@ -18,3 +18,5 @@
 #if ULLONG_MAX < 18446744073709551615ULL
 #error "ULLONG_MAX"
 #endif
+
+int dummy; /* avoid error for empty source file */
