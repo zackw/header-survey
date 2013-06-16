@@ -1,6 +1,4 @@
 /* POSIX.1-2008: additional functions */
-#define _REENTRANT
-#define _THREAD_SAFE
 #include <string.h>
 
 void f(locale_t ll, char *aa, char *bb)
