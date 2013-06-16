@@ -130,6 +130,7 @@ void f(void)
     = pthread_setschedparam;
   int   (*cx)(pthread_key_t, const void *) = pthread_setspecific;
   void  (*cy)(void) = pthread_testcancel;
+  int   (*cz)(void (*)(void), void (*)(void), void(*)(void)) = pthread_atfork;
 
   /* pthread_cleanup_push/pop are macros which must be paired correctly. */
   pthread_cleanup_push(cleanup, (void *)0);
