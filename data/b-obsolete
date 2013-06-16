@@ -10,6 +10,7 @@ memory.h
 ndbm.h
 re_comp.h
 regexp.h
+search.h
 sgtty.h
 stropts.h
 term.h

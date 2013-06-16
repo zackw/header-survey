@@ -19,7 +19,6 @@ mqueue.h
 nl_types.h
 pthread.h
 sched.h
-search.h
 semaphore.h
 spawn.h
 syslog.h
