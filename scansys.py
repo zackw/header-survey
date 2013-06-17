@@ -61,7 +61,8 @@ import sys
 # v2 2013-05-08 Distinguish nonexistent headers from other cpp failures;
 #               list all headers in the output file so we can detect the
 #               state of having no data about a header
-OUTPUT_GENERATION_NO = 2
+# v3 2013-06-17 Conflicts and declaration checks
+OUTPUT_GENERATION_NO = 3
 
 # suppress all Python warnings, since we deliberately use deprecated
 # things (that were the only option in 2.0)
@@ -325,19 +326,6 @@ def toposort(data):
                            + "\n".join([repr(x) for x in data.items()]))
     return result
 
-def toposort_headers(headers, prerequisites):
-    """Topologically sort the common-headers list according to the
-       prerequisites list, so that gensrc() can safely check whether
-       probable-prerequisite headers are known to exist, and include
-       them only if so."""
-    topo_in = {}
-    for h in headers:
-        topo_in[h] = prerequisites.get(h, [])
-    topo_out = toposort(topo_in)
-    rv = []
-    for l in topo_out: rv.extend(l)
-    return rv
-
 def hsortkey(h):
     """Sort key generator for sorthdr."""
     segs = h.lower().replace("\\", "/").split("/")
@@ -361,6 +349,37 @@ def sorthdr(hs):
         khs = [(hsortkey(h), h) for h in hs]
         khs.sort()
         return [x[1] for x in khs]
+
+def toposort_headers(headers, prerequisites):
+    """Topologically sort the common-headers list according to the
+       prerequisites list, so that gensrc() can safely check whether
+       probable-prerequisite headers are known to exist, and include
+       them only if so.
+
+       Within each group of headers emitted by the topological sort,
+       we sort by the sequence number of the b-file containing the
+       header. Within a cluster of headers with the same sequence
+       number, we sort by pathname.  (The point of this sorting is
+       that conflict detection will ascribe a problem to the second
+       of the two headers involved in the conflict, and we want that
+       to be the less-standard header, which corresponds to a higher
+       sequence number.)
+    """
+    topo_in = {}
+    for h in headers.keys():
+        topo_in[h] = prerequisites.get(h, [])
+    topo_out = toposort(topo_in)
+    rv = []
+    try:
+        for l in topo_out:
+            rv.extend(sorted(l, key=lambda h: (headers[h], hsortkey(h))))
+    except NameError:
+        # see above re sorted()
+        for l in topo_out:
+            khs = [(headers[h], hsortkey(h), h) for h in l]
+            khs.sort()
+            rv.extend([x[2] for x in khs])
+    return rv
 
 #
 # Compiler invocation.  System identification.
@@ -395,8 +414,16 @@ def invoke(argv):
         if rc != 0:
             if sys.platform == 'win32':
                 msg.append("[exit %08x]" % rc)
+            elif os.WIFEXITED(rc):
+                msg.append("[exit %d]" % os.WEXITSTATUS(rc))
+            elif os.WIFSIGNALED(rc):
+                msg.append("[signal %d]" % os.WTERMSIG(rc))
+                # special check for ^C and ^\ (SIGINT, SIGQUIT:
+                # respectively signal numbers 2 and 3, everywhere)
+                if os.WTERMSIG(rc) == 2 or os.WTERMSIG(rc) == 3:
+                    raise KeyboardInterrupt
             else:
-                msg.append("[exit %d]" % rc)
+                msg.append("[status %08x]" % rc)
         msg.extend(universal_readlines("htest-out.txt"))
         delete_if_exists("htest-out.txt")
     except EnvironmentError, e:
@@ -651,21 +678,36 @@ class Metadata:
 #
 
 class Header:
-    PRESENT = ""
-    ABSENT  = "-"
-    PREREQS = "%"
-    BUGGY   = "!"
+    # state symbols for headers
+    # "#", "$", and ":" are used for other purposes
+    PRESENT    = ""
+    ABSENT     = "-"
+    BUGGY      = "!"
+    DEPENDENT  = "%"
+    CORRECT    = "+"
+    INCOMPLETE = "*"
+    CORR_DEP   = "@" # correct + prerequisites
+    INCO_DEP   = "&" # incomplete + prerequisites
 
-    TAGS = (ABSENT, PREREQS, BUGGY)
+    TAGS = (ABSENT, BUGGY, DEPENDENT, CORRECT, INCOMPLETE,
+            CORR_DEP, INCO_DEP)
 
-    TAGINV = { PRESENT : "PRESENT",
-               ABSENT  : "ABSENT",
-               PREREQS : "DEPENDENT",
-               BUGGY   : "BUGGY" }
+    TAGINV = { PRESENT    : "PRESENT",
+               ABSENT     : "ABSENT",
+               BUGGY      : "BUGGY",
+               DEPENDENT  : "DEPENDENT",
+               CORRECT    : "CORRECT",
+               INCOMPLETE : "INCOMPLETE",
+               CORR_DEP   : "CORRECT (DEPENDENT)",
+               INCO_DEP   : "INCOMPLETE (DEPENDENT)"
+             }
 
     def __init__(self, name, state, avis="", ahid=""):
         self.name  = name
         self.state = state
+        self.prereqs = []
+        self.special = ""
+        self.checked_this_time = 0
         if avis == "":
             self.avis = avis
         else:
@@ -695,6 +737,12 @@ class Header:
             self.ahid = "\n## " + ahid
         else:
             self.ahid = self.ahid + "\n## " + ahid
+
+    def include(self, f):
+        for h in self.prereqs:
+            f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
+        f.write(self.special)
+        f.write("#include <%s>\n" % (os.path.join(*self.name.split("/"))))
 
     def write(self, f):
         f.write("%s%s%s%s\n" % (self.state, self.name,
@@ -730,6 +778,26 @@ class Header:
                                           for l in other.ahid.split("\n")]))
             self.ahid = other.ahid
 
+        if (other.prereqs != []
+            and self.prereqs != other.prereqs):
+            if self.prereqs != []:
+                sys.stderr.write(self.name + ": prerequisites changed:\n")
+                sys.stderr.write("".join(["-"+l+"\n"
+                                          for l in self.prereqs]))
+                sys.stderr.write("".join(["+"+l+"\n"
+                                          for l in other.prereqs]))
+            self.prereqs = other.prereqs
+        if (other.special != ""
+            and self.special != other.special):
+            if self.special != "":
+                sys.stderr.write(self.name + ": special preamble changed:\n")
+                sys.stderr.write("".join(["-"+l+"\n"
+                                          for l in self.special.split("\n")]))
+                sys.stderr.write("".join(["+"+l+"\n"
+                                          for l in other.special.split("\n")]))
+            self.special = other.special
+
+
 # Annotation generation.
 # Annotation lines starting with $ are consumed by tblgen.py and
 # attached to the relevant header/OS entry.  They can contain
@@ -749,7 +817,9 @@ def ann_prereq(header, prereqs):
             ann += ("<code>%s</code>, " % cgi.escape(p))
         ann += ("and <code>%s</code>." % cgi.escape(prereqs[-1]))
 
-    return Header(header, Header.PREREQS, avis=ann)
+    h = Header(header, Header.DEPENDENT, avis=ann)
+    h.prereqs = prereqs
+    return h
 
 
 ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
@@ -759,7 +829,9 @@ def ann_special(header, text):
         m = m.group(1)
     else:
         m = "???special without explanation???"
-    return Header(header, Header.PREREQS, avis=m)
+    h = Header(header, Header.DEPENDENT, avis=m)
+    h.special = text
+    return h
 
 def ann_buggy(header, errors):
     # This mostly relies on human auditing, but some very common issues
@@ -852,6 +924,7 @@ class Dataset:
             self.headers[header.name].merge(header)
         else:
             self.headers[header.name] = header
+        self.headers[header.name].checked_this_time = 1
 
     def write(self, f):
         self.metadata.write_top(f)
@@ -966,12 +1039,17 @@ class HeaderProber:
         for fn in os.listdir(datadir):
             tag = basename(fn)[:2]
             if tag == 'b-' and tag[-1] != '~':
+                seqno = 50
                 for l in universal_readlines(join(datadir, fn)):
                     l = l.strip()
-                    if l == "" or l[0] in ":#": continue
-                    headers[l] = 1
+                    if l[:10] == ":sequence ":
+                        seqno = int(l[10:])
+                        continue
+                    elif l == "" or l[0] in ":#":
+                        continue
+                    headers[l] = seqno
 
-        self.headers = toposort_headers(headers.keys(), self.prerequisites)
+        self.headers = toposort_headers(headers, self.prerequisites)
 
     def probe_report(self, header, state, errors, src):
         """Report the results of one probe on stderr.
@@ -1043,24 +1121,35 @@ class HeaderProber:
            DATASET."""
 
         for h in self.headers:
-            self.probe_one(h, dataset)
-            delete_if_exists("htest.c")
-            delete_if_exists(self.metadata.preproc_out)
-            delete_if_exists(self.metadata.compile_out)
+            try:
+                hh = self.probe_existence(h, dataset)
+                if hh.state == Header.PRESENT or hh.state == Header.DEPENDENT:
+                    self.probe_conflict(hh, dataset)
+                dataset.record(hh)
+            finally:
+                delete_if_exists("htest.c")
+                delete_if_exists(self.metadata.preproc_out)
+                delete_if_exists(self.metadata.compile_out)
 
-    def probe_one(self, header, dataset):
-        """Probe for one header.  This goes in several stages:
+        # Dataset is now updated to the current generation.
+        dataset.metadata.gen = OUTPUT_GENERATION_NO
+
+    def probe_existence(self, header, dataset):
+        """Probe for the existence of one header.  This goes in
+           several stages:
 
            * First, we loop over the sets of possible prerequisites
              provided by prereq_combs(), attempting to compile a
              source file (cc -c) that includes HEADER plus the
-             prerequisite set.  If any iteration succeeds, the header
-             is recorded as _available_, annotated with the set of
-             prerequisites that were required.
+             prerequisite set.  If this succeeds without any
+             prerequisites, the header is _present_; if it succeeds
+             with some nonempty set of prerequisites, the header is
+             _dependent_.
 
              If the header is in the "specials" set, we just try it
-             first without, then with, the special text, and record
-             which way it succeeded.
+             first without, then with, the special text.  If it
+             succeeds without the special text it's present, if it
+             succeeds with, it's dependent.
 
            * If none of the compilations in stage one succeeded, we
              save the error messages emitted from the compilation with
@@ -1069,10 +1158,14 @@ class HeaderProber:
              (cc -E) a source file containing _only_ "#include <header>".
              If this succeeds, or if it fails and
              failure_due_to_nonexistence(errors, header) is false, the
-             header is recorded as _buggy_ and annotated with the
-             error messages.
+             header is _buggy_.
 
-           * Otherwise the header is _absent_ and is recorded as such.
+           * Otherwise the header is _absent_.
+
+           Returns a Header object recording the state of the header.
+           For dependent headers, this also remembers the special text
+           or prerequisite set, and for buggy headers it remembers the
+           error messages.
         """
 
         if self.specials.get(header, None) is not None:
@@ -1082,9 +1175,8 @@ class HeaderProber:
             src = self.gensrc(header)
             (rc, errors) = invoke(self.metadata.compile_cmd(src))
             if rc == 0:
-                self.probe_report(header, "correct", errors, src)
-                dataset.record(Header(header, Header.PRESENT))
-                return
+                self.probe_report(header, "present", errors, src)
+                return Header(header, Header.PRESENT)
 
             if self.debug:
                 sys.stderr.write("%s: trying with special handling\n"
@@ -1093,8 +1185,7 @@ class HeaderProber:
             (rc, errors) = invoke(self.metadata.compile_cmd(src))
             if rc == 0:
                 self.probe_report(header, "dependent", errors, src)
-                dataset.record(ann_special(header, self.specials[header]))
-                return
+                return ann_special(header, self.specials[header])
 
         else:
             prereqs = all_prereqs(header, self.prerequisites,
@@ -1112,12 +1203,11 @@ class HeaderProber:
                 (rc, errors) = invoke(self.metadata.compile_cmd(src))
                 if rc == 0:
                     if len(pc) == 0:
-                        self.probe_report(header, "correct", errors, src)
-                        dataset.record(Header(header, Header.PRESENT))
+                        self.probe_report(header, "present", errors, src)
+                        return Header(header, Header.PRESENT)
                     else:
                         self.probe_report(header, "dependent", errors, src)
-                        dataset.record(ann_prereq(header, pc))
-                    return
+                        return ann_prereq(header, pc)
 
         # If we get here, all prior trials have failed.  See if we can
         # even preprocess this header.
@@ -1125,10 +1215,105 @@ class HeaderProber:
         (rc, perrors) = invoke(self.metadata.preproc_cmd(src))
         if rc == 0 or not failure_due_to_nonexistence(perrors, header):
             self.probe_report(header, "buggy", errors, src)
-            dataset.record(ann_buggy(header, errors))
+            return ann_buggy(header, errors)
         else:
             self.probe_report(header, "absent", perrors, src)
-            dataset.record(Header(header, Header.ABSENT))
+            return Header(header, Header.ABSENT)
+
+    def probe_conflict(self, header, dataset):
+        """Determine whether HEADER conflicts with any other header which
+           is known to exist -- that is, whether you cannot include HEADER
+           and some other header at the same time."""
+
+        # N.B. We don't log successes here (even in debug mode),
+        # because it's much too verbose.  We do, however, report that
+        # we are in this phase for each header (in debug mode),
+        # because it is quite slow, potentially involving O(N^2)
+        # compiler invocations.
+        if self.debug:
+            sys.stderr.write("%s: checking for conflicts\n"
+                             % header.name)
+
+        # Primarily as a performance optimization, we first check this
+        # header against *all* other already-validated headers.  Only if
+        # that fails do we go one by one looking for the actual conflict.
+        # This also means we're more likely to detect complex conflicts
+        # involving more than two headers.
+        src = "htest.c"
+        f = open(src, "w")
+        for other in dataset.headers.values():
+            # Skip other-headers which are known to be absent or buggy.
+            #
+            # Also (if we are rechecking) skip other-headers which
+            # have not yet been checked on this scan, as they will not
+            # have the correct prerequisite annotations and the tests will
+            # spuriously fail.
+            #
+            # Also specifically skip other-header == this-header, but
+            # then at the very end, include this-header twice to
+            # confirm that you can do that.
+            if (not other.checked_this_time or
+                other.state == Header.ABSENT or
+                other.state == Header.BUGGY or
+                other.name == header.name):
+                continue
+            other.include(f)
+        header.include(f)
+        header.include(f)
+        f.write("int main(void){return 0;}\n")
+        f.close()
+        (rc, all_errors) = invoke(self.metadata.compile_cmd(src))
+        if rc == 0:
+            if self.debug:
+                sys.stderr.write("%s: no conflicts\n" % header.name)
+            return
+
+        # If we get to this point, there is *some* kind of conflict and we
+        # need to figure out what.
+        self.probe_report(header.name, "buggy", all_errors, src)
+        if self.debug:
+            sys.stderr.write("%s: conflict detected, investigating...\n"
+                             % header.name)
+        found_conflict = 0
+        for other in dataset.headers.values() + [header]:
+            if (not other.checked_this_time or
+                other.state == Header.ABSENT or
+                other.state == Header.BUGGY or
+                (other is not header and other.name == header.name)):
+                continue
+            src = "htest.c"
+            f = open(src, "w")
+            other.include(f)
+            header.include(f)
+            f.write("int main(void){return 0;}\n")
+            f.close()
+
+            (rc, errors) = invoke(self.metadata.compile_cmd(src))
+            if rc != 0:
+                self.probe_report(header.name, "buggy", errors, src)
+                if other.name == header.name:
+                    header.append_avis("Can't be included twice in the same "
+                                       "source file.")
+                else:
+                    header.append_avis("Can't be used together with "
+                                       "<code>%s</code>."
+                                       % cgi.escape(other.name))
+                for e in errors[2:]:
+                    header.append_ahid(e)
+            found_conflict = 1
+
+        if not found_conflict:
+            # The conflict is not as simple as not being able to include
+            # some pair of headers together.  The human editor will have
+            # to figure it out.
+            header.append_avis("PLACEHOLDER: Complex conflict, "
+                               "needs investigation")
+            for e in all_errors[2:]:
+                header.append_ahid(e)
+
+        # We knew this for some time now, but only set it at the end to
+        # prevent perturbation of the above logic.
+        header.state = Header.BUGGY
 
 class Args:
     """Command line argument store."""
