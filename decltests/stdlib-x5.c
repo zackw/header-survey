@@ -17,8 +17,7 @@ void wmacros(int ss)
 
 void f(const char *aa, long bb, unsigned short cc[3],
        unsigned short dd[7], double ee, int ff,
-       char *gg, char *const *hh, int ii, unsigned int *jj, size_t kk
-       )
+       char *gg, char *const *hh, int ii, unsigned int *jj, size_t kk)
 {
   long  a = a64l(aa);
   char *b = l64a(bb);
