@@ -2,11 +2,11 @@
 # It assumes GCC/Clang command line option syntax and uses GNU Make
 # extensions.
 
-C89_TESTS := $(wildcard *-c89*.c */*-c89*.c)
-C99_TESTS := $(wildcard *-c99*.c */*-c99*.c)
-X5_TESTS  := $(wildcard *-x5*.c  */*-x5*.c)
-X6_TESTS  := $(wildcard *-x6*.c  */*-x6*.c)
-X7_TESTS  := $(wildcard *-x7*.c  */*-x7*.c)
+C89_TESTS := $(wildcard c89/*.c)
+C99_TESTS := $(wildcard c99/*.c)
+X5_TESTS  := $(wildcard x5/*.c)
+X6_TESTS  := $(wildcard x6/*.c)
+X7_TESTS  := $(wildcard x7/*.c)
 
 ALL_TESTS := $(C89_TESTS) $(C99_TESTS) $(X5_TESTS) $(X6_TESTS) $(X7_TESTS)
 
