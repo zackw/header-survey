@@ -31,15 +31,18 @@
 # --recheck <FILE>; you're responsible for running this on the correct
 # operating system, but it remembers everything else.
 #
+# If results are not as expected, --debug will cause the script to
+# print extra information about failed probes on stderr.
+#
 # The list of headers to look for is taken from the union of all b-
 # files in the "data/" directory.  You can override the location of
 # this directory with --datadir.  There is also a configuration file
 # which defines "prerequisites" -- headers which cannot just be
 # included in isolation.  This defaults to "prereqs.ini", which can be
-# overridden with --prereqs.  Finally, if results are not as expected,
-# --debug will cause the script to print extra information about
-# failed probes on stderr.
-
+# overridden with --prereqs.  Another directory, "decltests/" by
+# default, contains C source files which test the contents of each
+# header; this can be overridden with --dtestdir.
+#
 # This script is backward compatible all the way to Python 2.0, and
 # therefore uses many constructs which are considered obsolete, and
 # avoids many conveniences added after that point.
@@ -486,7 +489,20 @@ def compiler_id(cc):
         for l in msg[1:]:
             l = l.strip()
             if l == "" or l.find("[exit") == 0: continue
-            if stop_re.search(l): break
+            if stop_re.search(l):
+                # Special case: GCC's --version message might look like
+                # cc (distro x.y.z-w) x.y.z
+                # Copyright (C) yyyy Free Software Foundation, Inc.
+                # [etc]
+                # with the word "GCC" not appearing anywhere.  So if "GCC"
+                # doesn't (case insensitively) appear in the text so far,
+                # but we just hit the FSF copyright notice, annotate the
+                # previous line accordingly.
+                if (l.find("Free Software Foundation") != -1
+                    and results[-1].find("GCC") == -1
+                    and results[-1].find("gcc") == -1):
+                    results[-1] = results[-1] + " (GCC)"
+                break
             results.append(l)
 
         # this lines up with the "# cc: " put on the first line by write()
@@ -584,6 +600,11 @@ class Metadata:
 
         # Note that these settings rely to some extent on the
         # input file always being named htest.c.
+        # If we understand the compiler, we try to put it in
+        # C99 strict compliance mode for the "contents" tests.
+        # (This unfortunately causes lots of false "buggy" results
+        # on the existence tests, so we don't do it there.)
+        self.compliance_opt = []
         if self.ccid.find("Microsoft") != -1:
             self.compile_opt = ["/c"]
             self.preproc_opt = ["/P"]
@@ -599,6 +620,16 @@ class Metadata:
             self.compile_out = "htest.s"
             self.preproc_out = "htest"
 
+            if (self.ccid.find("GCC") != -1 or
+                self.ccid.find("gcc") != -1 or
+                self.ccid.find("LLVM") != -1):
+                # gcc & llvm are a little _too_ picky with just the
+                # first four...
+                self.compliance_opt = ["-std=c99", "-pedantic", "-W", "-Wall",
+                                       "-Wno-unused", "-Wno-unused-parameter",
+                                       "-Wno-unknown-pragmas",
+                                       "-Wno-deprecated-declarations",
+                                       "-Werror", "-O"]
 
     def set_internal(self, ctxt, attr, value):
         prev = getattr(self, attr)
@@ -666,9 +697,12 @@ class Metadata:
             sys.stderr.write("%s: unrecognized metadata tag '%s' ignored\n"
                              % (ctxt, attr))
 
-
-    def compile_cmd(self, src):
-        return self.cccmd + self.compile_opt + [src]
+    def compile_cmd(self, src, compliance=0):
+        cmd = self.cccmd + self.compile_opt
+        if compliance:
+            cmd.extend(self.compliance_opt)
+        cmd.append(src)
+        return cmd
 
     def preproc_cmd(self, src):
         return self.cccmd + self.preproc_opt + [src]
@@ -738,11 +772,27 @@ class Header:
         else:
             self.ahid = self.ahid + "\n## " + ahid
 
-    def include(self, f):
+    def is_good_state(self):
+        return (self.state != self.ABSENT and self.state != self.BUGGY)
+
+    def set_incomplete(self):
+        if self.state == self.PRESENT:
+            self.state = self.INCOMPLETE
+        elif self.state == self.DEPENDENT:
+            self.state = self.INCO_DEP
+
+    def set_correct(self):
+        if self.state == self.PRESENT:
+            self.state = self.CORRECT
+        elif self.state == self.DEPENDENT:
+            self.state = self.CORR_DEP
+
+    def include(self, f, only_prereqs=0):
         for h in self.prereqs:
             f.write("#include <%s>\n" % (os.path.join(*h.split("/"))))
         f.write(self.special)
-        f.write("#include <%s>\n" % (os.path.join(*self.name.split("/"))))
+        if not only_prereqs:
+            f.write("#include <%s>\n" % (os.path.join(*self.name.split("/"))))
 
     def write(self, f):
         f.write("%s%s%s%s\n" % (self.state, self.name,
@@ -822,9 +872,9 @@ def ann_prereq(header, prereqs):
     return h
 
 
-ecre = re.compile(r'(?s)/\* *(.*?) *\*/')
+leading_comment_re = re.compile(r'(?s)/\* *(.*?) *\*/')
 def ann_special(header, text):
-    m = ecre.search(text)
+    m = leading_comment_re.search(text)
     if m:
         m = m.group(1)
     else:
@@ -862,8 +912,80 @@ def ann_buggy(header, errors):
         h.append_ahid(e)
     return h
 
+include_directive_re = re.compile(r'^\s*#\s*include\s*[<"]([^">\n]+)[">]\s*$')
+ifndef_re = re.compile(r'^^\s*#\s*ifndef\s+')
+class DeclTest:
+    """One test of the contents of a header."""
+
+    FEATURE_MACROS = {
+        "c89" : "",
+        "c99" : "",
+        "x5"  : "#define _XOPEN_SOURCE 500\n",
+        "x6"  : "#define _XOPEN_SOURCE 600\n",
+        "x7"  : "#define _XOPEN_SOURCE 700\n"
+    }
+    STANDARD_NAMES = {
+        "c89" : "ISO C90",
+        "c99" : "ISO C99",
+        "x5"  : "Single Unix v2",
+        "x6"  : "POSIX.1-2001",
+        "x7"  : "POSIX.1-2008"
+    }
+
+    def __init__(self, fname):
+        self.testfile = fname
+        self.std = os.path.basename(os.path.dirname(fname))
+        self.label = None
+        self.header = None
+        # We're looking for an optional one-line "label" in a comment
+        # (saying what is lacking if the test fails) and then an
+        # #include directive naming the header under test.  There
+        # might be an #ifndef block around the #include.
+        for line in universal_readlines(fname):
+            line = line.strip()
+            if self.label is None:
+                m = leading_comment_re.match(line)
+                if m:
+                    self.label = m.group(1)
+                    continue
+            m = include_directive_re.match(line)
+            if m:
+                self.header = m.group(1)
+                break
+            if line != "" and not ifndef_re.match(line):
+                raise RuntimeError("%s: improperly tagged" % fname)
+        assert self.header is not None
+
+    def __cmp__(self, other):
+        # If either label is None, it will be sorted to the front,
+        # which is what we want.
+        return cmp(self.label, other.label)
+
+    def gensrc(self, header):
+        assert header.name == self.header
+        src = "htest.c"
+        f = open(src, "w")
+        f.write(self.FEATURE_MACROS[self.std])
+        # TESTFILE includes HEADER, but it doesn't include HEADER's
+        # prerequisites (if any), so we gotta do that here.
+        header.include(f, only_prereqs=1)
+        f.write("#include \"%s\"\n" % self.testfile)
+        f.close()
+        return src
+
+    def note_failure(self, header):
+        # If this test has no label, it is the "baseline" requirement
+        # for its header, so the header is considered BUGGY.
+        if self.label is None:
+            header.state = Header.BUGGY
+            header.append_avis("Noncompliant with base standard (%s)."
+                               % self.STANDARD_NAMES[self.std])
+        else:
+            header.set_incomplete()
+            header.append_avis("Lacks %s." % self.label)
 
 class Dataset:
+    """Holds all the data collected over the course of one run."""
     def __init__(self, metadata):
         self.headers  = {}
         self.metadata = metadata
@@ -1007,6 +1129,7 @@ class HeaderProber:
         self.debug = args.debug
         self.read_prereqs(args.prereqs)
         self.read_headers(args.datadir)
+        self.read_decltests(args.dtestdir)
 
     def read_prereqs(self, prereqs):
         """Read prereqs.ini and generate the 'prerequisites' and 'specials'
@@ -1050,6 +1173,34 @@ class HeaderProber:
                     headers[l] = seqno
 
         self.headers = toposort_headers(headers, self.prerequisites)
+
+    def read_decltests(self, dtestdir):
+        """Read the contents of the decltests directory, which contains
+           test programs for many of the headers we probe."""
+        decltests = {}
+        for dirpath, dirnames, filenames in os.walk(dtestdir):
+            for fn in filenames:
+                if fn[-2:] != ".c": continue
+                try:
+                    test = DeclTest(os.path.join(dirpath, fn))
+                except RuntimeError, e:
+                    # skip improperly tagged tests with a warning
+                    sys.stderr.write(str(e) + "\n")
+                    continue
+                if not decltests.has_key(test.header):
+                    decltests[test.header] = []
+                decltests[test.header].append(test)
+
+        for l in decltests.values():
+            l.sort()
+            assert len(l) >= 1
+            if l[0].label is not None or (len(l) >= 2 and
+                                          l[1].label is None):
+                sys.stderr.write("%s: inconsistent declaration tests\n"
+                                 % l[0].header)
+                del decltests[l[0].header]
+
+        self.decltests = decltests
 
     def probe_report(self, header, state, errors, src):
         """Report the results of one probe on stderr.
@@ -1123,8 +1274,10 @@ class HeaderProber:
         for h in self.headers:
             try:
                 hh = self.probe_existence(h, dataset)
-                if hh.state == Header.PRESENT or hh.state == Header.DEPENDENT:
+                if hh.is_good_state():
                     self.probe_conflict(hh, dataset)
+                if hh.is_good_state():
+                    self.probe_contents(hh)
                 dataset.record(hh)
             finally:
                 delete_if_exists("htest.c")
@@ -1315,6 +1468,31 @@ class HeaderProber:
         # prevent perturbation of the above logic.
         header.state = Header.BUGGY
 
+    def probe_contents(self, header):
+        if not self.decltests.has_key(header.name):
+            return
+        ok = 1
+        for test in self.decltests[header.name]:
+            src = test.gensrc(header)
+            if self.debug:
+                sys.stderr.write("%s: testing contents (%s)\n"
+                                 % (header.name, test.testfile))
+            (rc, errors) = invoke(self.metadata.compile_cmd(src, compliance=1))
+            if rc == 0:
+                if self.debug:
+                    sys.stderr.write("%s: test passed\n" % header.name)
+            else:
+                ok = 0
+                if test.label is None: tag = "buggy"
+                else:                  tag = "incomplete"
+                self.probe_report(header.name, tag, errors, src)
+                test.note_failure(header)
+                # don't bother with further tests if the baseline fails
+                if test.label is None:
+                    break
+        if ok:
+            header.set_correct()
+
 class Args:
     """Command line argument store."""
 
@@ -1346,6 +1524,7 @@ options:
   --recheck FILE       redo the inventory in FILE
   --debug              report all compiler errors
   --datadir DIRECTORY  directory containing lists of header files to probe
+  --dtestdir DIRECTORY directory containing declaration tests for each header
   --prereqs FILE       file listing prerequisite sets for each header
 """
                 % self.argv0)
@@ -1358,14 +1537,15 @@ options:
         self.argv0 = os.path.basename(argv[0])
         self.debug = 0
         self.datadir = "data"
+        self.dtestdir = "decltests"
         self.prereqs = "prereqs.ini"
         self.output = sys.stdout
         self.recheck = None
 
         try:
             opts, args = getopt.getopt(argv[1:], "hc:l:v:C:s:",
-                                       ["help", "debug",
-                                        "datadir=", "prereqs=", "recheck=",
+                                       ["help", "debug", "recheck=",
+                                        "datadir=", "dtestdir=", "prereqs=",
                                         "cattag=", "lbltag=", "vertag=",
                                         "cctag=", "seqtag=",
                                         "no-uname-version", "uname-version",
@@ -1376,6 +1556,8 @@ options:
         for o, a in opts:
             if o == "--datadir":
                 self.datadir = a
+            if o == "--dtestdir":
+                self.dtestdir = a
             elif o == "--prereqs":
                 self.prereqs = a
             elif o == "--debug":

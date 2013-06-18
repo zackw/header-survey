@@ -21,13 +21,12 @@ void f(void)
   int *o = &signgam;
 
   /* note: functions incorporated into C99 are not listed here */
+  /* note: gamma, scalb removed in X7 */
   double
-  /*p = gamma(a), // removed in X6 or X7 */
-    q = j0(a),
-    r = j1(a),
-    s = jn(a, 2),
-    t = y0(a),
-    u = y1(a),
-    v = yn(a, 2),
-  /*w = scalb(a, b); // removed in X7 */
+    p = j0(a),
+    q = j1(a),
+    r = jn(a, 2),
+    s = y0(a),
+    t = y1(a),
+    u = yn(a, 2);
 }
