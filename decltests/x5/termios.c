@@ -1,5 +1,8 @@
 #include <termios.h>
 
+/* LEGACY in Issue 5, removed in 6:
+   IUCLC, OLCUC, XCASE */
+
 void t(void)
 {
   struct termios c;
@@ -34,8 +37,6 @@ tcflag_t iflags[] = {
   INLCR,
   INPCK,
   ISTRIP,
-  IUCLC,
-  IXANY,
   IXOFF,
   IXON,
   PARMRK,
@@ -43,34 +44,6 @@ tcflag_t iflags[] = {
 
 tcflag_t oflags[] = {
   OPOST,
-  OLCUC,
-  ONLCR,
-  OCRNL,
-  ONOCR,
-  ONLRET,
-  OFILL,
-  NLDLY,
-  NL0,
-  NL1,
-  CRDLY,
-  CR0,
-  CR1,
-  CR2,
-  CR3,
-  TABDLY,
-  TAB0,
-  TAB1,
-  TAB2,
-  TAB3,
-  BSDLY,
-  BS0,
-  BS1,
-  VTDLY,
-  VT0,
-  VT1,
-  FFDLY,
-  FF0,
-  FF1,
 };
 
 tcflag_t cflags[] = {
@@ -141,7 +114,6 @@ void f(struct termios *aa, const struct termios *bb, int cc)
   int     f = tcflow(cc, TCIOFF);
   int     g = tcflush(cc, TCOFLUSH);
   int     h = tcgetattr(cc, aa);
-  pid_t   i = tcgetsid(cc);
   int     j = tcsendbreak(cc, 0);
   int     k = tcsetattr(cc, TCSANOW, aa);
 }

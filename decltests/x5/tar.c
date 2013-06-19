@@ -10,9 +10,6 @@
 #if !defined TSGID || TSGID != 02000
 #error "TSGID"
 #endif
-#if !defined TSVTX || TSVTX != 01000
-#error "TSVTX"
-#endif
 #if !defined TUREAD || TUREAD != 00400
 #error "TUREAD"
 #endif

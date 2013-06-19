@@ -1,5 +1,7 @@
 #include <wordexp.h>
 
+/* WRDE_NOSYS obsolete in issue 6, removed in 7 */
+
 int flags[] = {
   WRDE_APPEND,
   WRDE_DOOFFS,
@@ -14,7 +16,6 @@ int errs[] = {
   WRDE_BADVAL,
   WRDE_CMDSUB,
   WRDE_NOSPACE,
-  WRDE_NOSYS,
   WRDE_SYNTAX,
 };
 
