@@ -1,4 +1,4 @@
-/* signal functions for specific threads */
+/* optional: <code>pthread_kill</code> and <code>pthread_sigmask</code> */
 #include <signal.h>
 
 void f(void)

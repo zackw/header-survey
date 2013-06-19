@@ -1,4 +1,4 @@
-/* constants */
+/* limit constants */
 #include <limits.h>
 
 /* increased values for old minima */

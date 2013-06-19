@@ -1,4 +1,4 @@
-/* "advisory" functions (POSIX.1-2001 optional) */
+/* optional: I/O scheduling functions */
 #include <fcntl.h>
 
 int cc[] = {

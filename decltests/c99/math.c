@@ -1,4 +1,4 @@
-/* additional C99 functions */
+/* functions */
 #include <math.h>
 
 void tm(void)

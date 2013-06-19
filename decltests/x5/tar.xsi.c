@@ -1,4 +1,4 @@
-/* XSI constants */
+/* XSI: constants */
 #include <tar.h>
 
 #if !defined TSVTX || TSVTX != 01000

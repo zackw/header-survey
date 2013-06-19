@@ -1,4 +1,4 @@
-/* XSI features */
+/* XSI: features */
 #include <pthread.h>
 
 int xx[] = {

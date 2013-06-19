@@ -1,4 +1,4 @@
-/* timers option */
+/* optional: limit constants for timers */
 #include <limits.h>
 
 /* minimum-maximum */

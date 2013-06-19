@@ -1,4 +1,4 @@
-/* additional threading support */
+/* optional: functions for multithreaded I/O */
 #include <stdio.h>
 
 void f(FILE *d)

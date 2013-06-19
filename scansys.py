@@ -809,15 +809,29 @@ class Header:
                                 self.TAGINV[other.state]))
             self.state = other.state
         if (other.avis != ""
-            and other.avis[:14] != "$ PLACEHOLDER:"
             and self.avis != other.avis):
-            if self.avis != "":
-                sys.stderr.write(self.name + ": visible annotation changed:\n")
-                sys.stderr.write("".join(["-"+l+"\n"
-                                          for l in self.avis.split("\n")]))
-                sys.stderr.write("".join(["+"+l+"\n"
-                                          for l in other.avis.split("\n")]))
-            self.avis = other.avis
+            if self.avis == "":
+                self.avis = other.avis
+            else:
+                svisv = self.avis.split("\n")
+                ovisv = other.avis.split("\n")
+                for o in ovisv:
+                    found = 0
+                    for s in svisv:
+                        if s == o:
+                            found = 1
+                            break
+                    if not found and o[:14] != "$ PLACEHOLDER:":
+                        svisv.append(o)
+                nvis = "\n".join(svisv)
+                if self.avis != nvis:
+                    sys.stderr.write(self.name +
+                                     ": visible annotation changed:\n")
+                    sys.stderr.write("".join(["-"+l+"\n"
+                                              for l in svisv]))
+                    sys.stderr.write("".join(["+"+l+"\n"
+                                              for l in nvisv]))
+                    self.avis = nvis
         if (other.ahid != ""
             and self.ahid != other.ahid):
             if self.ahid != "":
@@ -982,15 +996,23 @@ class DeclTest:
             header.append_avis("Noncompliant with base standard (%s)." % std)
         else:
             header.set_incomplete()
-            if (self.label == "features" or
-                self.label == "constants" or
-                self.label == "types" or
-                self.label == "functions"):
-                lacking = "PLACEHOLDER: Lacks some %s %s." % (std, self.label)
-            elif self.label[:10] == "optional: ":
-                lacking = "Lacks %s (optional in %s)" % (self.label[10:], std)
+
+            label = self.label
+            if label[:5] == "XSI: ":
+                label = label[5:]
+                std = std + "/XSI"
+
+            if (label == "constants" or
+                label == "error codes" or
+                label == "features" or
+                label == "functions" or
+                label == "limit constants" or
+                label == "types"):
+                lacking = "PLACEHOLDER: Lacks some %s %s." % (std, label)
+            elif label[:10] == "optional: ":
+                lacking = "Lacks %s (optional in %s)." % (label[10:], std)
             else:
-                lacking = "Lacks %s (%s)" % (self.label, std)
+                lacking = "Lacks %s (%s)." % (label, std)
             header.append_avis(lacking)
             for e in errors[2:]:
                 header.append_ahid(e)

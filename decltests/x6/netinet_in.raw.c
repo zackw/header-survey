@@ -1,4 +1,4 @@
-/* raw IP packets support */
+/* raw socket support */
 #include <netinet/in.h>
 
 int xx[] = {

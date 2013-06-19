@@ -1,4 +1,4 @@
-/* XSI features */
+/* XSI: features */
 #include <sys/wait.h>
 
 void wmacros(int ss)

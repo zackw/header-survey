@@ -1,4 +1,4 @@
-/* thread-safe functions */
+/* optional: thread-safe functions */
 #include <grp.h>
 
 int (*a)(gid_t, struct group *, char *, size_t, struct group **) = getgrgid_r;

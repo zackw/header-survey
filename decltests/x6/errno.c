@@ -1,4 +1,4 @@
-/* <code>ENETRESET</code> (POSIX.1-2001) */
+/* <code>ENETRESET</code> */
 #include <errno.h>
 
 void fn(void)

@@ -1,4 +1,4 @@
-/* raw packets support */
+/* raw socket support */
 #include <sys/socket.h>
 
 int cc[] = {

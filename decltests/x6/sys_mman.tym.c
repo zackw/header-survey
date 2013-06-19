@@ -1,4 +1,4 @@
-/* support for typed memory objects */
+/* optional: support for typed memory objects */
 #include <sys/mman.h>
 
 int cc[] = {

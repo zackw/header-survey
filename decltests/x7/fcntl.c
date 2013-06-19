@@ -1,4 +1,4 @@
-/* additional POSIX.1-2008 functions and constants */
+/* features */
 #include <fcntl.h>
 
 int cc[] = {

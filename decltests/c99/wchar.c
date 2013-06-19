@@ -1,4 +1,4 @@
-/* additional C99 functions */
+/* functions */
 #include <wchar.h>
 
 /* note: C89/C99 distinction for this header deduced by comparing

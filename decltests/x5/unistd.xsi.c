@@ -1,4 +1,4 @@
-/* XSI features */
+/* XSI: features */
 #include <unistd.h>
 
 #ifndef _XOPEN_VERSION

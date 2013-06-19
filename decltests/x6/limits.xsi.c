@@ -1,4 +1,4 @@
-/* XSI constants */
+/* XSI: limit constants */
 #include <limits.h>
 
 #if !defined _XOPEN_NAME_MAX || _XOPEN_NAME_MAX < 255

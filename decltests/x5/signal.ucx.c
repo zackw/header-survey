@@ -1,4 +1,4 @@
-/* XSI: <code>ucontext_t</code> and <code>mcontext_t</code> */
+/* optional: <code>ucontext_t</code> and <code>mcontext_t</code> */
 #include <signal.h>
 
 /* In Issue 5, ucontext_t and mcontext_t are defined in <ucontext.h>,

@@ -1,4 +1,4 @@
-/* additional POSIX constants */
+/* constants */
 #include <locale.h>
 
 void m(void)

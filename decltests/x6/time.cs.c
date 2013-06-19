@@ -1,4 +1,4 @@
-/* <code>clock_nanosleep</code> */
+/* optional: <code>clock_nanosleep</code> */
 #include <time.h>
 
 void f(void)

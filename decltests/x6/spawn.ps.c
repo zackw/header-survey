@@ -1,4 +1,4 @@
-/* scheduling controls */
+/* optional: scheduling controls */
 #include <spawn.h>
 
 short xx[] = {

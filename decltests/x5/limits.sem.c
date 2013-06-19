@@ -1,4 +1,4 @@
-/* semaphores option */
+/* optional: limit constants for semaphores */
 #include <limits.h>
 
 /* minimum-maximum */

@@ -1,4 +1,4 @@
-/* timeouts option */
+/* <code>mq_timedreceive</code> and <code>mq_timedsend</code> */
 #include <mqueue.h>
 
 void f(mqd_t aa, char *bb, const char *cc, size_t dd,

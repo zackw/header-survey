@@ -1,4 +1,4 @@
-/* XSI features */
+/* XSI: features */
 #include <math.h>
 
 /* gamma silently removed in Issue 6; scalb silently removed in Issue 7 */

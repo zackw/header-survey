@@ -1,4 +1,4 @@
-/* XSI option */
+/* XSI: limit constants */
 #include <limits.h>
 
 /* minimum-maximum */

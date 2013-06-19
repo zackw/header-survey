@@ -1,4 +1,4 @@
-/* XSI(?) features */
+/* XSI: features */
 #include <sys/stat.h>
 
 void sstruct(struct stat *st)

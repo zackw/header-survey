@@ -1,4 +1,4 @@
-/* XSI add-ons to POSIX.1-1996 */
+/* XSI: features */
 #include <dirent.h>
 
 void f(DIR *aa)

@@ -1,4 +1,4 @@
-/* features */
+/* functions */
 #include <wctype.h>
 
 void f(void)

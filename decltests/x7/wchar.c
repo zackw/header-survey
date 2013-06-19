@@ -1,4 +1,4 @@
-/* features */
+/* functions */
 #include <wchar.h>
 
 void f(void)

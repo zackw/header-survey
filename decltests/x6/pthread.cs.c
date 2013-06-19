@@ -1,4 +1,4 @@
-/* thread clock controls */
+/* optional: per-thread clock functions */
 #include <pthread.h>
 
 void f(void)

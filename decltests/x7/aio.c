@@ -1,4 +1,4 @@
-/* additional required types (POSIX.1-2008) */
+/* types */
 #include <aio.h>
 
 void f(void)

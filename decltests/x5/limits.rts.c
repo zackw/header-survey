@@ -1,4 +1,4 @@
-/* realtime signals option */
+/* optional: limit constants for realtime signals */
 #include <limits.h>
 
 /* minimum-maximum */

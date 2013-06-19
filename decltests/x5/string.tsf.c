@@ -1,4 +1,4 @@
-/* <code>strtok_r</code> */
+/* optional: <code>strtok_r</code> */
 #include <string.h>
 
 void f(char *a)

@@ -1,4 +1,4 @@
-/* XSI signal extensions */
+/* XSI: features */
 #include <signal.h>
 
 /* sighold, sigignore, siginterrupt, sigpause, sigrelse, sigset

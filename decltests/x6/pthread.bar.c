@@ -1,4 +1,4 @@
-/* thread barriers */
+/* optional: thread barrier functions */
 #include <pthread.h>
 
 int xx[] = {

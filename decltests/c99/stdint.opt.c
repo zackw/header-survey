@@ -1,4 +1,4 @@
-/* fixed-width types (optional in C99) */
+/* optional: fixed-width types */
 #ifndef NO_INCLUDE_STDINT_H /* see inttypes-c99-o.c */
 #include <stdint.h>
 #endif

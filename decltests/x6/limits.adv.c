@@ -1,4 +1,4 @@
-/* advisory information option */
+/* optional: limit constants for I/O scheduling */
 #include <limits.h>
 
 /* there are no minimum requirements on these constants and they're

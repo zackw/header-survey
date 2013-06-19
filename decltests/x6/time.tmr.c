@@ -1,4 +1,4 @@
-/* timer features */
+/* optional: timer support */
 #include <time.h>
 
 clockid_t xx[] = {

@@ -1,4 +1,4 @@
-/* additional POSIX.1-2001 functions and macros */
+/* features */
 #include <arpa/inet.h>
 
 void f(const void *aa, void *bb,

@@ -1,4 +1,4 @@
-/* additional <code>struct lconv</code> members (C99) */
+/* some <code>struct lconv</code> members */
 #include <locale.h>
 
 void f(struct lconv *lc)

@@ -1,4 +1,4 @@
-/* <code>iswblank</code> (C99) */
+/* <code>iswblank</code> */
 #include <wctype.h>
 
 /* note: C89/C99 distinction for this header deduced by comparing SUSv2 to C99,

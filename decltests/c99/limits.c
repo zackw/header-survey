@@ -1,4 +1,4 @@
-/* additional C99 macros */
+/* limit constants */
 #include <limits.h>
 
 /* "The values given below shall be replaced by constant expressions

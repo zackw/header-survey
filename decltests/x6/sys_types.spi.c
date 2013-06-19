@@ -1,4 +1,4 @@
-/* thread spinlock-related types */
+/* optional: spinlock types */
 #include <sys/types.h>
 
 /* We do not attempt to validate any of the constraints on what the

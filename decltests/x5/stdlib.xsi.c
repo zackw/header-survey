@@ -1,4 +1,4 @@
-/* additional XSI functions */
+/* XSI: features */
 #include <stdlib.h>
 
 /* LEGACY declarations skipped:

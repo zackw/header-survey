@@ -1,4 +1,4 @@
-/* thread-safe functions */
+/* optional: thread-safe functions */
 #include <time.h>
 
 void f(void)

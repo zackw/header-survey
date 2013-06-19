@@ -1,4 +1,4 @@
-/* additional locale-parametrized functions */
+/* functions */
 #include <ctype.h>
 
 /* isascii, toascii, _toupper, _tolower are obsolete, so excluded */

@@ -1,4 +1,4 @@
-/* imaginary types (optional in C99) */
+/* optional: imaginary types */
 #include <complex.h>
 
 /* This #ifndef is not strictly necessary but

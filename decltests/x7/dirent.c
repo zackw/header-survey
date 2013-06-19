@@ -1,4 +1,4 @@
-/* additional POSIX.1-2008 functions */
+/* functions */
 #include <dirent.h>
 
 extern int filter(const struct dirent *);

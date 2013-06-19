@@ -1,4 +1,4 @@
-/* additional C99 constants and/or stricter C99 rules for C89 constants */
+/* limit constants */
 #include <float.h>
 
 /* New constants in C99. */

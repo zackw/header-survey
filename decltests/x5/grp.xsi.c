@@ -1,4 +1,4 @@
-/* XSI features */
+/* XSI: features */
 #include <grp.h>
 
 struct group *(*a)(void) = getgrent;

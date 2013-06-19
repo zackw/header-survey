@@ -1,4 +1,4 @@
-/* required type definitions */
+/* types */
 #include <mqueue.h>
 
 pthread_attr_t aa;

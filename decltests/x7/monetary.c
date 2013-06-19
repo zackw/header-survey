@@ -1,3 +1,4 @@
+/* <code>strfmon_l</code> */
 #include <monetary.h>
 
 void f(locale_t ll)

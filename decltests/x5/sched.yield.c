@@ -1,4 +1,4 @@
-/* <code>sched_yield</code> */
+/* optional: <code>sched_yield</code> */
 #include <sched.h>
 
 void f(void)

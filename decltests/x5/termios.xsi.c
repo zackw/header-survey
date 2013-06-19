@@ -1,4 +1,4 @@
-/* XSI features */
+/* XSI: features */
 #include <termios.h>
 
 tcflag_t iflags[] = {

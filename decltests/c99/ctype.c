@@ -1,4 +1,4 @@
-/* <code>isblank</code> (C99) */
+/* <code>isblank</code> */
 #include <ctype.h>
 
 void fn(int c)

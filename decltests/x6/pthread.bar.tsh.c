@@ -1,4 +1,4 @@
-/* process-shared thread barriers */
+/* optional: process-shared thread barrier functions */
 #include <pthread.h>
 
 void f(void)

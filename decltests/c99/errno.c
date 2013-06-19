@@ -1,4 +1,4 @@
-/* additional C99 error codes */
+/* error codes */
 #include <errno.h>
 
 void fn(void)

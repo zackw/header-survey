@@ -1,4 +1,4 @@
-/* thread stack controls */
+/* optional: thread stack controls */
 #include <pthread.h>
 
 void f(void)

@@ -1,4 +1,4 @@
-/* message queue option */
+/* optional: limit constants for message queues */
 #include <limits.h>
 
 /* minimum-maximum */

@@ -1,4 +1,4 @@
-/* thread process-shared synchronization support */
+/* optional: functions for process-shared synchronization */
 #include <pthread.h>
 
 void f(void)

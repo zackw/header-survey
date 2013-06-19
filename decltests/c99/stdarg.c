@@ -1,4 +1,4 @@
-/* <code>va_copy</code> (C99) */
+/* <code>va_copy</code> */
 #include <stdarg.h>
 
 void fn(int x, ...)

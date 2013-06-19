@@ -1,4 +1,4 @@
-/* constants */
+/* limit constants */
 #include <limits.h>
 
 /* Removed in Issue 6 or 7:

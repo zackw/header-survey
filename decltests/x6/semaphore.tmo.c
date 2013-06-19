@@ -1,4 +1,4 @@
-/* <code>sem_timedwait</code> */
+/* optional: <code>sem_timedwait</code> */
 #include <semaphore.h>
 
 void f(void)

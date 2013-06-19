@@ -1,4 +1,4 @@
-/* real-time signals */
+/* optional: realtime signals */
 #include <signal.h>
 
 int xx[] = {

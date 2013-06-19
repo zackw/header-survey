@@ -1,4 +1,4 @@
-/* support for sporadic server scheduling policy */
+/* optional: support for sporadic scheduling */
 #include <sched.h>
 
 #if defined _POSIX_SPORADIC_SERVER || defined _POSIX_THREAD_SPORADIC_SERVER
@@ -17,5 +17,5 @@ void f(void)
 }
 
 #else
-#error "no sporadic server scheduling policy"
+#error "no sporadic server scheduling"
 #endif

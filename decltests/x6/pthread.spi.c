@@ -1,4 +1,4 @@
-/* thread spinlocks */
+/* optional: spinlock functions */
 #include <pthread.h>
 
 void f(void)

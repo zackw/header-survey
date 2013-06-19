@@ -1,4 +1,4 @@
-/* <code>clock_getcpuclockid</code> */
+/* optional: <code>clock_getcpuclockid</code> */
 #include <time.h>
 
 void f(void)

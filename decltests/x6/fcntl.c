@@ -1,4 +1,4 @@
-/* additional POSIX.1-2001 constants and types */
+/* features */
 #include <fcntl.h>
 
 int aa[] = {

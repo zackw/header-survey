@@ -1,4 +1,4 @@
-/* additional constraint on numeric limits */
+/* features */
 #include <float.h>
 
 /* "Additionally, FLT_MAX_EXP shall be at least as large as

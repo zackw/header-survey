@@ -1,4 +1,4 @@
-/* additional POSIX error constants */
+/* error codes */
 #include <errno.h>
 
 /* ENODATA, ENOSR, ENOSTR, ETIME excluded - obsolescent in X7 */

@@ -1,4 +1,4 @@
-/* <code>INFINITY</code> and/or <code>NAN</code> (optional in C99) */
+/* optional: <code>INFINITY</code> and <code>NAN</code> */
 #include <math.h>
 
 void tm(void)

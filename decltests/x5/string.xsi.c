@@ -1,4 +1,4 @@
-/* <code>memccpy</code> and <code>strdup</code> (XSI) */
+/* XSI: <code>memccpy</code> and <code>strdup</code> */
 #include <string.h>
 
 void f(char *a, char *b, size_t c)

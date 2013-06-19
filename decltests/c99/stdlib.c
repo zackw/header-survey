@@ -1,4 +1,4 @@
-/* additional C99 functions */
+/* functions */
 #include <stdlib.h>
 
 void f(long long aa, long long bb)

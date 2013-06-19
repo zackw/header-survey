@@ -1,4 +1,4 @@
-/* additional POSIX and XSI constants and functions */
+/* features */
 #include <signal.h>
 
 int xx[] = {

@@ -1,4 +1,4 @@
-/* additional POSIX functions */
+/* functions */
 #include <stdio.h>
 
 /* LEGACY/obsolescent things excluded:

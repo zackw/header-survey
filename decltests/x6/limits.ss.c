@@ -1,4 +1,4 @@
-/* sporadic schedule option */
+/* optional: limit constants for sporadic scheduling */
 #include <limits.h>
 
 #if !defined _POSIX_SS_REPL_MAX || _POSIX_SS_REPL_MAX < 4

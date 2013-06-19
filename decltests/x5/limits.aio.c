@@ -1,4 +1,4 @@
-/* AIO option */
+/* optional: limit constants for asynchronous I/O */
 #include <limits.h>
 
 /* minimum-maximum */

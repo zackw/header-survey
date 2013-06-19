@@ -1,4 +1,4 @@
-/* synchronized I/O constants */
+/* optional: synchronized I/O support */
 #include <fcntl.h>
 
 int cc[] = {

@@ -1,4 +1,4 @@
-/* scheduling priority */
+/* optional: fine scheduling control */
 #include <sched.h>
 
 void f(void)

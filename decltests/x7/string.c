@@ -1,4 +1,4 @@
-/* additional POSIX.1-2008 functions */
+/* features */
 #include <string.h>
 
 void f(locale_t ll, char *aa, char *bb)

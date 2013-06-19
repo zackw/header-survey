@@ -1,4 +1,4 @@
-/* XSI features */
+/* XSI: features */
 #include <wchar.h>
 
 /* note: we do not check for the XSI requirement that all of

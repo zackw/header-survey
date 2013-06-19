@@ -1,4 +1,4 @@
-/* additional POSIX functions */
+/* <code>sigsetjmp</code> and <code>siglongjmp</code> */
 #include <setjmp.h>
 
 /* _setjmp, _longjmp excluded; obsolete in X7 */

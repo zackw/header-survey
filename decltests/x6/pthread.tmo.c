@@ -1,4 +1,4 @@
-/* timeouts for thread locks */
+/* optional: lock functions with timeouts */
 #include <pthread.h>
 
 void f(void)

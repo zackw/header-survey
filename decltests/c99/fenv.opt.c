@@ -1,4 +1,4 @@
-/* macros for specific floating-point modes (optional in C99) */
+/* optional: support for specific floating-point modes */
 #include <fenv.h>
 #pragma STDC FENV_ACCESS ON
 

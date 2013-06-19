@@ -1,4 +1,4 @@
-/* <code>ENOTRECOVERABLE</code> and <code>EOWNERDEAD</code> (POSIX.1-2008) */
+/* <code>ENOTRECOVERABLE</code> and <code>EOWNERDEAD</code> */
 #include <errno.h>
 
 void fn(void)

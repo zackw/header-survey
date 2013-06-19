@@ -1,4 +1,4 @@
-/* fixed-width types (optional in C99) */
+/* optional: fixed-width types */
 #include <inttypes.h>
 
 /* repeat all the checks for stdint.h, but without including that

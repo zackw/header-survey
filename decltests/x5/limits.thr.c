@@ -1,4 +1,4 @@
-/* threads option */
+/* optional: limit constants for threads */
 #include <limits.h>
 
 /* minimum-maximum */

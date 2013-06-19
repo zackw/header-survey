@@ -1,4 +1,4 @@
-/* additional XSI requirements */
+/* XSI: features */
 #include <fcntl.h>
 
 int cc[] = {
