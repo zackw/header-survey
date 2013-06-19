@@ -9,24 +9,14 @@ void wmacros(int ss)
     d = WIFSTOPPED(ss),
     e = WSTOPSIG(ss),
     f = WTERMSIG(ss),
-    g = WCONTINUED,
-    h = WEXITED,
-    i = WSTOPPED,
-    j = WUNTRACED,
-    k = WNOHANG,
-    l = WNOWAIT;
-
-  idtype_t
-    m = P_ALL,
-    n = P_PID,
-    o = P_PGID;
+    g = WNOHANG,
+    h = WUNTRACED;
 }
 
-void f(idtype_t aa, id_t bb, pid_t cc, struct rusage *dd, siginfo_t *ee)
+/* wait3 removed in Issue 6 */
+
+void f(void)
 {
-  int a;
-  pid_t b = wait(&a);
-  pid_t c = wait3(&a, WNOHANG, dd);
-  int   d = waitid(aa, bb, ee, WNOWAIT);
-  pid_t e = waitpid(cc, &a, WEXITED|WCONTINUED);
+  pid_t (*a)(int *) = wait;
+  pid_t (*b)(pid_t, int *, int) = waitpid;
 }

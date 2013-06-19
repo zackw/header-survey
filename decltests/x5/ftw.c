@@ -37,18 +37,11 @@ void f(void)
   int m = nftw("path", cb_nftw, 10, 0);
 }
 
+/* XSI, Issue 6/7 macros excluded from this copy */
 void smacros(struct stat *aa)
 {
   struct stat s_; /* confirm complete type */
   int
-    sa = S_IFMT,
-    sb = S_IFBLK,
-    sc = S_IFCHR,
-    sd = S_IFIFO,
-    se = S_IFREG,
-    sf = S_IFDIR,
-    sg = S_IFLNK,
-
     sh = S_IRWXU,
     si = S_IRUSR,
     sj = S_IWUSR,
@@ -65,8 +58,7 @@ void smacros(struct stat *aa)
     sw = S_IXOTH,
 
     sx = S_ISUID,
-    sy = S_ISGID,
-    sz = S_ISVTX;
+    sy = S_ISGID;
 
   int a = S_ISBLK(aa->st_mode);
   int b = S_ISCHR(aa->st_mode);
@@ -74,7 +66,4 @@ void smacros(struct stat *aa)
   int d = S_ISFIFO(aa->st_mode);
   int e = S_ISREG(aa->st_mode);
   int f = S_ISLNK(aa->st_mode);
-  int g = S_TYPEISMQ(aa);
-  int h = S_TYPEISSEM(aa);
-  int i = S_TYPEISSHM(aa);
 }

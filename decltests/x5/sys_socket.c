@@ -76,11 +76,13 @@ void ff(struct msghdr *sm)
   int     (*f)(int, int, int, void *, socklen_t *) = getsockopt;
   int     (*g)(int, int) = listen;
   ssize_t (*h)(int, void *, size_t, int) = recv;
-  ssize_t (*i)(int, void *, size_t, int, struct sockaddr *, socklen_t *) = recvfrom;
+  ssize_t (*i)(int, void *, size_t, int, struct sockaddr *, socklen_t *)
+    = recvfrom;
   ssize_t (*j)(int, struct msghdr *, int) = recvmsg;
   ssize_t (*k)(int, const void *, size_t, int) = send;
   ssize_t (*l)(int, const struct msghdr *, int) = sendmsg;
-  ssize_t (*m)(int, const void *, size_t, int, const struct sockaddr *, socklen_t) = sendto;
+  ssize_t (*m)(int, const void *, size_t, int, const struct sockaddr *,
+               socklen_t) = sendto;
   int     (*n)(int, int, int, const void *, socklen_t) = setsockopt;
   int     (*o)(int, int) = shutdown;
   int     (*p)(int, int, int) = socket;

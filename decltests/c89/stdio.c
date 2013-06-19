@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+/* L_tmpnam, tmpnam, TMP_MAX excluded: obsolescent in Issue 7, unsafe
+   gets excluded: removed in C2011, unsafe */
+
 void tm(void)
 {
   FILE *a = stderr;
@@ -8,12 +11,11 @@ void tm(void)
 
   size_t d = FOPEN_MAX;
   size_t e = FILENAME_MAX;
-  size_t f = TMP_MAX;
 
-  fpos_t g;
+  fpos_t f;
 
-  char *h = NULL;
-  int   i = EOF;
+  char *g = NULL;
+  int   h = EOF;
 }
 
 void fn(void)
@@ -22,8 +24,8 @@ void fn(void)
   int b   = rename("old", "new");
   FILE *c = tmpfile();
 
-  char d[L_tmpnam];
-  char *e = tmpnam(d);
+  char d[BUFSIZ];
+  char *e;
 
   int f = fclose(c);
   int g = fflush(c);
@@ -52,8 +54,6 @@ void fn(void)
 
   a = getc(h);
   a = getchar();
-/*e = gets(j);  // disabled because C2011 removes it entirely,
-                // and in any case it should never be used */
 
   a = putc('x', h);
   a = putchar('x');

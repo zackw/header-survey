@@ -1,35 +1,17 @@
+/* <code>gettimeofday</code> and <code>struct timeval</code> */
 #include <sys/time.h>
+
+/* This is the function most commonly wanted from <sys/time.h>.
+   Issue 7 obsolesces it without mention in the change log --
+   I suppose arguably it's superseded by clock_gettime.  Anyhow
+   I'm not dropping it at least till I see whether Issue 8 will
+   actually remove it. */
 
 void f(void)
 {
   struct timeval tv;
   time_t      *tvs = &tv.tv_sec;
   suseconds_t *tvu = &tv.tv_usec;
-  struct itimerval it, iu;
-  struct timeval *iti = &it.it_interval;
-  struct timeval *itv = &it.it_value;
 
-  fd_set fds;
-  /* XPG4.2 does specify the contents of this structure but it is
-     better to treat it as opaque. */
-
-  int
-    ia = ITIMER_REAL,
-    ib = ITIMER_VIRTUAL,
-    ic = ITIMER_PROF;
-
-  unsigned long id = FD_SETSIZE;
-
-  FD_ZERO(&fds);
-  FD_CLR(0, &fds);
-  FD_SET(1, &fds);
-  int a = FD_ISSET(2, &fds);
-
-  int b = getitimer(ia, &it);
-  int c = setitimer(ia, &it, &iu);
   int d = gettimeofday(&tv, 0);
-  int e = select(4, &fds, 0, 0, &tv);
-
-  struct timeval tf[2];
-  int f = utimes("thingy", tf);
 }

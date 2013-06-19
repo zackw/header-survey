@@ -1,4 +1,4 @@
-/* additional POSIX Realtime Extension functions and constants */
+/* <code>mlock</code>, <code>munlock</code>, <code>mlockall</code>, <code>munlockall</code> */
 #include <sys/mman.h>
 
 int cc[] = {
@@ -12,6 +12,4 @@ void f(const void *aa, const char *bb, int cc, mode_t dd)
   int b = mlockall(MCL_CURRENT);
   int c = munlock(aa, 1024*1024);
   int d = munlockall();
-  int e = shm_open(bb, cc, dd);
-  int f = shm_unlink(bb);
 }
