@@ -1,5 +1,10 @@
 #include <arpa/inet.h>
 
+/* inet_lnaof, inet_netof, inet_makeaddr, inet_network are in Issue 5
+   but vanished from Issue 6 without explanation or even acknowledgment.
+   The former three are obsolete due to CIDR, and it's not clear how the
+   latter is different from inet_addr, so maybe that's why. */
+
 void f(uint32_t aa, uint16_t bb, const char *cc,
        struct in_addr dd, in_addr_t ee, in_addr_t ff)
 {
@@ -9,11 +14,7 @@ void f(uint32_t aa, uint16_t bb, const char *cc,
   uint16_t d = ntohs(bb);
 
   in_addr_t      e = inet_addr(cc);
-  in_addr_t      f = inet_lnaof(dd);
-  struct in_addr g = inet_makeaddr(ee, ff);
-  in_addr_t      h = inet_netof(dd);
-  in_addr_t      i = inet_network(cc);
-  char          *j = inet_ntoa(dd);
+  char          *f = inet_ntoa(dd);
 
-  in_port_t      k;
+  in_port_t      g;
 }

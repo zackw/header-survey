@@ -1,22 +1,12 @@
 #include <dirent.h>
 
-void f(const char *aa, long int bb)
+void f(const char *aa)
 {
   struct dirent cc;
-  ino_t *ccdi = &cc.d_ino;
-  char  *ccdn =  cc.d_name;
-  struct dirent *dd;
+  char *ccdn = cc.d_name;
+
   DIR *ee = opendir(aa);
-
-  struct dirent *a;
-  int b;
-  long int c;
-  int d;
-
-  a = readdir(ee);
-  b = readdir_r(ee, &cc, &dd);
+  struct dirent *a = readdir(ee);
+  int b = closedir(ee);
   rewinddir(ee);
-  seekdir(ee, bb);
-  c = telldir(ee);
-  d = closedir(ee);
 }

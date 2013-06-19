@@ -1,68 +1,38 @@
 #include <fcntl.h>
 
+int cc[] = {
+  F_DUPFD,
+  F_GETFD,
+  F_SETFD,
+  F_GETFL,
+  F_SETFL,
+  F_GETLK,
+  F_SETLK,
+  F_SETLKW,
+
+  FD_CLOEXEC,
+
+  F_RDLCK,
+  F_WRLCK,
+  F_UNLCK,
+
+  O_CREAT,
+  O_EXCL,
+  O_NOCTTY,
+  O_TRUNC,
+
+  O_APPEND,
+  O_NONBLOCK,
+  O_SYNC,
+
+  O_ACCMODE,
+  O_RDONLY,
+  O_WRONLY,
+  O_RDWR,
+};
+
 void f(void)
 {
-  int
-    a = F_DUPFD,
-    b = F_GETFD,
-    c = F_GETFL,
-    d = F_SETFL,
-    e = F_GETLK,
-    f = F_SETLK,
-    g = F_SETLKW,
-
-    h = FD_CLOEXEC,
-
-    i = F_RDLCK,
-    j = F_WRLCK,
-    k = F_UNLCK,
-
-    l = SEEK_SET,
-    m = SEEK_CUR,
-    n = SEEK_END,
-
-    o = O_CREAT,
-    p = O_EXCL,
-    q = O_NOCTTY,
-    r = O_TRUNC,
-
-    s = O_APPEND,
-    t = O_DSYNC,
-    u = O_NONBLOCK,
-    v = O_RSYNC,
-    w = O_SYNC,
-
-    x = O_RDONLY,
-    y = O_WRONLY,
-    z = O_RDWR,
-
-    sa = S_IFMT,
-    sb = S_IFBLK,
-    sc = S_IFCHR,
-    sd = S_IFIFO,
-    se = S_IFREG,
-    sf = S_IFDIR,
-    sg = S_IFLNK,
-
-    sh = S_IRWXU,
-    si = S_IRUSR,
-    sj = S_IWUSR,
-    sk = S_IXUSR,
-
-    sl = S_IRWXG,
-    sm = S_IRGRP,
-    sn = S_IWGRP,
-    so = S_IXGRP,
-
-    st = S_IRWXO,
-    su = S_IROTH,
-    sv = S_IWOTH,
-    sw = S_IXOTH,
-
-    sx = S_ISUID,
-    sy = S_ISGID,
-    sz = S_ISVTX;
-
   struct flock ll;
   short *llt = &ll.l_type;
   short *llw = &ll.l_whence;

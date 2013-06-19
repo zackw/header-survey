@@ -1,11 +1,27 @@
 #include <ftw.h>
 
+int cc[] = {
+  FTW_F,
+  FTW_D,
+  FTW_DNR,
+  FTW_DP,
+  FTW_NS,
+  FTW_SL,
+  FTW_SLN,
+  FTW_PHYS,
+  FTW_MOUNT,
+  FTW_DEPTH,
+  FTW_CHDIR,
+};
+
+/* ftw() obsolescent in Issue 7
 int cb_ftw(const char *p,
            const struct stat *s,
            int f)
 {
   return 0;
 }
+*/
 
 int cb_nftw(const char *p,
             const struct stat *s,
@@ -17,27 +33,13 @@ int cb_nftw(const char *p,
 
 void f(void)
 {
-  struct stat st; /* confirm complete type */
-  int
-    a = FTW_F,
-    b = FTW_D,
-    c = FTW_DNR,
-    d = FTW_DP,
-    e = FTW_NS,
-    f = FTW_SL,
-    g = FTW_SLN,
-    h = FTW_PHYS,
-    i = FTW_MOUNT,
-    j = FTW_DEPTH,
-    k = FTW_CHDIR;
-
-
-  int l = ftw("path", cb_ftw, 10);
+  /*int l = ftw("path", cb_ftw, 10);*/
   int m = nftw("path", cb_nftw, 10, 0);
 }
 
 void smacros(struct stat *aa)
 {
+  struct stat s_; /* confirm complete type */
   int
     sa = S_IFMT,
     sb = S_IFBLK,

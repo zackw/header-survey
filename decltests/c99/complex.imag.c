@@ -1,6 +1,11 @@
 /* imaginary types (optional in C99) */
 #include <complex.h>
 
+/* This #ifndef is not strictly necessary but
+   cuts down on logfile chatter. */
+#ifndef imaginary
+#error "imaginary types explicitly unsupported"
+#else
 void ti(void)
 {
   imaginary float        a = 1.0f*I;
@@ -11,3 +16,4 @@ void ti(void)
   _Imaginary double      e = 2.0  * _Imaginary_I;
   _Imaginary long double f = 4.0l * _Imaginary_I;
 }
+#endif

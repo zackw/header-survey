@@ -27,7 +27,7 @@ void f(int aa, int bb, struct aiocb *cc, struct aiocb *const *dd,
 {
   int a     = aio_cancel(aa, cc);
   int b     = aio_error(cc);
-  int c     = aio_fsync(aa, cc);
+  int c     = aio_fsync(aa, cc); /* technically optional in Issue 7 */
   int d     = aio_read(cc);
   ssize_t e = aio_return(cc);
   int f     = aio_suspend(ee, aa, ff);

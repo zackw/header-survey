@@ -1,5 +1,8 @@
-/* additional XSI constants and functions */
+/* XSI features */
 #include <math.h>
+
+/* gamma silently removed in Issue 6; scalb silently removed in Issue 7 */
+/* MAXFLOAT marked obsolete in Issue 7 */
 
 void f(void)
 {
@@ -17,7 +20,6 @@ void f(void)
     k = M_2_SQRTPI,
     l = M_SQRT2,
     m = M_SQRT1_2;
-  float n = MAXFLOAT;
   int *o = &signgam;
 
   /* note: functions incorporated into C99 are not listed here */

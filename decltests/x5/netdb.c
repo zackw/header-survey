@@ -1,5 +1,11 @@
 #include <netdb.h>
 
+/* h_errno, gethostbyname, gethostbyaddr, HOST_NOT_FOUND, NO_DATA,
+   NO_RECOVERY, TRY_AGAIN were obsolete in Issue 6 and removed in
+   Issue 7 (in favor of getaddrinfo/getnameinfo), but we're keeping
+   them for now; due to wide general use I doubt any system
+   implementor would omit them.  */
+
 void f(const char *name,
        const void *addr, size_t len, int type,
        uint32_t net,
