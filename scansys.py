@@ -918,6 +918,16 @@ def ann_buggy(header, errors):
                         "<code>#error</code> directive\ntelling the "
                         "programmer to use <code>stdlib.h</code> instead.")
                 break
+    elif header == "ucontext.h":
+        for e in errors:
+            # in the known case of this problem, you can get it to compile
+            # by setting -D_XOPEN_SOURCE=1, but that causes problems elsewhere,
+            # so we're just not going to bother.
+            if e.find("#error") != -1 and e.find("deprecated") != -1:
+                avis = ("This OS deprecates <code>ucontext.h</code> and issues "
+                        "an <code>#error</code> if it is used without special "
+                        "preparation.")
+                break
     else:
         pass
 
