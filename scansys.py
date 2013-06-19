@@ -52,6 +52,7 @@ import StringIO
 import cgi
 import errno
 import getopt
+import glob
 import locale
 import os
 import re
@@ -815,15 +816,16 @@ class Header:
             else:
                 svisv = self.avis.split("\n")
                 ovisv = other.avis.split("\n")
+                nvisv = svisv[:]
                 for o in ovisv:
                     found = 0
-                    for s in svisv:
-                        if s == o:
+                    for n in nvisv:
+                        if n == o:
                             found = 1
                             break
                     if not found and o[:14] != "$ PLACEHOLDER:":
-                        svisv.append(o)
-                nvis = "\n".join(svisv)
+                        nvisv.append(o)
+                nvis = "\n".join(nvisv)
                 if self.avis != nvis:
                     sys.stderr.write(self.name +
                                      ": visible annotation changed:\n")
@@ -1211,18 +1213,16 @@ class HeaderProber:
         """Read the contents of the decltests directory, which contains
            test programs for many of the headers we probe."""
         decltests = {}
-        for dirpath, dirnames, filenames in os.walk(dtestdir):
-            for fn in filenames:
-                if fn[-2:] != ".c": continue
-                try:
-                    test = DeclTest(os.path.join(dirpath, fn))
-                except RuntimeError, e:
-                    # skip improperly tagged tests with a warning
-                    sys.stderr.write(str(e) + "\n")
-                    continue
-                if not decltests.has_key(test.header):
-                    decltests[test.header] = []
-                decltests[test.header].append(test)
+        for fn in glob.glob(os.path.join(dtestdir, "*", "*.c")):
+            try:
+                test = DeclTest(fn)
+            except RuntimeError, e:
+                # skip improperly tagged tests with a warning
+                sys.stderr.write(str(e) + "\n")
+                continue
+            if not decltests.has_key(test.header):
+                decltests[test.header] = []
+            decltests[test.header].append(test)
 
         for l in decltests.values():
             l.sort()
