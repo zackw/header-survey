@@ -973,16 +973,27 @@ class DeclTest:
         f.close()
         return src
 
-    def note_failure(self, header):
+    def note_failure(self, header, errors):
         # If this test has no label, it is the "baseline" requirement
         # for its header, so the header is considered BUGGY.
+        std = self.STANDARD_NAMES[self.std]
         if self.label is None:
             header.state = Header.BUGGY
-            header.append_avis("Noncompliant with base standard (%s)."
-                               % self.STANDARD_NAMES[self.std])
+            header.append_avis("Noncompliant with base standard (%s)." % std)
         else:
             header.set_incomplete()
-            header.append_avis("Lacks %s." % self.label)
+            if (self.label == "features" or
+                self.label == "constants" or
+                self.label == "types" or
+                self.label == "functions"):
+                lacking = "PLACEHOLDER: Lacks some %s %s." % (std, self.label)
+            elif self.label[:10] == "optional: ":
+                lacking = "Lacks %s (optional in %s)" % (self.label[10:], std)
+            else:
+                lacking = "Lacks %s (%s)" % (self.label, std)
+            header.append_avis(lacking)
+            for e in errors[2:]:
+                header.append_ahid(e)
 
 class Dataset:
     """Holds all the data collected over the course of one run."""
@@ -1194,8 +1205,10 @@ class HeaderProber:
         for l in decltests.values():
             l.sort()
             assert len(l) >= 1
-            if l[0].label is not None or (len(l) >= 2 and
-                                          l[1].label is None):
+            # some test groups have no baseline, so we don't insist
+            # that l[0].label is None, but we do insist that if there
+            # is more than one test, at most one of them is the baseline.
+            if len(l) >= 2 and l[1].label is None:
                 sys.stderr.write("%s: inconsistent declaration tests\n"
                                  % l[0].header)
                 del decltests[l[0].header]
@@ -1486,7 +1499,7 @@ class HeaderProber:
                 if test.label is None: tag = "buggy"
                 else:                  tag = "incomplete"
                 self.probe_report(header.name, tag, errors, src)
-                test.note_failure(header)
+                test.note_failure(header, errors)
                 # don't bother with further tests if the baseline fails
                 if test.label is None:
                     break
