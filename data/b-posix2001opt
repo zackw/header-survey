@@ -22,7 +22,6 @@ sched.h
 semaphore.h
 spawn.h
 syslog.h
-ucontext.h
 utmpx.h
 sys/ipc.h
 sys/msg.h

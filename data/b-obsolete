@@ -18,6 +18,7 @@ termcap.h
 termio.h
 trace.h
 ulimit.h
+ucontext.h
 unctrl.h
 utime.h
 utmp.h
@@ -33,4 +34,5 @@ sys/statfs.h
 sys/termios.h
 sys/timeb.h
 sys/ttold.h
+sys/ucontext.h
 sys/unistd.h

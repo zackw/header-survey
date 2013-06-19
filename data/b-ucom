@@ -53,5 +53,4 @@ sys/socketvar.h
 sys/syscall.h
 sys/syslog.h
 sys/timex.h
-sys/ucontext.h
 sys/user.h
