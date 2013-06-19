@@ -11,13 +11,4 @@ void f(const char *bb, uid_t cc)
 
   struct passwd *a = getpwnam(bb);
   struct passwd *b = getpwuid(cc);
-  struct passwd *c = getpwent();
-
-  struct passwd *dd;
-  char ee[512];
-  int d = getpwnam_r(bb, &aa, ee, sizeof ee, &dd);
-  int e = getpwuid_r(cc, &aa, ee, sizeof ee, &dd);
-
-  setpwent();
-  endpwent();
 }

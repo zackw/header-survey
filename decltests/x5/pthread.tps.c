@@ -1,4 +1,4 @@
-/* thread scheduling controls */
+/* scheduling priority and scope */
 #include <pthread.h>
 
 int xx[] = {

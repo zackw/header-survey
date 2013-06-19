@@ -1,27 +1,18 @@
 #include <semaphore.h>
 
-void f(const char *aa, mode_t cc, unsigned int dd)
+sem_t *xx[] = {
+  SEM_FAILED,
+};
+
+void f(void)
 {
-  sem_t *a = sem_open(aa, 0);
-  sem_t *c = SEM_FAILED;
-  sem_t d;
-  int e = sem_init(&d, 0, dd);
-
-  int f = sem_post(a);
-  int g = sem_trywait(&d);
-  int h = sem_wait(&d);
-
-  int i;
-  int j = sem_getvalue(a, &i);
-  int k = sem_close(a);
-  int l = sem_destroy(&d);
-  int m = sem_unlink(aa);
-}
-
-/* semaphore.h may not provide the O_ constants of itself */
-#include <fcntl.h>
-
-void g(const char *bb, mode_t cc, unsigned int dd)
-{
-  sem_t *b = sem_open(bb, O_CREAT|O_EXCL, cc, dd);
+  int    (*a)(sem_t *) = sem_close;
+  int    (*b)(sem_t *) = sem_destroy;
+  int    (*c)(sem_t *, int *) = sem_getvalue;
+  int    (*d)(sem_t *, int, unsigned) = sem_init;
+  sem_t *(*e)(const char *, int, ...) = sem_open;
+  int    (*f)(sem_t *) = sem_post;
+  int    (*g)(sem_t *) = sem_trywait;
+  int    (*h)(const char *) = sem_unlink;
+  int    (*i)(sem_t *) = sem_wait;
 }

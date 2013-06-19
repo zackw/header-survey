@@ -1,5 +1,7 @@
 #include <regex.h>
 
+/* REG_ENOSYS obsolete in Issue 6, removed in 7 */
+
 int f(void)
 {
   regex_t aa;
@@ -24,7 +26,6 @@ int f(void)
   case REG_EESCAPE:
   case REG_ESUBREG:
   case REG_EBRACK:
-  case REG_ENOSYS:
   case REG_EPAREN:
   case REG_EBRACE:
   case REG_BADBR:
