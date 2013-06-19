@@ -1,136 +1,195 @@
-# host: Linux 3.9-1-amd64 #1 SMP Debian 3.9.4-1
-# cc: gcc (Debian 4.7.3-4) 4.7.3
+# host: Linux 3.9-1-amd64 #1 SMP Debian 3.9.6-1
+# cc: gcc-4.7 (Debian 4.7.3-5) 4.7.3
 :sequence 20
 :category Unix
 :label GNU libc
 :version 2.17
 :compiler GCC 4.7
-:gen 2
+:gen 3
 a.out.h
-aio.h
++aio.h
 alloca.h
 ar.h
-assert.h
-complex.h
-cpio.h
-ctype.h
++assert.h
+*complex.h
+$ Lacks imaginary types (optional in ISO C99).
+## In file included from htest.c:1:0:
+## decltests/c99/complex.imag.c:7:2: error: #error "imaginary types explicitly unsupported"
++cpio.h
++ctype.h
+curses.h
 -direct.h
-dirent.h
-dlfcn.h
++dirent.h
++dlfcn.h
 elf.h
 endian.h
 err.h
-errno.h
-fcntl.h
-fenv.h
-float.h
-fmtmsg.h
-fnmatch.h
++errno.h
+*fcntl.h
+$ Lacks <code>O_TTY_INIT</code> (POSIX.1-2008).
+## In file included from htest.c:2:0:
+## decltests/x7/fcntl.c:10:3: error: 'O_TTY_INIT' undeclared here (not in a function)
++fenv.h
++float.h
++fmtmsg.h
++fnmatch.h
 fstab.h
 fts.h
-ftw.h
++ftw.h
 getopt.h
-glob.h
-grp.h
-iconv.h
++glob.h
++grp.h
++iconv.h
 ifaddrs.h
-inttypes.h
+*inttypes.h
+$ Lacks <code>wchar_t</code> (POSIX.1-2008).
+## In file included from htest.c:2:0:
+## decltests/x7/inttypes.c:4:1: error: unknown type name 'wchar_t'
 -iohw.h
-iso646.h
-langinfo.h
++iso646.h
++langinfo.h
 lastlog.h
-libgen.h
-limits.h
++libgen.h
+*limits.h
+$ Lacks <code>_XOPEN_NAME_MAX</code> and <code>_XOPEN_PATH_MAX</code> (POSIX.1-2001/XSI).
+$ <code>HOST_NAME_MAX</code> is too small.
+$ Lacks limit constants for sporadic scheduling (optional in POSIX.1-2001).
+## In file included from htest.c:2:0:
+## decltests/x6/limits.xsi.c:5:2: error: #error "_XOPEN_NAME_MAX"
+## decltests/x6/limits.xsi.c:8:2: error: #error "_XOPEN_PATH_MAX"
+## In file included from htest.c:2:0:
+## decltests/x5/limits.c:93:2: error: #error "HOST_NAME_MAX"
+## In file included from htest.c:2:0:
+## decltests/x6/limits.ss.c:5:2: error: #error "_POSIX_SS_REPL_MAX"
 link.h
-locale.h
++locale.h
 malloc.h
-math.h
++math.h
 memory.h
 mntent.h
-monetary.h
-mqueue.h
++monetary.h
++mqueue.h
 -ndbm.h
-netdb.h
-nl_types.h
+*netdb.h
+$ Lacks <code>NI_NUMERICSCOPE</code> (POSIX.1-2001).
+## In file included from htest.c:2:0:
+## decltests/x6/netdb.nsc.c:12:3: error: 'NI_NUMERICSCOPE' undeclared here (not in a function)
++nl_types.h
 omp.h
 paths.h
-poll.h
-pthread.h
-pwd.h
-regex.h
++poll.h
++pthread.h
++pwd.h
+re_comp.h
++regex.h
 %regexp.h
 $ <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/regexp.html"
 $ >SVID <code>regexp.h</code></a> requires the including file to define
 $ several macros, which are used in the bodies of inlined function
 $ definitions.
 resolv.h
-sched.h
+*sched.h
+$ Lacks support for sporadic scheduling (optional in POSIX.1-2001).
+## In file included from htest.c:2:0:
+## decltests/x6/sched.ss.c:20:2: error: #error "no sporadic server scheduling"
 search.h
-semaphore.h
-setjmp.h
++semaphore.h
++setjmp.h
 sgtty.h
-signal.h
-spawn.h
++signal.h
++spawn.h
 stab.h
 stdalign.h
-stdarg.h
++stdarg.h
 -stdatomic.h
-stdbool.h
-stddef.h
++stdbool.h
++stddef.h
 stdfix.h
-stdint.h
-stdio.h
-stdlib.h
++stdint.h
++stdio.h
++stdlib.h
 stdnoreturn.h
-string.h
-strings.h
++string.h
++strings.h
 stropts.h
 sysexits.h
-syslog.h
-tar.h
++syslog.h
++tar.h
+term.h
 termcap.h
 termio.h
-termios.h
-tgmath.h
++termios.h
++tgmath.h
 thread_db.h
 -threads.h
-time.h
++time.h
 -trace.h
 uchar.h
 ucontext.h
 ulimit.h
-unistd.h
+unctrl.h
+*unistd.h
+$ Lacks <code>_CS_POSIX_V7_THREADS_CFLAGS</code>,
+$ <code>_CS_POSIX_V7_THREADS_LDFLAGS</code>,
+$ <code>_PC_TIMESTAMP_RESOLUTION</code>,
+$ and <code>_SC_XOPEN_UUCP</code>.
+## In file included from htest.c:2:0:
+## decltests/x7/unistd.c:17:3: error: '_CS_POSIX_V7_THREADS_CFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:18:3: error: '_CS_POSIX_V7_THREADS_LDFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:23:3: error: '_PC_TIMESTAMP_RESOLUTION' undeclared here (not in a function)
+## decltests/x7/unistd.c:31:3: error: '_SC_XOPEN_UUCP' undeclared here (not in a function)
 utime.h
 utmp.h
-utmpx.h
++utmpx.h
 !varargs.h
 $ Explicitly unimplemented: contains only an <code>#error</code> directive
 $ telling the programmer to use <code>stdarg.h</code> instead.
 ## In file included from htest.c:1:0:
 ## /usr/lib/gcc/x86_64-linux-gnu/4.7/include/varargs.h:4:2: error: #error "GCC no longer implements <varargs.h>."
 ## /usr/lib/gcc/x86_64-linux-gnu/4.7/include/varargs.h:5:2: error: #error "Revise your code to use <stdarg.h>."
-wchar.h
-wctype.h
-wordexp.h
++wchar.h
++wctype.h
++wordexp.h
+-xti.h
 arpa/ftp.h
-arpa/inet.h
++arpa/inet.h
 arpa/nameser.h
 arpa/nameser_compat.h
 arpa/telnet.h
 arpa/tftp.h
-net/if.h
++net/if.h
 net/if_arp.h
 net/ppp_defs.h
 net/route.h
 netinet/icmp6.h
 netinet/if_ether.h
 netinet/igmp.h
-netinet/in.h
+*netinet/in.h
+$ Lacks IPv6 address classification macros (POSIX.1-2001).
+## In file included from htest.c:2:0:
+## decltests/x6/netinet_in.ip6m.c: In function 'f':
+## decltests/x6/netinet_in.ip6m.c:11:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:11:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:11:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:11:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:12:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:12:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:12:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:12:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:14:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:15:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:16:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:16:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:16:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:17:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:17:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:17:9: error: 'const struct in6_addr' has no member named 's6_addr32'
+## decltests/x6/netinet_in.ip6m.c:17:9: error: 'const struct in6_addr' has no member named 's6_addr32'
 netinet/in_systm.h
 netinet/ip.h
 netinet/ip6.h
 netinet/ip_icmp.h
-netinet/tcp.h
++netinet/tcp.h
 netinet/udp.h
 protocols/routed.h
 protocols/rwhod.h
@@ -152,7 +211,170 @@ rpc/types.h
 rpc/xdr.h
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
-rpcsvc/nfs_prot.h
+!rpcsvc/nfs_prot.h
+$ Can't be used together with <code>rpcsvc/bootparam_prot.h</code>.
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:33:2: error: redeclaration of enumerator 'NFS_OK'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:43:2: note: previous definition of 'NFS_OK' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:34:2: error: redeclaration of enumerator 'NFSERR_PERM'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:44:2: note: previous definition of 'NFSERR_PERM' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:35:2: error: redeclaration of enumerator 'NFSERR_NOENT'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:45:2: note: previous definition of 'NFSERR_NOENT' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:36:2: error: redeclaration of enumerator 'NFSERR_IO'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:46:2: note: previous definition of 'NFSERR_IO' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:37:2: error: redeclaration of enumerator 'NFSERR_NXIO'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:47:2: note: previous definition of 'NFSERR_NXIO' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:38:2: error: redeclaration of enumerator 'NFSERR_ACCES'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:49:2: note: previous definition of 'NFSERR_ACCES' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:39:2: error: redeclaration of enumerator 'NFSERR_EXIST'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:50:2: note: previous definition of 'NFSERR_EXIST' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:40:2: error: redeclaration of enumerator 'NFSERR_NODEV'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:52:2: note: previous definition of 'NFSERR_NODEV' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:41:2: error: redeclaration of enumerator 'NFSERR_NOTDIR'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:53:2: note: previous definition of 'NFSERR_NOTDIR' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:42:2: error: redeclaration of enumerator 'NFSERR_ISDIR'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:54:2: note: previous definition of 'NFSERR_ISDIR' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:43:2: error: redeclaration of enumerator 'NFSERR_FBIG'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:56:2: note: previous definition of 'NFSERR_FBIG' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:44:2: error: redeclaration of enumerator 'NFSERR_NOSPC'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:57:2: note: previous definition of 'NFSERR_NOSPC' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:45:2: error: redeclaration of enumerator 'NFSERR_ROFS'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:58:2: note: previous definition of 'NFSERR_ROFS' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:46:2: error: redeclaration of enumerator 'NFSERR_NAMETOOLONG'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:61:2: note: previous definition of 'NFSERR_NAMETOOLONG' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:47:2: error: redeclaration of enumerator 'NFSERR_NOTEMPTY'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:62:2: note: previous definition of 'NFSERR_NOTEMPTY' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:48:2: error: redeclaration of enumerator 'NFSERR_DQUOT'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:63:2: note: previous definition of 'NFSERR_DQUOT' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:49:2: error: redeclaration of enumerator 'NFSERR_STALE'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:64:2: note: previous definition of 'NFSERR_STALE' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:50:2: error: redeclaration of enumerator 'NFSERR_WFLUSH'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:66:2: note: previous definition of 'NFSERR_WFLUSH' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:55:2: error: redeclaration of enumerator 'NFNON'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:120:2: note: previous definition of 'NFNON' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:56:2: error: redeclaration of enumerator 'NFREG'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:121:2: note: previous definition of 'NFREG' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:57:2: error: redeclaration of enumerator 'NFDIR'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:122:2: note: previous definition of 'NFDIR' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:58:2: error: redeclaration of enumerator 'NFBLK'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:123:2: note: previous definition of 'NFBLK' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:59:2: error: redeclaration of enumerator 'NFCHR'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:124:2: note: previous definition of 'NFCHR' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:60:2: error: redeclaration of enumerator 'NFLNK'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:125:2: note: previous definition of 'NFLNK' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:61:2: error: redeclaration of enumerator 'NFSOCK'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:126:2: note: previous definition of 'NFSOCK' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:62:2: error: redeclaration of enumerator 'NFBAD'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:127:2: note: previous definition of 'NFBAD' was here
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/nfs_prot.h:63:2: error: redeclaration of enumerator 'NFFIFO'
+## In file included from /usr/include/nfs/nfs.h:1:0,
+##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
+##                  from htest.c:1:
+## /usr/include/linux/nfs.h:128:2: note: previous definition of 'NFFIFO' was here
 rpcsvc/nis.h
 %rpcsvc/nislib.h
 $ Requires <code>rpcsvc/nis.h</code>.
@@ -164,49 +386,76 @@ rpcsvc/sm_inter.h
 rpcsvc/spray.h
 rpcsvc/yp_prot.h
 rpcsvc/ypclnt.h
-rpcsvc/yppasswd.h
+!rpcsvc/yppasswd.h
+$ Can't be used together with <code>pwd.h</code>.
+## In file included from htest.c:2:0:
+## /usr/include/rpcsvc/yppasswd.h:17:8: error: redefinition of 'struct passwd'
+## In file included from htest.c:1:0:
+## /usr/include/pwd.h:50:8: note: originally defined here
 sys/acct.h
 sys/dir.h
 sys/errno.h
 sys/fcntl.h
 sys/file.h
 sys/ioctl.h
-sys/ipc.h
-sys/mman.h
++sys/ipc.h
+*sys/mman.h
+$ Lacks support for typed memory objects (optional in POSIX.1-2001).
+## In file included from htest.c:2:0:
+## decltests/x6/sys_mman.tym.c:5:3: error: 'POSIX_TYPED_MEM_ALLOCATE' undeclared here (not in a function)
+## decltests/x6/sys_mman.tym.c:6:3: error: 'POSIX_TYPED_MEM_ALLOCATE_CONTIG' undeclared here (not in a function)
+## decltests/x6/sys_mman.tym.c:7:3: error: 'POSIX_TYPED_MEM_MAP_ALLOCATABLE' undeclared here (not in a function)
+## decltests/x6/sys_mman.tym.c: In function 'f':
+## decltests/x6/sys_mman.tym.c:12:31: error: storage size of 'tmi' isn't known
+## decltests/x6/sys_mman.tym.c:13:22: error: request for member 'posix_tmi_length' in something not a structure or union
+## decltests/x6/sys_mman.tym.c:13:18: error: initialization from incompatible pointer type [-Werror]
+## decltests/x6/sys_mman.tym.c:16:7: error: 'posix_mem_offset' undeclared (first use in this function)
+## decltests/x6/sys_mman.tym.c:16:7: note: each undeclared identifier is reported only once for each function it appears in
+## decltests/x6/sys_mman.tym.c:16:7: error: initialization from incompatible pointer type [-Werror]
+## decltests/x6/sys_mman.tym.c:17:50: error: 'posix_typed_mem_get_info' undeclared (first use in this function)
+## decltests/x6/sys_mman.tym.c:17:50: error: initialization from incompatible pointer type [-Werror]
+## decltests/x6/sys_mman.tym.c:18:38: error: 'posix_typed_mem_open' undeclared (first use in this function)
+## decltests/x6/sys_mman.tym.c:18:38: error: initialization from incompatible pointer type [-Werror]
+## cc1: all warnings being treated as errors
 sys/mount.h
-sys/msg.h
++sys/msg.h
 sys/mtio.h
 sys/param.h
 sys/poll.h
 sys/procfs.h
 sys/queue.h
 sys/reboot.h
-sys/resource.h
-sys/select.h
-sys/sem.h
-sys/shm.h
++sys/resource.h
++sys/select.h
++sys/sem.h
++sys/shm.h
 sys/signal.h
-sys/socket.h
++sys/socket.h
 sys/socketvar.h
-sys/stat.h
+*sys/stat.h
+$ Lacks support for typed memory objects (optional in POSIX.1-2001).
+## In file included from htest.c:2:0:
+## decltests/x6/sys_stat.tmo.c: In function 'smacros':
+## decltests/x6/sys_stat.tmo.c:6:3: error: implicit declaration of function 'S_TYPEISTMO' [-Werror=implicit-function-declaration]
+## cc1: all warnings being treated as errors
 sys/statfs.h
-sys/statvfs.h
++sys/statvfs.h
 sys/syscall.h
 sys/syslog.h
 sys/termios.h
-sys/time.h
++sys/time.h
 sys/timeb.h
-sys/times.h
++sys/times.h
 sys/timex.h
 -sys/ttold.h
-sys/types.h
++sys/types.h
 sys/ucontext.h
-sys/uio.h
-sys/un.h
++sys/uio.h
++sys/un.h
 sys/unistd.h
 sys/user.h
-sys/utsname.h
-sys/wait.h
++sys/utsname.h
++sys/wait.h
 # Additional scansys state below, for --recheck.
-:cccmd ['gcc']
+:cccmd ['gcc-4.7']
 :unameversion 1
