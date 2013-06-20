@@ -11,7 +11,12 @@ void f(void)
   sa_family_t    *sif = &si.sin_family;
   in_port_t      *sip = &si.sin_port;
   struct in_addr *sia = &si.sin_addr;
-  unsigned char  *siz =  si.sin_zero;
+/* sin_zero might be char[N] or unsigned char[N].  Since the only
+   thing one should ever do to it is clear it, we just verify that
+   it is, in fact, an array whose elements can be set to zero.
+   (I would write memset(si.si_zero, 0, sizeof si.si_zero) but then
+   I'd have to include string.h.) */
+  si.sin_zero[0] = 0;
 
   int
     pa = IPPROTO_IP,

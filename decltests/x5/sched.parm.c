@@ -1,3 +1,4 @@
+/* <code>sched_setscheduler</code> and <code>sched_setparam</code> */
 #include <sched.h>
 
 int xx[] = {

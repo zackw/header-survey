@@ -1,4 +1,4 @@
-/* functions */
+/* explicit-locale character classification functions */
 #include <ctype.h>
 
 /* isascii, toascii, _toupper, _tolower are obsolete, so excluded */

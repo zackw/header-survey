@@ -56,13 +56,13 @@ void ff(struct msghdr *sm)
   void         **smn  = &sm->msg_name;
   socklen_t     *smnl = &sm->msg_namelen;
   struct iovec **smi  = &sm->msg_iov;
-  size_t        *smil = &sm->msg_iovlen;
+  size_t         smil =  sm->msg_iovlen;  /* see sys_socket.mht.c */
   void         **smc  = &sm->msg_control;
-  size_t        *smcl = &sm->msg_controllen;
+  size_t         smcl =  sm->msg_controllen; /* ditto */
   int           *smf  = &sm->msg_flags;
 
   struct cmsghdr *sc  = CMSG_FIRSTHDR(sm);
-  size_t         *scl = &sc->cmsg_len;
+  size_t          scl =  sc->cmsg_len;       /* ditto */
   int            *scv = &sc->cmsg_level;
   int            *sct = &sc->cmsg_type;
   unsigned char  *scd = CMSG_DATA(sc);

@@ -1,4 +1,4 @@
-/* functions */
+/* explicit-locale character classification functions */
 #include <wctype.h>
 
 void f(void)

@@ -7,116 +7,1572 @@
 :label MacOS X
 :version 10.6
 :compiler Clang 3.1
-:gen 2
+:gen 3
 -a.out.h
-aio.h
+*aio.h
+$ Doesn't define <code>time_t</code> (required by POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x7/aio.c:11:3: error: unknown type name 'time_t'; did you mean 'size_t'?
+##   time_t *es = &e.tv_sec;
+##   ^~~~~~
+##   size_t
+## /usr/include/sys/signal.h:173:27: note: 'size_t' declared here
+## typedef __darwin_size_t                 size_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x7/aio.c:11:11: error: initializing 'size_t *' (aka 'unsigned long *') with an expression of type '__darwin_time_t *' (aka 'long *') converts between pointers to integer types with different sign [-Werror,-Wpointer-sign]
+##   time_t *es = &e.tv_sec;
+##           ^    ~~~~~~~~~
+## 2 errors generated.
 alloca.h
 ar.h
-assert.h
-complex.h
-cpio.h
-ctype.h
++assert.h
+*complex.h
+$ Lacks imaginary types (optional in ISO C99).
+## In file included from htest.c:1:
+## ./decltests/c99/complex.imag.c:7:2: error: "imaginary types explicitly unsupported"
+## #error "imaginary types explicitly unsupported"
+##  ^
+## 1 error generated.
++cpio.h
+*ctype.h
+$ Lacks explicit-locale character classification functions (POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:6:16: error: unknown type name 'locale_t'
+## void f(int aa, locale_t bb)
+##                ^
+## ./decltests/x7/ctype.c:9:9: error: implicit declaration of function 'isalnum_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     a = isalnum_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:9:9: note: did you mean 'isalnum'?
+##     a = isalnum_l(aa, bb),
+##         ^~~~~~~~~
+##         isalnum
+## /usr/include/ctype.h:229:1: note: 'isalnum' declared here
+## isalnum(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:10:9: error: implicit declaration of function 'isalpha_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     b = isalpha_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:10:9: note: did you mean 'isalpha'?
+##     b = isalpha_l(aa, bb),
+##         ^~~~~~~~~
+##         isalpha
+## /usr/include/ctype.h:235:1: note: 'isalpha' declared here
+## isalpha(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:11:9: error: implicit declaration of function 'isblank_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     c = isblank_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:11:9: note: did you mean 'isblank'?
+##     c = isblank_l(aa, bb),
+##         ^~~~~~~~~
+##         isblank
+## /usr/include/ctype.h:241:1: note: 'isblank' declared here
+## isblank(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:12:9: error: implicit declaration of function 'iscntrl_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     d = iscntrl_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:12:9: note: did you mean 'iscntrl'?
+##     d = iscntrl_l(aa, bb),
+##         ^~~~~~~~~
+##         iscntrl
+## /usr/include/ctype.h:247:1: note: 'iscntrl' declared here
+## iscntrl(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:13:9: error: implicit declaration of function 'isdigit_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     e = isdigit_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:13:9: note: did you mean 'isdigit'?
+##     e = isdigit_l(aa, bb),
+##         ^~~~~~~~~
+##         isdigit
+## /usr/include/ctype.h:254:1: note: 'isdigit' declared here
+## isdigit(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:14:9: error: implicit declaration of function 'isgraph_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     f = isgraph_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:14:9: note: did you mean 'isgraph'?
+##     f = isgraph_l(aa, bb),
+##         ^~~~~~~~~
+##         isgraph
+## /usr/include/ctype.h:260:1: note: 'isgraph' declared here
+## isgraph(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:15:9: error: implicit declaration of function 'islower_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     g = islower_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:15:9: note: did you mean 'islower'?
+##     g = islower_l(aa, bb),
+##         ^~~~~~~~~
+##         islower
+## /usr/include/ctype.h:266:1: note: 'islower' declared here
+## islower(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:16:9: error: implicit declaration of function 'isprint_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     h = isprint_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:16:9: note: did you mean 'isprint'?
+##     h = isprint_l(aa, bb),
+##         ^~~~~~~~~
+##         isprint
+## /usr/include/ctype.h:272:1: note: 'isprint' declared here
+## isprint(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:17:9: error: implicit declaration of function 'ispunct_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     i = ispunct_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:17:9: note: did you mean 'ispunct'?
+##     i = ispunct_l(aa, bb),
+##         ^~~~~~~~~
+##         ispunct
+## /usr/include/ctype.h:278:1: note: 'ispunct' declared here
+## ispunct(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:18:9: error: implicit declaration of function 'isspace_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     j = isspace_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:18:9: note: did you mean 'isspace'?
+##     j = isspace_l(aa, bb),
+##         ^~~~~~~~~
+##         isspace
+## /usr/include/ctype.h:284:1: note: 'isspace' declared here
+## isspace(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:19:9: error: implicit declaration of function 'isupper_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     k = isupper_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:19:9: note: did you mean 'isupper'?
+##     k = isupper_l(aa, bb),
+##         ^~~~~~~~~
+##         isupper
+## /usr/include/ctype.h:290:1: note: 'isupper' declared here
+## isupper(int _c)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/ctype.c:20:9: error: implicit declaration of function 'isxdigit_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     l = isxdigit_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:20:9: note: did you mean 'isdigit_l'?
+##     l = isxdigit_l(aa, bb),
+##         ^~~~~~~~~~
+##         isdigit_l
+## ./decltests/x7/ctype.c:13:9: note: 'isdigit_l' declared here
+##     e = isdigit_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:21:9: error: implicit declaration of function 'toupper_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     m = toupper_l(aa, bb),
+##         ^
+## ./decltests/x7/ctype.c:22:9: error: implicit declaration of function 'tolower_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##     n = tolower_l(aa, bb);
+##         ^
+## 15 errors generated.
+curses.h
 -direct.h
-dirent.h
-dlfcn.h
+*dirent.h
+$ Lacks all POSIX.1-2008 functions.
+## In file included from htest.c:2:
+## ./decltests/x7/dirent.c:9:63: error: use of undeclared identifier 'alphasort'
+##   int (*xx)(const struct dirent **, const struct dirent **) = alphasort;
+##                                                               ^
+## ./decltests/x7/dirent.c:11:12: error: implicit declaration of function 'dirfd' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   int a  = dirfd(aa);
+##            ^
+## ./decltests/x7/dirent.c:12:12: error: implicit declaration of function 'fdopendir' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   DIR *b = fdopendir(bb);
+##            ^
+## ./decltests/x7/dirent.c:12:12: note: did you mean 'opendir'?
+##   DIR *b = fdopendir(bb);
+##            ^~~~~~~~~
+##            opendir
+## /usr/include/dirent.h:120:6: note: 'opendir' declared here
+## DIR *opendir(const char *) __DARWIN_ALIAS_I(opendir);
+##      ^
+## In file included from htest.c:2:
+## ./decltests/x7/dirent.c:12:8: error: incompatible integer to pointer conversion initializing 'DIR *' with an expression of type 'int' [-Werror,-Wint-conversion]
+##   DIR *b = fdopendir(bb);
+##        ^   ~~~~~~~~~~~~~
+## ./decltests/x7/dirent.c:15:11: error: implicit declaration of function 'scandir' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   int c = scandir(cc, &dd, x, xx);
+##           ^
+## 5 errors generated.
++dlfcn.h
 -elf.h
 -endian.h
 err.h
-errno.h
-fcntl.h
-fenv.h
-float.h
-fmtmsg.h
-fnmatch.h
+*errno.h
+$ Lacks <code>ENOTRECOVERABLE</code> and <code>EOWNERDEAD</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x7/errno.c:6:11: error: use of undeclared identifier 'ENOTRECOVERABLE'
+##   errno = ENOTRECOVERABLE;
+##           ^
+## ./decltests/x7/errno.c:7:11: error: use of undeclared identifier 'EOWNERDEAD'
+##   errno = EOWNERDEAD;
+##           ^
+## 2 errors generated.
+*fcntl.h
+$ Lacks all POSIX.1-2008 features.
+$ Lacks I/O scheduling functions (optional in POSIX.1-2001).
+$ Lacks synchronized I/O support (optional in Single Unix v2).
+## In file included from htest.c:2:
+## ./decltests/x7/fcntl.c:5:3: error: use of undeclared identifier 'F_DUPFD_CLOEXEC'
+##   F_DUPFD_CLOEXEC,
+##   ^
+## ./decltests/x7/fcntl.c:7:3: error: use of undeclared identifier 'O_CLOEXEC'
+##   O_CLOEXEC,
+##   ^
+## ./decltests/x7/fcntl.c:8:3: error: use of undeclared identifier 'O_DIRECTORY'
+##   O_DIRECTORY,
+##   ^
+## ./decltests/x7/fcntl.c:9:3: error: use of undeclared identifier 'O_NOFOLLOW'
+##   O_NOFOLLOW,
+##   ^
+## ./decltests/x7/fcntl.c:10:3: error: use of undeclared identifier 'O_TTY_INIT'
+##   O_TTY_INIT,
+##   ^
+## ./decltests/x7/fcntl.c:13:41: error: use of undeclared identifier 'openat'; did you mean 'open'?
+## int (*f)(int, const char *, int, ...) = openat;
+##                                         ^~~~~~
+##                                         open
+## /usr/include/sys/fcntl.h:427:5: note: 'open' declared here
+## int     open(const char *, int, ...) __DARWIN_ALIAS_C(open);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/fcntl.c:13:7: error: incompatible pointer types initializing 'int (*)(int, const char *, int, ...)' with an expression of type 'int (const char *, int, ...)' [-Werror,-Wincompatible-pointer-types]
+## int (*f)(int, const char *, int, ...) = openat;
+##       ^                                 ~~~~~~
+## 7 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/fcntl.adv.c:5:3: error: use of undeclared identifier 'POSIX_FADV_NORMAL'
+##   POSIX_FADV_NORMAL,
+##   ^
+## ./decltests/x6/fcntl.adv.c:6:3: error: use of undeclared identifier 'POSIX_FADV_SEQUENTIAL'
+##   POSIX_FADV_SEQUENTIAL,
+##   ^
+## ./decltests/x6/fcntl.adv.c:7:3: error: use of undeclared identifier 'POSIX_FADV_RANDOM'
+##   POSIX_FADV_RANDOM,
+##   ^
+## ./decltests/x6/fcntl.adv.c:8:3: error: use of undeclared identifier 'POSIX_FADV_WILLNEED'
+##   POSIX_FADV_WILLNEED,
+##   ^
+## ./decltests/x6/fcntl.adv.c:9:3: error: use of undeclared identifier 'POSIX_FADV_DONTNEED'
+##   POSIX_FADV_DONTNEED,
+##   ^
+## ./decltests/x6/fcntl.adv.c:10:3: error: use of undeclared identifier 'POSIX_FADV_NOREUSE'
+##   POSIX_FADV_NOREUSE,
+##   ^
+## ./decltests/x6/fcntl.adv.c:15:38: error: use of undeclared identifier 'posix_fadvise'
+##   int (*a)(int, off_t, off_t, int) = posix_fadvise;
+##                                      ^
+## ./decltests/x6/fcntl.adv.c:16:33: error: use of undeclared identifier 'posix_fallocate'
+##   int (*b)(int, off_t, off_t) = posix_fallocate;
+##                                 ^
+## 8 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x5/fcntl.sio.c:6:3: error: use of undeclared identifier 'O_RSYNC'
+##   O_RSYNC
+##   ^
+## 1 error generated.
++fenv.h
++float.h
++fmtmsg.h
++fnmatch.h
 fstab.h
 fts.h
-ftw.h
++ftw.h
 getopt.h
-glob.h
-grp.h
-iconv.h
++glob.h
++grp.h
++iconv.h
 ifaddrs.h
-inttypes.h
++inttypes.h
 -iohw.h
-iso646.h
-langinfo.h
++iso646.h
+*langinfo.h
+$ Lacks <code>nl_langinfo_l</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x7/langinfo.c:4:21: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+## char *(*a)(nl_item, locale_t) = nl_langinfo_l;
+##                     ^~~~~~~~
+## ./decltests/x7/langinfo.c:4:33: error: use of undeclared identifier 'nl_langinfo_l'; did you mean 'nl_langinfo'?
+## char *(*a)(nl_item, locale_t) = nl_langinfo_l;
+##                                 ^~~~~~~~~~~~~
+##                                 nl_langinfo
+## /usr/include/langinfo.h:117:7: note: 'nl_langinfo' declared here
+## char    *nl_langinfo(nl_item);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/langinfo.c:4:9: error: incompatible pointer types initializing 'char *(*)(nl_item, int)' with an expression of type 'char *(nl_item)' [-Werror,-Wincompatible-pointer-types]
+## char *(*a)(nl_item, locale_t) = nl_langinfo_l;
+##         ^                       ~~~~~~~~~~~~~
+## 3 errors generated.
 -lastlog.h
-libgen.h
-limits.h
++libgen.h
+*limits.h
+$ Lacks limit constants for timers (optional in Single Unix v2).
+## In file included from htest.c:2:
+## ./decltests/x5/limits.tmr.c:6:2: error: "_POSIX_CLOCKRES_MIN"
+## #error "_POSIX_CLOCKRES_MIN"
+##  ^
+## 1 error generated.
 -link.h
-locale.h
+*locale.h
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## ./decltests/x7/locale.c:5:3: error: use of undeclared identifier 'LC_COLLATE_MASK'
+##   LC_COLLATE_MASK,
+##   ^
+## ./decltests/x7/locale.c:6:3: error: use of undeclared identifier 'LC_CTYPE_MASK'
+##   LC_CTYPE_MASK,
+##   ^
+## ./decltests/x7/locale.c:7:3: error: use of undeclared identifier 'LC_MESSAGES_MASK'
+##   LC_MESSAGES_MASK,
+##   ^
+## ./decltests/x7/locale.c:8:3: error: use of undeclared identifier 'LC_MONETARY_MASK'
+##   LC_MONETARY_MASK,
+##   ^
+## ./decltests/x7/locale.c:9:3: error: use of undeclared identifier 'LC_NUMERIC_MASK'
+##   LC_NUMERIC_MASK,
+##   ^
+## ./decltests/x7/locale.c:10:3: error: use of undeclared identifier 'LC_TIME_MASK'
+##   LC_TIME_MASK,
+##   ^
+## ./decltests/x7/locale.c:11:3: error: use of undeclared identifier 'LC_ALL_MASK'
+##   LC_ALL_MASK,
+##   ^
+## ./decltests/x7/locale.c:16:3: error: use of undeclared identifier 'locale_t'
+##   locale_t a = LC_GLOBAL_LOCALE;
+##   ^
+## ./decltests/x7/locale.c:17:3: error: implicit declaration of function 'locale_t' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   locale_t (*b)(locale_t) = duplocale;
+##   ^
+## ./decltests/x7/locale.c:17:14: error: use of undeclared identifier 'b'
+##   locale_t (*b)(locale_t) = duplocale;
+##              ^
+## ./decltests/x7/locale.c:17:29: error: use of undeclared identifier 'duplocale'; did you mean 'setlocale'?
+##   locale_t (*b)(locale_t) = duplocale;
+##                             ^~~~~~~~~
+##                             setlocale
+## /usr/include/locale.h:53:8: note: 'setlocale' declared here
+## char            *setlocale(int, const char *);
+##                  ^
+## In file included from htest.c:2:
+## ./decltests/x7/locale.c:18:17: error: a parameter list without types is only allowed in a function definition
+##   void     (*c)(locale_t) = freelocale;
+##                 ^
+## ./decltests/x7/locale.c:18:29: error: use of undeclared identifier 'freelocale'; did you mean 'setlocale'?
+##   void     (*c)(locale_t) = freelocale;
+##                             ^~~~~~~~~~
+##                             setlocale
+## /usr/include/locale.h:53:8: note: 'setlocale' declared here
+## char            *setlocale(int, const char *);
+##                  ^
+## In file included from htest.c:2:
+## ./decltests/x7/locale.c:19:14: error: use of undeclared identifier 'd'
+##   locale_t (*d)(int, const char *, locale_t) = newlocale;
+##              ^
+## ./decltests/x7/locale.c:19:17: error: expected expression
+##   locale_t (*d)(int, const char *, locale_t) = newlocale;
+##                 ^
+## ./decltests/x7/locale.c:19:48: error: use of undeclared identifier 'newlocale'; did you mean 'setlocale'?
+##   locale_t (*d)(int, const char *, locale_t) = newlocale;
+##                                                ^~~~~~~~~
+##                                                setlocale
+## /usr/include/locale.h:53:8: note: 'setlocale' declared here
+## char            *setlocale(int, const char *);
+##                  ^
+## In file included from htest.c:2:
+## ./decltests/x7/locale.c:20:14: error: use of undeclared identifier 'e'
+##   locale_t (*e)(locale_t) = uselocale;
+##              ^
+## ./decltests/x7/locale.c:20:29: error: use of undeclared identifier 'uselocale'; did you mean 'setlocale'?
+##   locale_t (*e)(locale_t) = uselocale;
+##                             ^~~~~~~~~
+##                             setlocale
+## /usr/include/locale.h:53:8: note: 'setlocale' declared here
+## char            *setlocale(int, const char *);
+##                  ^
+## 18 errors generated.
 -malloc.h
-math.h
++math.h
 memory.h
 -mntent.h
-monetary.h
+*monetary.h
+$ Lacks <code>strfmon_l</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x7/monetary.c:4:8: error: unknown type name 'locale_t'
+## void f(locale_t ll)
+##        ^
+## ./decltests/x7/monetary.c:8:15: error: implicit declaration of function 'strfmon_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   ssize_t r = strfmon_l(buf, ss, ll, "%#9.2n", 299999.99);
+##               ^
+## ./decltests/x7/monetary.c:8:15: note: did you mean 'strfmon'?
+##   ssize_t r = strfmon_l(buf, ss, ll, "%#9.2n", 299999.99);
+##               ^~~~~~~~~
+##               strfmon
+## /usr/include/monetary.h:46:9: note: 'strfmon' declared here
+## ssize_t strfmon(char *, size_t, const char *, ...);
+##         ^
+## 2 errors generated.
 -mqueue.h
 ndbm.h
-netdb.h
-nl_types.h
+*netdb.h
+$ Lacks <code>NI_NUMERICSCOPE</code> (POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x6/netdb.nsc.c:12:3: error: use of undeclared identifier 'NI_NUMERICSCOPE'
+##   NI_NUMERICSCOPE,
+##   ^
+## 1 error generated.
++nl_types.h
 -omp.h
 paths.h
-poll.h
-pthread.h
-pwd.h
-regex.h
++poll.h
+*pthread.h
+$ Lacks lock functions with timeouts (optional in POSIX.1-2001).
+$ Lacks per-thread clock functions (optional in POSIX.1-2001).
+$ Lacks process-shared thread barrier functions (optional in POSIX.1-2001).
+$ Lacks spinlock functions (optional in POSIX.1-2001).
+$ Lacks thread barrier functions (optional in POSIX.1-2001).
+$ Lacks robust mutexes (POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.tmo.c:7:7: error: use of undeclared identifier 'pthread_mutex_timedlock'; did you mean 'pthread_mutex_trylock'?
+##     = pthread_mutex_timedlock;
+##       ^~~~~~~~~~~~~~~~~~~~~~~
+##       pthread_mutex_trylock
+## /usr/include/pthread.h:317:11: note: 'pthread_mutex_trylock' declared here
+## int       pthread_mutex_trylock(pthread_mutex_t *);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.tmo.c:6:9: error: incompatible pointer types initializing 'int (*)(pthread_mutex_t *, const struct timespec *)' with an expression of type 'int (pthread_mutex_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int (*a)(pthread_mutex_t *, const struct timespec *)
+##         ^
+## ./decltests/x6/pthread.tmo.c:9:7: error: use of undeclared identifier 'pthread_rwlock_timedrdlock'; did you mean 'pthread_rwlock_tryrdlock'?
+##     = pthread_rwlock_timedrdlock;
+##       ^~~~~~~~~~~~~~~~~~~~~~~~~~
+##       pthread_rwlock_tryrdlock
+## /usr/include/pthread.h:333:11: note: 'pthread_rwlock_tryrdlock' declared here
+## int       pthread_rwlock_tryrdlock(pthread_rwlock_t *) __DARWIN_ALIAS(pthread_rwlock_tryrdlock);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.tmo.c:8:9: error: incompatible pointer types initializing 'int (*)(pthread_rwlock_t *, const struct timespec *)' with an expression of type 'int (pthread_rwlock_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int (*b)(pthread_rwlock_t *, const struct timespec *)
+##         ^
+## ./decltests/x6/pthread.tmo.c:11:7: error: use of undeclared identifier 'pthread_rwlock_timedwrlock'; did you mean 'pthread_rwlock_trywrlock'?
+##     = pthread_rwlock_timedwrlock;
+##       ^~~~~~~~~~~~~~~~~~~~~~~~~~
+##       pthread_rwlock_trywrlock
+## /usr/include/pthread.h:334:11: note: 'pthread_rwlock_trywrlock' declared here
+## int       pthread_rwlock_trywrlock(pthread_rwlock_t *) __DARWIN_ALIAS(pthread_rwlock_trywrlock);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.tmo.c:10:9: error: incompatible pointer types initializing 'int (*)(pthread_rwlock_t *, const struct timespec *)' with an expression of type 'int (pthread_rwlock_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int (*c)(pthread_rwlock_t *, const struct timespec *)
+##         ^
+## 6 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.cs.c:6:40: error: unknown type name 'clockid_t'; did you mean 'clock_t'?
+##   int (*a)(const pthread_condattr_t *, clockid_t *) = pthread_condattr_getclock;
+##                                        ^~~~~~~~~
+##                                        clock_t
+## /usr/include/time.h:77:26: note: 'clock_t' declared here
+## typedef __darwin_clock_t        clock_t;
+##                                 ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.cs.c:6:55: error: use of undeclared identifier 'pthread_condattr_getclock'; did you mean 'pthread_condattr_destroy'?
+##   int (*a)(const pthread_condattr_t *, clockid_t *) = pthread_condattr_getclock;
+##                                                       ^~~~~~~~~~~~~~~~~~~~~~~~~
+##                                                       pthread_condattr_destroy
+## /usr/include/pthread.h:292:11: note: 'pthread_condattr_destroy' declared here
+## int       pthread_condattr_destroy(pthread_condattr_t *);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.cs.c:6:9: error: incompatible pointer types initializing 'int (*)(const pthread_condattr_t *, clock_t *)' with an expression of type 'int (pthread_condattr_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int (*a)(const pthread_condattr_t *, clockid_t *) = pthread_condattr_getclock;
+##         ^                                             ~~~~~~~~~~~~~~~~~~~~~~~~~
+## ./decltests/x6/pthread.cs.c:7:34: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int (*b)(pthread_condattr_t *, clockid_t) = pthread_condattr_setclock;
+##                                  ^~~~~~~~~
+## ./decltests/x6/pthread.cs.c:7:47: error: use of undeclared identifier 'pthread_condattr_setclock'; did you mean 'pthread_condattr_destroy'?
+##   int (*b)(pthread_condattr_t *, clockid_t) = pthread_condattr_setclock;
+##                                               ^~~~~~~~~~~~~~~~~~~~~~~~~
+##                                               pthread_condattr_destroy
+## /usr/include/pthread.h:292:11: note: 'pthread_condattr_destroy' declared here
+## int       pthread_condattr_destroy(pthread_condattr_t *);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.cs.c:7:9: error: incompatible pointer types initializing 'int (*)(pthread_condattr_t *, int)' with an expression of type 'int (pthread_condattr_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int (*b)(pthread_condattr_t *, clockid_t) = pthread_condattr_setclock;
+##         ^                                     ~~~~~~~~~~~~~~~~~~~~~~~~~
+## ./decltests/x6/pthread.cs.c:8:23: error: unknown type name 'clockid_t'; did you mean 'clock_t'?
+##   int (*c)(pthread_t, clockid_t *) = pthread_getcpuclockid;
+##                       ^~~~~~~~~
+##                       clock_t
+## /usr/include/time.h:77:26: note: 'clock_t' declared here
+## typedef __darwin_clock_t        clock_t;
+##                                 ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.cs.c:8:38: error: use of undeclared identifier 'pthread_getcpuclockid'; did you mean 'pthread_getspecific'?
+##   int (*c)(pthread_t, clockid_t *) = pthread_getcpuclockid;
+##                                      ^~~~~~~~~~~~~~~~~~~~~
+##                                      pthread_getspecific
+## /usr/include/pthread.h:308:11: note: 'pthread_getspecific' declared here
+## void     *pthread_getspecific(pthread_key_t );
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.cs.c:8:9: error: incompatible pointer types initializing 'int (*)(pthread_t, clock_t *)' with an expression of type 'void *(pthread_key_t)' [-Werror,-Wincompatible-pointer-types]
+##   int (*c)(pthread_t, clockid_t *) = pthread_getcpuclockid;
+##         ^                            ~~~~~~~~~~~~~~~~~~~~~
+## 9 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.tsh.c:6:18: error: unknown type name 'pthread_barrierattr_t'; did you mean 'pthread_mutexattr_t'?
+##   int (*a)(const pthread_barrierattr_t *, int *)
+##                  ^~~~~~~~~~~~~~~~~~~~~
+##                  pthread_mutexattr_t
+## /usr/include/pthread.h:89:38: note: 'pthread_mutexattr_t' declared here
+## typedef __darwin_pthread_mutexattr_t    pthread_mutexattr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.tsh.c:7:7: error: use of undeclared identifier 'pthread_barrierattr_getpshared'; did you mean 'pthread_mutexattr_getpshared'?
+##     = pthread_barrierattr_getpshared;
+##       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##       pthread_mutexattr_getpshared
+## /usr/include/pthread.h:322:11: note: 'pthread_mutexattr_getpshared' declared here
+## int       pthread_mutexattr_getpshared(const pthread_mutexattr_t * __restrict, int * __restrict);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.tsh.c:8:12: error: unknown type name 'pthread_barrierattr_t'; did you mean 'pthread_mutexattr_t'?
+##   int (*b)(pthread_barrierattr_t *, int)
+##            ^~~~~~~~~~~~~~~~~~~~~
+##            pthread_mutexattr_t
+## /usr/include/pthread.h:89:38: note: 'pthread_mutexattr_t' declared here
+## typedef __darwin_pthread_mutexattr_t    pthread_mutexattr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.tsh.c:9:7: error: use of undeclared identifier 'pthread_barrierattr_setpshared'; did you mean 'pthread_mutexattr_setpshared'?
+##     = pthread_barrierattr_setpshared;
+##       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##       pthread_mutexattr_setpshared
+## /usr/include/pthread.h:327:11: note: 'pthread_mutexattr_setpshared' declared here
+## int       pthread_mutexattr_setpshared(pthread_mutexattr_t *, int );
+##           ^
+## 4 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:6:3: error: unknown type name 'pthread_spinlock_t'; did you mean 'pthread_rwlock_t'?
+##   pthread_spinlock_t x;
+##   ^~~~~~~~~~~~~~~~~~
+##   pthread_rwlock_t
+## /usr/include/pthread.h:99:35: note: 'pthread_rwlock_t' declared here
+## typedef __darwin_pthread_rwlock_t       pthread_rwlock_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:7:14: error: unknown type name 'pthread_spinlock_t'; did you mean 'pthread_rwlock_t'?
+##   int   (*a)(pthread_spinlock_t *) = pthread_spin_destroy;
+##              ^~~~~~~~~~~~~~~~~~
+##              pthread_rwlock_t
+## /usr/include/pthread.h:99:35: note: 'pthread_rwlock_t' declared here
+## typedef __darwin_pthread_rwlock_t       pthread_rwlock_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:7:38: error: use of undeclared identifier 'pthread_spin_destroy'
+##   int   (*a)(pthread_spinlock_t *) = pthread_spin_destroy;
+##                                      ^
+## ./decltests/x6/pthread.spi.c:8:14: error: unknown type name 'pthread_spinlock_t'; did you mean 'pthread_rwlock_t'?
+##   int   (*b)(pthread_spinlock_t *, int) = pthread_spin_init;
+##              ^~~~~~~~~~~~~~~~~~
+##              pthread_rwlock_t
+## /usr/include/pthread.h:99:35: note: 'pthread_rwlock_t' declared here
+## typedef __darwin_pthread_rwlock_t       pthread_rwlock_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:8:43: error: use of undeclared identifier 'pthread_spin_init'
+##   int   (*b)(pthread_spinlock_t *, int) = pthread_spin_init;
+##                                           ^
+## ./decltests/x6/pthread.spi.c:9:14: error: unknown type name 'pthread_spinlock_t'; did you mean 'pthread_rwlock_t'?
+##   int   (*c)(pthread_spinlock_t *) = pthread_spin_lock;
+##              ^~~~~~~~~~~~~~~~~~
+##              pthread_rwlock_t
+## /usr/include/pthread.h:99:35: note: 'pthread_rwlock_t' declared here
+## typedef __darwin_pthread_rwlock_t       pthread_rwlock_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:9:38: error: use of undeclared identifier 'pthread_spin_lock'; did you mean 'pthread_mutex_lock'?
+##   int   (*c)(pthread_spinlock_t *) = pthread_spin_lock;
+##                                      ^~~~~~~~~~~~~~~~~
+##                                      pthread_mutex_lock
+## /usr/include/pthread.h:315:11: note: 'pthread_mutex_lock' declared here
+## int       pthread_mutex_lock(pthread_mutex_t *);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:9:11: error: incompatible pointer types initializing 'int (*)(pthread_rwlock_t *)' with an expression of type 'int (pthread_mutex_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int   (*c)(pthread_spinlock_t *) = pthread_spin_lock;
+##           ^                          ~~~~~~~~~~~~~~~~~
+## ./decltests/x6/pthread.spi.c:10:14: error: unknown type name 'pthread_spinlock_t'; did you mean 'pthread_rwlock_t'?
+##   int   (*d)(pthread_spinlock_t *) = pthread_spin_trylock;
+##              ^~~~~~~~~~~~~~~~~~
+##              pthread_rwlock_t
+## /usr/include/pthread.h:99:35: note: 'pthread_rwlock_t' declared here
+## typedef __darwin_pthread_rwlock_t       pthread_rwlock_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:10:38: error: use of undeclared identifier 'pthread_spin_trylock'; did you mean 'pthread_mutex_trylock'?
+##   int   (*d)(pthread_spinlock_t *) = pthread_spin_trylock;
+##                                      ^~~~~~~~~~~~~~~~~~~~
+##                                      pthread_mutex_trylock
+## /usr/include/pthread.h:317:11: note: 'pthread_mutex_trylock' declared here
+## int       pthread_mutex_trylock(pthread_mutex_t *);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:10:11: error: incompatible pointer types initializing 'int (*)(pthread_rwlock_t *)' with an expression of type 'int (pthread_mutex_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int   (*d)(pthread_spinlock_t *) = pthread_spin_trylock;
+##           ^                          ~~~~~~~~~~~~~~~~~~~~
+## ./decltests/x6/pthread.spi.c:11:14: error: unknown type name 'pthread_spinlock_t'; did you mean 'pthread_rwlock_t'?
+##   int   (*e)(pthread_spinlock_t *) = pthread_spin_unlock;
+##              ^~~~~~~~~~~~~~~~~~
+##              pthread_rwlock_t
+## /usr/include/pthread.h:99:35: note: 'pthread_rwlock_t' declared here
+## typedef __darwin_pthread_rwlock_t       pthread_rwlock_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:11:38: error: use of undeclared identifier 'pthread_spin_unlock'; did you mean 'pthread_mutex_unlock'?
+##   int   (*e)(pthread_spinlock_t *) = pthread_spin_unlock;
+##                                      ^~~~~~~~~~~~~~~~~~~
+##                                      pthread_mutex_unlock
+## /usr/include/pthread.h:318:11: note: 'pthread_mutex_unlock' declared here
+## int       pthread_mutex_unlock(pthread_mutex_t *);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.spi.c:11:11: error: incompatible pointer types initializing 'int (*)(pthread_rwlock_t *)' with an expression of type 'int (pthread_mutex_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int   (*e)(pthread_spinlock_t *) = pthread_spin_unlock;
+##           ^                          ~~~~~~~~~~~~~~~~~~~
+## 14 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:5:3: error: use of undeclared identifier 'PTHREAD_BARRIER_SERIAL_THREAD'
+##   PTHREAD_BARRIER_SERIAL_THREAD,
+##   ^
+## ./decltests/x6/pthread.bar.c:10:3: error: unknown type name 'pthread_barrier_t'; did you mean 'pthread_attr_t'?
+##   pthread_barrier_t xa;
+##   ^~~~~~~~~~~~~~~~~
+##   pthread_attr_t
+## /usr/include/pthread.h:64:34: note: 'pthread_attr_t' declared here
+## typedef __darwin_pthread_attr_t         pthread_attr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:11:3: error: unknown type name 'pthread_barrierattr_t'; did you mean 'pthread_mutexattr_t'?
+##   pthread_barrierattr_t xb;
+##   ^~~~~~~~~~~~~~~~~~~~~
+##   pthread_mutexattr_t
+## /usr/include/pthread.h:89:38: note: 'pthread_mutexattr_t' declared here
+## typedef __darwin_pthread_mutexattr_t    pthread_mutexattr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:13:14: error: unknown type name 'pthread_barrier_t'; did you mean 'pthread_attr_t'?
+##   int   (*a)(pthread_barrier_t *) = pthread_barrier_destroy;
+##              ^~~~~~~~~~~~~~~~~
+##              pthread_attr_t
+## /usr/include/pthread.h:64:34: note: 'pthread_attr_t' declared here
+## typedef __darwin_pthread_attr_t         pthread_attr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:13:37: error: use of undeclared identifier 'pthread_barrier_destroy'; did you mean 'pthread_attr_destroy'?
+##   int   (*a)(pthread_barrier_t *) = pthread_barrier_destroy;
+##                                     ^~~~~~~~~~~~~~~~~~~~~~~
+##                                     pthread_attr_destroy
+## /usr/include/pthread.h:246:11: note: 'pthread_attr_destroy' declared here
+## int       pthread_attr_destroy(pthread_attr_t *);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:14:14: error: unknown type name 'pthread_barrier_t'; did you mean 'pthread_attr_t'?
+##   int   (*b)(pthread_barrier_t *, const pthread_barrierattr_t *, unsigned)
+##              ^~~~~~~~~~~~~~~~~
+##              pthread_attr_t
+## /usr/include/pthread.h:64:34: note: 'pthread_attr_t' declared here
+## typedef __darwin_pthread_attr_t         pthread_attr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:14:41: error: unknown type name 'pthread_barrierattr_t'; did you mean 'pthread_mutexattr_t'?
+##   int   (*b)(pthread_barrier_t *, const pthread_barrierattr_t *, unsigned)
+##                                         ^~~~~~~~~~~~~~~~~~~~~
+##                                         pthread_mutexattr_t
+## /usr/include/pthread.h:89:38: note: 'pthread_mutexattr_t' declared here
+## typedef __darwin_pthread_mutexattr_t    pthread_mutexattr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:15:7: error: use of undeclared identifier 'pthread_barrier_init'; did you mean 'pthread_attr_init'?
+##     = pthread_barrier_init;
+##       ^~~~~~~~~~~~~~~~~~~~
+##       pthread_attr_init
+## /usr/include/pthread.h:264:11: note: 'pthread_attr_init' declared here
+## int       pthread_attr_init(pthread_attr_t *);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:14:11: error: incompatible pointer types initializing 'int (*)(pthread_attr_t *, const pthread_mutexattr_t *, unsigned int)' with an expression of type 'int (pthread_attr_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int   (*b)(pthread_barrier_t *, const pthread_barrierattr_t *, unsigned)
+##           ^
+## ./decltests/x6/pthread.bar.c:16:14: error: unknown type name 'pthread_barrier_t'; did you mean 'pthread_attr_t'?
+##   int   (*c)(pthread_barrier_t *) = pthread_barrier_wait;
+##              ^~~~~~~~~~~~~~~~~
+##              pthread_attr_t
+## /usr/include/pthread.h:64:34: note: 'pthread_attr_t' declared here
+## typedef __darwin_pthread_attr_t         pthread_attr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:16:37: error: use of undeclared identifier 'pthread_barrier_wait'
+##   int   (*c)(pthread_barrier_t *) = pthread_barrier_wait;
+##                                     ^
+## ./decltests/x6/pthread.bar.c:17:14: error: unknown type name 'pthread_barrierattr_t'; did you mean 'pthread_mutexattr_t'?
+##   int   (*d)(pthread_barrierattr_t *) = pthread_barrierattr_destroy;
+##              ^~~~~~~~~~~~~~~~~~~~~
+##              pthread_mutexattr_t
+## /usr/include/pthread.h:89:38: note: 'pthread_mutexattr_t' declared here
+## typedef __darwin_pthread_mutexattr_t    pthread_mutexattr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:17:41: error: use of undeclared identifier 'pthread_barrierattr_destroy'; did you mean 'pthread_mutexattr_destroy'?
+##   int   (*d)(pthread_barrierattr_t *) = pthread_barrierattr_destroy;
+##                                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+##                                         pthread_mutexattr_destroy
+## /usr/include/pthread.h:319:11: note: 'pthread_mutexattr_destroy' declared here
+## int       pthread_mutexattr_destroy(pthread_mutexattr_t *) __DARWIN_ALIAS(pthread_mutexattr_destroy);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:18:14: error: unknown type name 'pthread_barrierattr_t'; did you mean 'pthread_mutexattr_t'?
+##   int   (*e)(pthread_barrierattr_t *) = pthread_barrierattr_init;
+##              ^~~~~~~~~~~~~~~~~~~~~
+##              pthread_mutexattr_t
+## /usr/include/pthread.h:89:38: note: 'pthread_mutexattr_t' declared here
+## typedef __darwin_pthread_mutexattr_t    pthread_mutexattr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/pthread.bar.c:18:41: error: use of undeclared identifier 'pthread_barrierattr_init'; did you mean 'pthread_mutexattr_init'?
+##   int   (*e)(pthread_barrierattr_t *) = pthread_barrierattr_init;
+##                                         ^~~~~~~~~~~~~~~~~~~~~~~~
+##                                         pthread_mutexattr_init
+## /usr/include/pthread.h:324:11: note: 'pthread_mutexattr_init' declared here
+## int       pthread_mutexattr_init(pthread_mutexattr_t *);
+##           ^
+## 15 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x7/pthread.c:5:3: error: use of undeclared identifier 'PTHREAD_MUTEX_ROBUST'
+##   PTHREAD_MUTEX_ROBUST,
+##   ^
+## ./decltests/x7/pthread.c:6:3: error: use of undeclared identifier 'PTHREAD_MUTEX_STALLED'
+##   PTHREAD_MUTEX_STALLED,
+##   ^
+## ./decltests/x7/pthread.c:11:33: error: use of undeclared identifier 'pthread_mutex_consistent'; did you mean 'pthread_mutex_init'?
+##   int (*a)(pthread_mutex_t *) = pthread_mutex_consistent;
+##                                 ^~~~~~~~~~~~~~~~~~~~~~~~
+##                                 pthread_mutex_init
+## /usr/include/pthread.h:314:11: note: 'pthread_mutex_init' declared here
+## int       pthread_mutex_init(pthread_mutex_t * __restrict, const pthread_mutexattr_t * __restrict);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x7/pthread.c:11:9: error: incompatible pointer types initializing 'int (*)(pthread_mutex_t *)' with an expression of type 'int (pthread_mutex_t *restrict, const pthread_mutexattr_t *restrict)' [-Werror,-Wincompatible-pointer-types]
+##   int (*a)(pthread_mutex_t *) = pthread_mutex_consistent;
+##         ^                       ~~~~~~~~~~~~~~~~~~~~~~~~
+## ./decltests/x7/pthread.c:12:50: error: use of undeclared identifier 'pthread_mutexattr_getrobust'
+##   int (*b)(const pthread_mutexattr_t *, int *) = pthread_mutexattr_getrobust;
+##                                                  ^
+## ./decltests/x7/pthread.c:13:42: error: use of undeclared identifier 'pthread_mutexattr_setrobust'
+##   int (*c)(pthread_mutexattr_t *, int) = pthread_mutexattr_setrobust;
+##                                          ^
+## 6 errors generated.
++pwd.h
+-re_comp.h
++regex.h
 -regexp.h
 resolv.h
-sched.h
-search.h
-semaphore.h
-setjmp.h
+*sched.h
+$ Lacks <code>sched_setscheduler</code> and <code>sched_setparam</code> (Single Unix v2).
+$ Lacks <code>sched_rr_get_interval</code> (optional in Single Unix v2).
+$ Lacks support for sporadic scheduling (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x5/sched.parm.c:15:19: error: expected identifier
+##   int (*a)(pid_t, struct sched_param *) = sched_getparam;
+##                   ^
+## ./decltests/x5/sched.parm.c:15:43: error: use of undeclared identifier 'sched_getparam'
+##   int (*a)(pid_t, struct sched_param *) = sched_getparam;
+##                                           ^
+## ./decltests/x5/sched.parm.c:16:12: error: a parameter list without types is only allowed in a function definition
+##   int (*b)(pid_t) = sched_getscheduler;
+##            ^
+## ./decltests/x5/sched.parm.c:16:21: error: use of undeclared identifier 'sched_getscheduler'
+##   int (*b)(pid_t) = sched_getscheduler;
+##                     ^
+## ./decltests/x5/sched.parm.c:17:19: error: expected identifier
+##   int (*c)(pid_t, const struct sched_param *) = sched_setparam;
+##                   ^
+## ./decltests/x5/sched.parm.c:17:49: error: use of undeclared identifier 'sched_setparam'
+##   int (*c)(pid_t, const struct sched_param *) = sched_setparam;
+##                                                 ^
+## ./decltests/x5/sched.parm.c:18:19: error: expected identifier
+##   int (*d)(pid_t, int, const struct sched_param *) = sched_setscheduler;
+##                   ^
+## ./decltests/x5/sched.parm.c:18:54: error: use of undeclared identifier 'sched_setscheduler'
+##   int (*d)(pid_t, int, const struct sched_param *) = sched_setscheduler;
+##                                                      ^
+## 8 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x5/sched.rri.c:8:19: error: expected identifier
+##   int (*c)(pid_t, struct timespec *) = sched_rr_get_interval;
+##                   ^
+## ./decltests/x5/sched.rri.c:8:40: error: use of undeclared identifier 'sched_rr_get_interval'
+##   int (*c)(pid_t, struct timespec *) = sched_rr_get_interval;
+##                                        ^
+## 2 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/sched.ss.c:20:2: error: "no sporadic server scheduling"
+## #error "no sporadic server scheduling"
+##  ^
+## 1 error generated.
+!search.h
+$ Can't be used together with <code>rpcsvc/nfs_prot.h</code>.
+## In file included from htest.c:2:
+## /usr/include/search.h:20:16: error: redefinition of 'entry'
+## typedef struct entry {
+##                ^
+## /usr/include/rpcsvc/nfs_prot.h:412:8: note: previous definition is here
+## struct entry {
+##        ^
+## 1 error generated.
+*semaphore.h
+$ Lacks <code>sem_timedwait</code> (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x6/semaphore.tmo.c:6:34: error: declaration of 'struct timespec' will not be visible outside of this function [-Werror,-Wvisibility]
+##   int (*a)(sem_t *, const struct timespec *) = sem_timedwait;
+##                                  ^
+## ./decltests/x6/semaphore.tmo.c:6:48: error: use of undeclared identifier 'sem_timedwait'; did you mean 'sem_trywait'?
+##   int (*a)(sem_t *, const struct timespec *) = sem_timedwait;
+##                                                ^~~~~~~~~~~~~
+##                                                sem_trywait
+## /usr/include/sys/semaphore.h:58:5: note: 'sem_trywait' declared here
+## int sem_trywait(sem_t *);
+##     ^
+## In file included from htest.c:2:
+## ./decltests/x6/semaphore.tmo.c:6:9: error: incompatible pointer types initializing 'int (*)(sem_t *, const struct timespec *)' with an expression of type 'int (sem_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int (*a)(sem_t *, const struct timespec *) = sem_timedwait;
+##         ^                                      ~~~~~~~~~~~~~
+## 3 errors generated.
++setjmp.h
 sgtty.h
-signal.h
-spawn.h
+*signal.h
+$ Lacks <code>psignal</code> and <code>psiginfo</code> (POSIX.1-2008).
+$ Lacks realtime signals (optional in Single Unix v2).
+## In file included from htest.c:2:
+## ./decltests/x7/signal.c:6:48: error: use of undeclared identifier 'psiginfo'
+##   void (*a)(const siginfo_t *, const char *) = psiginfo;
+##                                                ^
+## ./decltests/x7/signal.c:7:34: error: use of undeclared identifier 'psignal'; did you mean 'signal'?
+##   void (*b)(int, const char *) = psignal;
+##                                  ^~~~~~~
+##                                  signal
+## /usr/include/sys/signal.h:413:8: note: 'signal' declared here
+## void    (*signal(int, void (*)(int)))(int);
+##           ^
+## In file included from htest.c:2:
+## ./decltests/x7/signal.c:7:10: error: incompatible pointer types initializing 'void (*)(int, const char *)' with an expression of type 'void (*(int, void (*)(int)))(int)' [-Werror,-Wincompatible-pointer-types]
+##   void (*b)(int, const char *) = psignal;
+##          ^                       ~~~~~~~
+## 3 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x5/signal.rts.c:15:12: error: use of undeclared identifier 'SIGRTMIN'
+##   int xa = SIGRTMIN;
+##            ^
+## ./decltests/x5/signal.rts.c:16:12: error: use of undeclared identifier 'SIGRTMAX'
+##   int xb = SIGRTMAX;
+##            ^
+## ./decltests/x5/signal.rts.c:34:46: error: use of undeclared identifier 'sigqueue'
+##   int (*a)(pid_t, int, const union sigval) = sigqueue;
+##                                              ^
+## ./decltests/x5/signal.rts.c:35:56: error: declaration of 'struct timespec' will not be visible outside of this function [-Werror,-Wvisibility]
+##   int (*b)(const sigset_t *, siginfo_t *, const struct timespec *)
+##                                                        ^
+## ./decltests/x5/signal.rts.c:36:7: error: use of undeclared identifier 'sigtimedwait'
+##     = sigtimedwait;
+##       ^
+## ./decltests/x5/signal.rts.c:37:45: error: use of undeclared identifier 'sigwaitinfo'
+##   int (*c)(const sigset_t *, siginfo_t *) = sigwaitinfo;
+##                                             ^
+## 6 errors generated.
+*spawn.h
+$ Lacks scheduling controls (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x6/spawn.ps.c:5:3: error: use of undeclared identifier 'POSIX_SPAWN_SETSCHEDPARAM'
+##   POSIX_SPAWN_SETSCHEDPARAM,
+##   ^
+## ./decltests/x6/spawn.ps.c:6:3: error: use of undeclared identifier 'POSIX_SPAWN_SETSCHEDULER'
+##   POSIX_SPAWN_SETSCHEDULER,
+##   ^
+## ./decltests/x6/spawn.ps.c:11:46: error: declaration of 'struct sched_param' will not be visible outside of this function [-Werror,-Wvisibility]
+##   int (*a)(const posix_spawnattr_t *, struct sched_param *)
+##                                              ^
+## ./decltests/x6/spawn.ps.c:12:7: error: use of undeclared identifier 'posix_spawnattr_getschedparam'
+##     = posix_spawnattr_getschedparam;
+##       ^
+## ./decltests/x6/spawn.ps.c:13:48: error: use of undeclared identifier 'posix_spawnattr_getschedpolicy'; did you mean 'posix_spawnattr_getsigdefault'?
+##   int (*b)(const posix_spawnattr_t *, int *) = posix_spawnattr_getschedpolicy;
+##                                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##                                                posix_spawnattr_getsigdefault
+## /usr/include/spawn.h:87:5: note: 'posix_spawnattr_getsigdefault' declared here
+## int     posix_spawnattr_getsigdefault(const posix_spawnattr_t * __restrict,
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x6/spawn.ps.c:13:9: error: incompatible pointer types initializing 'int (*)(const posix_spawnattr_t *, int *)' with an expression of type 'int (const posix_spawnattr_t *restrict, sigset_t *restrict)' [-Werror,-Wincompatible-pointer-types]
+##   int (*b)(const posix_spawnattr_t *, int *) = posix_spawnattr_getschedpolicy;
+##         ^                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## ./decltests/x6/spawn.ps.c:14:46: error: declaration of 'struct sched_param' will not be visible outside of this function [-Werror,-Wvisibility]
+##   int (*c)(posix_spawnattr_t *, const struct sched_param *)
+##                                              ^
+## ./decltests/x6/spawn.ps.c:15:7: error: use of undeclared identifier 'posix_spawnattr_setschedparam'
+##     = posix_spawnattr_setschedparam;
+##       ^
+## ./decltests/x6/spawn.ps.c:16:40: error: use of undeclared identifier 'posix_spawnattr_setschedpolicy'; did you mean 'posix_spawnattr_setsigdefault'?
+##   int (*d)(posix_spawnattr_t *, int) = posix_spawnattr_setschedpolicy;
+##                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##                                        posix_spawnattr_setsigdefault
+## /usr/include/spawn.h:96:5: note: 'posix_spawnattr_setsigdefault' declared here
+## int     posix_spawnattr_setsigdefault(posix_spawnattr_t * __restrict,
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x6/spawn.ps.c:16:9: error: incompatible pointer types initializing 'int (*)(posix_spawnattr_t *, int)' with an expression of type 'int (posix_spawnattr_t *restrict, const sigset_t *restrict)' [-Werror,-Wincompatible-pointer-types]
+##   int (*d)(posix_spawnattr_t *, int) = posix_spawnattr_setschedpolicy;
+##         ^                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## 10 errors generated.
 stab.h
 stdalign.h
-stdarg.h
++stdarg.h
 -stdatomic.h
-stdbool.h
-stddef.h
++stdbool.h
++stddef.h
 -stdfix.h
-stdint.h
-stdio.h
-stdlib.h
++stdint.h
+*stdio.h
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## ./decltests/x7/stdio.c:6:42: error: use of undeclared identifier 'dprintf'
+##   int     (*a)(int, const char *, ...) = dprintf;
+##                                          ^
+## ./decltests/x7/stdio.c:7:48: error: use of undeclared identifier 'fmemopen'; did you mean 'freopen'?
+##   FILE   *(*b)(void *, size_t, const char *) = fmemopen;
+##                                                ^~~~~~~~
+##                                                freopen
+## /usr/include/stdio.h:266:7: note: 'freopen' declared here
+## FILE    *freopen(const char * __restrict, const char * __restrict,
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/stdio.c:7:13: error: incompatible pointer types initializing 'FILE *(*)(void *, size_t, const char *)' with an expression of type 'FILE *(const char *restrict, const char *restrict, FILE *restrict)' [-Werror,-Wincompatible-pointer-types]
+##   FILE   *(*b)(void *, size_t, const char *) = fmemopen;
+##             ^                                  ~~~~~~~~
+## ./decltests/x7/stdio.c:8:3: error: implicit declaration of function 'ssize_t' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   ssize_t (*c)(char **, size_t *, int, FILE *) = getdelim;
+##   ^
+## ./decltests/x7/stdio.c:8:13: error: use of undeclared identifier 'c'
+##   ssize_t (*c)(char **, size_t *, int, FILE *) = getdelim;
+##             ^
+## ./decltests/x7/stdio.c:8:16: error: expected expression
+##   ssize_t (*c)(char **, size_t *, int, FILE *) = getdelim;
+##                ^
+## ./decltests/x7/stdio.c:8:50: error: use of undeclared identifier 'getdelim'
+##   ssize_t (*c)(char **, size_t *, int, FILE *) = getdelim;
+##                                                  ^
+## ./decltests/x7/stdio.c:9:13: error: use of undeclared identifier 'd'
+##   ssize_t (*d)(char **, size_t *, FILE *) = getline;
+##             ^
+## ./decltests/x7/stdio.c:9:16: error: expected expression
+##   ssize_t (*d)(char **, size_t *, FILE *) = getline;
+##                ^
+## ./decltests/x7/stdio.c:9:45: error: use of undeclared identifier 'getline'
+##   ssize_t (*d)(char **, size_t *, FILE *) = getline;
+##                                             ^
+## ./decltests/x7/stdio.c:10:37: error: use of undeclared identifier 'open_memstream'
+##   FILE   *(*e)(char **, size_t *) = open_memstream;
+##                                     ^
+## ./decltests/x7/stdio.c:11:56: error: use of undeclared identifier 'renameat'; did you mean 'rename'?
+##   int     (*f)(int, const char *, int, const char *) = renameat;
+##                                                        ^~~~~~~~
+##                                                        rename
+## /usr/include/stdio.h:286:6: note: 'rename' declared here
+## int      rename (const char *, const char *);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/stdio.c:11:13: error: incompatible pointer types initializing 'int (*)(int, const char *, int, const char *)' with an expression of type 'int (const char *, const char *)' [-Werror,-Wincompatible-pointer-types]
+##   int     (*f)(int, const char *, int, const char *) = renameat;
+##             ^                                          ~~~~~~~~
+## ./decltests/x7/stdio.c:12:46: error: use of undeclared identifier 'vdprintf'
+##   int     (*g)(int, const char *, va_list) = vdprintf;
+##                                              ^
+## 14 errors generated.
+*stdlib.h
+$ Lacks <code>mkdtemp</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x7/stdlib.c:6:24: error: use of undeclared identifier 'mkdtemp'
+##   char *(*a)(char *) = mkdtemp;
+##                        ^
+## 1 error generated.
 -stdnoreturn.h
-string.h
-strings.h
+*string.h
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## ./decltests/x7/string.c:4:8: error: unknown type name 'locale_t'
+## void f(locale_t ll, char *aa, char *bb)
+##        ^
+## ./decltests/x7/string.c:6:14: error: implicit declaration of function 'strerror_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   char *a  = strerror_l(1, ll);
+##              ^
+## ./decltests/x7/string.c:6:14: note: did you mean 'strerror_r'?
+##   char *a  = strerror_l(1, ll);
+##              ^~~~~~~~~~
+##              strerror_r
+## /usr/include/string.h:97:6: note: 'strerror_r' declared here
+## int      strerror_r(int, char *, size_t);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/string.c:7:14: error: implicitly declaring library function 'stpcpy' with type 'char *(char *, const char *)' [-Werror]
+##   char *b  = stpcpy(aa, bb);
+##              ^
+## ./decltests/x7/string.c:7:14: note: please include the header <string.h> or explicitly provide a declaration for 'stpcpy'
+## ./decltests/x7/string.c:8:14: error: implicitly declaring library function 'stpncpy' with type 'char *(char *, const char *, unsigned long)' [-Werror]
+##   char *c  = stpncpy(aa, bb, 99);
+##              ^
+## ./decltests/x7/string.c:8:14: note: please include the header <string.h> or explicitly provide a declaration for 'stpncpy'
+## ./decltests/x7/string.c:9:14: error: implicitly declaring library function 'strndup' with type 'char *(const char *, unsigned long)' [-Werror]
+##   char *d  = strndup(aa, 99);
+##              ^
+## ./decltests/x7/string.c:9:14: note: please include the header <string.h> or explicitly provide a declaration for 'strndup'
+## ./decltests/x7/string.c:10:14: error: implicit declaration of function 'strnlen' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   size_t e = strnlen(aa, 99);
+##              ^
+## ./decltests/x7/string.c:10:14: note: did you mean 'strlen'?
+##   size_t e = strnlen(aa, 99);
+##              ^~~~~~~
+##              strlen
+## /usr/include/string.h:98:9: note: 'strlen' declared here
+## size_t   strlen(const char *);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/string.c:11:14: error: implicit declaration of function 'strsignal' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   char *f  = strsignal(1);
+##              ^
+## ./decltests/x7/string.c:11:9: error: incompatible integer to pointer conversion initializing 'char *' with an expression of type 'int' [-Werror,-Wint-conversion]
+##   char *f  = strsignal(1);
+##         ^    ~~~~~~~~~~~~
+## ./decltests/x7/string.c:12:14: error: implicit declaration of function 'strcoll_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   int g    = strcoll_l(aa, bb, ll);
+##              ^
+## ./decltests/x7/string.c:12:14: note: did you mean 'strcoll'?
+##   int g    = strcoll_l(aa, bb, ll);
+##              ^~~~~~~~~
+##              strcoll
+## /usr/include/string.h:93:6: note: 'strcoll' declared here
+## int      strcoll(const char *, const char *);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/string.c:13:14: error: implicit declaration of function 'strxfrm_l' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+##   size_t h = strxfrm_l(aa, bb, 99, ll);
+##              ^
+## ./decltests/x7/string.c:13:14: note: did you mean 'strxfrm'?
+##   size_t h = strxfrm_l(aa, bb, 99, ll);
+##              ^~~~~~~~~
+##              strxfrm
+## /usr/include/string.h:110:9: note: 'strxfrm' declared here
+## size_t   strxfrm(char *, const char *, size_t);
+##          ^
+## 10 errors generated.
+*strings.h
+$ Lacks <code>strcasecmp_l</code> and <code>strncasecmp_l</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x7/strings.c:6:40: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int (*a)(const char *, const char *, locale_t) = strcasecmp_l;
+##                                        ^~~~~~~~
+## ./decltests/x7/strings.c:6:52: error: use of undeclared identifier 'strcasecmp_l'; did you mean 'strcasecmp'?
+##   int (*a)(const char *, const char *, locale_t) = strcasecmp_l;
+##                                                    ^~~~~~~~~~~~
+##                                                    strcasecmp
+## /usr/include/strings.h:80:10: note: 'strcasecmp' declared here
+## int      strcasecmp(const char *, const char *);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/strings.c:6:9: error: incompatible pointer types initializing 'int (*)(const char *, const char *, int)' with an expression of type 'int (const char *, const char *)' [-Werror,-Wincompatible-pointer-types]
+##   int (*a)(const char *, const char *, locale_t) = strcasecmp_l;
+##         ^                                          ~~~~~~~~~~~~
+## ./decltests/x7/strings.c:7:48: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int (*b)(const char *, const char *, size_t, locale_t) = strncasecmp_l;
+##                                                ^~~~~~~~
+## ./decltests/x7/strings.c:7:60: error: use of undeclared identifier 'strncasecmp_l'; did you mean 'strncasecmp'?
+##   int (*b)(const char *, const char *, size_t, locale_t) = strncasecmp_l;
+##                                                            ^~~~~~~~~~~~~
+##                                                            strncasecmp
+## /usr/include/strings.h:81:10: note: 'strncasecmp' declared here
+## int      strncasecmp(const char *, const char *, size_t);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/strings.c:7:9: error: incompatible pointer types initializing 'int (*)(const char *, const char *, size_t, int)' with an expression of type 'int (const char *, const char *, size_t)' [-Werror,-Wincompatible-pointer-types]
+##   int (*b)(const char *, const char *, size_t, locale_t) = strncasecmp_l;
+##         ^                                                  ~~~~~~~~~~~~~
+## 6 errors generated.
 -stropts.h
 sysexits.h
-syslog.h
-tar.h
++syslog.h
++tar.h
+term.h
 termcap.h
 -termio.h
-termios.h
-tgmath.h
++termios.h
++tgmath.h
 -thread_db.h
 -threads.h
-time.h
+*time.h
+$ Lacks <code>strftime_l</code> (POSIX.1-2008).
+$ Lacks <code>CLOCK_MONOTONIC</code> (optional in POSIX.1-2001).
+$ Lacks <code>clock_getcpuclockid</code> (optional in POSIX.1-2001).
+$ Lacks <code>clock_nanosleep</code> (optional in POSIX.1-2001).
+$ Lacks timer support (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x7/time.c:6:64: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   size_t (*a)(char *, size_t, const char *, const struct tm *, locale_t)
+##                                                                ^~~~~~~~
+## ./decltests/x7/time.c:7:7: error: use of undeclared identifier 'strftime_l'; did you mean 'strftime'?
+##     = strftime_l;
+##       ^~~~~~~~~~
+##       strftime
+## /usr/include/time.h:131:8: note: 'strftime' declared here
+## size_t strftime(char * __restrict, size_t, const char * __restrict, const struct tm * __restrict) __DARWIN_ALIAS(strftime);
+##        ^
+## In file included from htest.c:2:
+## ./decltests/x7/time.c:6:12: error: incompatible pointer types initializing 'size_t (*)(char *, size_t, const char *, const struct tm *, int)' with an expression of type 'size_t (char *restrict, size_t, const char *restrict, const struct tm *restrict)' [-Werror,-Wincompatible-pointer-types]
+##   size_t (*a)(char *, size_t, const char *, const struct tm *, locale_t)
+##            ^
+## 3 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/time.mon.c:4:1: error: unknown type name 'clockid_t'; did you mean 'clock_t'?
+## clockid_t xx[] = {
+## ^~~~~~~~~
+## clock_t
+## /usr/include/time.h:77:26: note: 'clock_t' declared here
+## typedef __darwin_clock_t        clock_t;
+##                                 ^
+## In file included from htest.c:2:
+## ./decltests/x6/time.mon.c:5:3: error: use of undeclared identifier 'CLOCK_MONOTONIC'
+##   CLOCK_MONOTONIC,
+##   ^
+## 2 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/time.cpt.c:6:29: error: expected ')'
+##   int (*a)(pid_t, clockid_t *) = clock_getcpuclockid;
+##                             ^
+## ./decltests/x6/time.cpt.c:6:11: note: to match this '('
+##   int (*a)(pid_t, clockid_t *) = clock_getcpuclockid;
+##           ^
+## ./decltests/x6/time.cpt.c:6:12: error: a parameter list without types is only allowed in a function definition
+##   int (*a)(pid_t, clockid_t *) = clock_getcpuclockid;
+##            ^
+## ./decltests/x6/time.cpt.c:6:34: error: use of undeclared identifier 'clock_getcpuclockid'
+##   int (*a)(pid_t, clockid_t *) = clock_getcpuclockid;
+##                                  ^
+## 3 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/time.cs.c:6:23: error: expected identifier
+##   int (*a)(clockid_t, int, const struct timespec *,
+##                       ^
+## ./decltests/x6/time.cs.c:7:33: error: use of undeclared identifier 'clock_nanosleep'
+##            struct timespec *) = clock_nanosleep;
+##                                 ^
+## 2 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x5/time.tmr.c:6:3: error: unknown type name 'clockid_t'; did you mean 'clock_t'?
+##   clockid_t xx = CLOCK_REALTIME;
+##   ^~~~~~~~~
+##   clock_t
+## /usr/include/time.h:77:26: note: 'clock_t' declared here
+## typedef __darwin_clock_t        clock_t;
+##                                 ^
+## In file included from htest.c:2:
+## ./decltests/x5/time.tmr.c:6:18: error: use of undeclared identifier 'CLOCK_REALTIME'
+##   clockid_t xx = CLOCK_REALTIME;
+##                  ^
+## ./decltests/x5/time.tmr.c:7:18: error: use of undeclared identifier 'TIMER_ABSTIME'
+##   int       xy = TIMER_ABSTIME;
+##                  ^
+## ./decltests/x5/time.tmr.c:16:21: error: variable has incomplete type 'struct itimerspec'
+##   struct itimerspec dd;
+##                     ^
+## ./decltests/x5/time.tmr.c:16:10: note: forward declaration of 'struct itimerspec'
+##   struct itimerspec dd;
+##          ^
+## ./decltests/x5/time.tmr.c:20:23: error: expected identifier
+##   int (*a)(clockid_t, struct timespec *) = clock_getres;
+##                       ^
+## ./decltests/x5/time.tmr.c:20:44: error: use of undeclared identifier 'clock_getres'
+##   int (*a)(clockid_t, struct timespec *) = clock_getres;
+##                                            ^
+## ./decltests/x5/time.tmr.c:21:23: error: expected identifier
+##   int (*b)(clockid_t, struct timespec *) = clock_gettime;
+##                       ^
+## ./decltests/x5/time.tmr.c:21:44: error: use of undeclared identifier 'clock_gettime'
+##   int (*b)(clockid_t, struct timespec *) = clock_gettime;
+##                                            ^
+## ./decltests/x5/time.tmr.c:22:23: error: expected identifier
+##   int (*c)(clockid_t, const struct timespec *) = clock_settime;
+##                       ^
+## ./decltests/x5/time.tmr.c:22:50: error: use of undeclared identifier 'clock_settime'
+##   int (*c)(clockid_t, const struct timespec *) = clock_settime;
+##                                                  ^
+## ./decltests/x5/time.tmr.c:24:23: error: expected identifier
+##   int (*d)(clockid_t, struct sigevent *, timer_t *) = timer_create;
+##                       ^
+## ./decltests/x5/time.tmr.c:24:55: error: use of undeclared identifier 'timer_create'
+##   int (*d)(clockid_t, struct sigevent *, timer_t *) = timer_create;
+##                                                       ^
+## ./decltests/x5/time.tmr.c:25:12: error: a parameter list without types is only allowed in a function definition
+##   int (*e)(timer_t) = timer_delete;
+##            ^
+## ./decltests/x5/time.tmr.c:25:23: error: use of undeclared identifier 'timer_delete'
+##   int (*e)(timer_t) = timer_delete;
+##                       ^
+## ./decltests/x5/time.tmr.c:26:21: error: expected identifier
+##   int (*f)(timer_t, struct itimerspec *) = timer_gettime;
+##                     ^
+## ./decltests/x5/time.tmr.c:26:44: error: use of undeclared identifier 'timer_gettime'
+##   int (*f)(timer_t, struct itimerspec *) = timer_gettime;
+##                                            ^
+## ./decltests/x5/time.tmr.c:27:12: error: a parameter list without types is only allowed in a function definition
+##   int (*g)(timer_t) = timer_getoverrun;
+##            ^
+## ./decltests/x5/time.tmr.c:27:23: error: use of undeclared identifier 'timer_getoverrun'
+##   int (*g)(timer_t) = timer_getoverrun;
+##                       ^
+## ./decltests/x5/time.tmr.c:28:21: error: expected identifier
+##   int (*h)(timer_t, int, const struct itimerspec *, struct itimerspec *)
+##                     ^
+## fatal error: too many errors emitted, stopping now [-ferror-limit=]
+## 20 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x6/time.tmr.c:4:1: error: unknown type name 'clockid_t'; did you mean 'clock_t'?
+## clockid_t xx[] = {
+## ^~~~~~~~~
+## clock_t
+## /usr/include/time.h:77:26: note: 'clock_t' declared here
+## typedef __darwin_clock_t        clock_t;
+##                                 ^
+## In file included from htest.c:2:
+## ./decltests/x6/time.tmr.c:5:3: error: use of undeclared identifier 'CLOCK_PROCESS_CPUTIME_ID'
+##   CLOCK_PROCESS_CPUTIME_ID,
+##   ^
+## ./decltests/x6/time.tmr.c:6:3: error: use of undeclared identifier 'CLOCK_THREAD_CPUTIME_ID'
+##   CLOCK_THREAD_CPUTIME_ID,
+##   ^
+## 3 errors generated.
 -trace.h
 -uchar.h
-%ucontext.h
+!ucontext.h
 $ This OS deprecates <code>ucontext.h</code> and issues an
-$ <code>#error</code> if it is used without defining
-$ <code>_XOPEN_SOURCE</code>.
+$ <code>#error</code> if it is used without special preparation.
+## In file included from htest.c:1:
+## /usr/include/ucontext.h:42:2: error: ucontext routines are deprecated, and require _XOPEN_SOURCE to be defined
+## #error ucontext routines are deprecated, and require _XOPEN_SOURCE to be defined
+##  ^
+## 1 error generated.
 ulimit.h
-unistd.h
+unctrl.h
+*unistd.h
+$ Lacks <code>fdatasync</code> (Single Unix v2).
+$ Lacks <code>_CS_V6_ENV</code> (POSIX.1-2001).
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## ./decltests/x5/unistd.sio.c:6:29: error: use of undeclared identifier 'fdatasync'
+##   int          (*ax)(int) = fdatasync;
+##                             ^
+## 1 error generated.
+## In file included from htest.c:2:
+## ./decltests/x6/unistd.c:20:3: error: use of undeclared identifier '_CS_V6_ENV'
+##   _CS_V6_ENV,
+##   ^
+## 1 error generated.
+## In file included from htest.c:2:
+## ./decltests/x7/unistd.c:5:3: error: use of undeclared identifier '_CS_POSIX_V7_ILP32_OFF32_CFLAGS'
+##   _CS_POSIX_V7_ILP32_OFF32_CFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:6:3: error: use of undeclared identifier '_CS_POSIX_V7_ILP32_OFF32_LDFLAGS'
+##   _CS_POSIX_V7_ILP32_OFF32_LDFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:7:3: error: use of undeclared identifier '_CS_POSIX_V7_ILP32_OFF32_LIBS'
+##   _CS_POSIX_V7_ILP32_OFF32_LIBS,
+##   ^
+## ./decltests/x7/unistd.c:8:3: error: use of undeclared identifier '_CS_POSIX_V7_ILP32_OFFBIG_CFLAGS'
+##   _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:9:3: error: use of undeclared identifier '_CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS'
+##   _CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:10:3: error: use of undeclared identifier '_CS_POSIX_V7_ILP32_OFFBIG_LIBS'
+##   _CS_POSIX_V7_ILP32_OFFBIG_LIBS,
+##   ^
+## ./decltests/x7/unistd.c:11:3: error: use of undeclared identifier '_CS_POSIX_V7_LP64_OFF64_CFLAGS'
+##   _CS_POSIX_V7_LP64_OFF64_CFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:12:3: error: use of undeclared identifier '_CS_POSIX_V7_LP64_OFF64_LDFLAGS'
+##   _CS_POSIX_V7_LP64_OFF64_LDFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:13:3: error: use of undeclared identifier '_CS_POSIX_V7_LP64_OFF64_LIBS'
+##   _CS_POSIX_V7_LP64_OFF64_LIBS,
+##   ^
+## ./decltests/x7/unistd.c:14:3: error: use of undeclared identifier '_CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS'
+##   _CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:15:3: error: use of undeclared identifier '_CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS'
+##   _CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:16:3: error: use of undeclared identifier '_CS_POSIX_V7_LPBIG_OFFBIG_LIBS'
+##   _CS_POSIX_V7_LPBIG_OFFBIG_LIBS,
+##   ^
+## ./decltests/x7/unistd.c:17:3: error: use of undeclared identifier '_CS_POSIX_V7_THREADS_CFLAGS'
+##   _CS_POSIX_V7_THREADS_CFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:18:3: error: use of undeclared identifier '_CS_POSIX_V7_THREADS_LDFLAGS'
+##   _CS_POSIX_V7_THREADS_LDFLAGS,
+##   ^
+## ./decltests/x7/unistd.c:19:3: error: use of undeclared identifier '_CS_POSIX_V7_WIDTH_RESTRICTED_ENVS'
+##   _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS,
+##   ^
+## ./decltests/x7/unistd.c:20:3: error: use of undeclared identifier '_CS_V7_ENV'
+##   _CS_V7_ENV,
+##   ^
+## ./decltests/x7/unistd.c:23:3: error: use of undeclared identifier '_PC_TIMESTAMP_RESOLUTION'
+##   _PC_TIMESTAMP_RESOLUTION,
+##   ^
+## ./decltests/x7/unistd.c:25:3: error: use of undeclared identifier '_SC_THREAD_ROBUST_PRIO_INHERIT'
+##   _SC_THREAD_ROBUST_PRIO_INHERIT,
+##   ^
+## ./decltests/x7/unistd.c:26:3: error: use of undeclared identifier '_SC_THREAD_ROBUST_PRIO_PROTECT'
+##   _SC_THREAD_ROBUST_PRIO_PROTECT,
+##   ^
+## fatal error: too many errors emitted, stopping now [-ferror-limit=]
+## 20 errors generated.
 utime.h
 utmp.h
-utmpx.h
++utmpx.h
 !varargs.h
 $ Explicitly unimplemented: contains only an <code>#error</code> directive
 $ telling the programmer to use <code>stdarg.h</code> instead.
-wchar.h
-wctype.h
-wordexp.h
+## In file included from htest.c:1:
+## /opt/local/libexec/llvm-3.1/bin/../lib/clang/3.1/include/varargs.h:25:4: error: "Please use <stdarg.h> instead of <varargs.h>"
+##   #error "Please use <stdarg.h> instead of <varargs.h>"
+##    ^
+## 1 error generated.
+*wchar.h
+$ Lacks all POSIX.1-2008 functions.
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:6:38: error: use of undeclared identifier 'open_wmemstream'
+##   FILE *(*a)(wchar_t **, size_t *) = open_wmemstream;
+##                                      ^
+## ./decltests/x7/wchar.c:9:7: error: use of undeclared identifier 'mbsnrtowcs'; did you mean 'mbsrtowcs'?
+##     = mbsnrtowcs;
+##       ^~~~~~~~~~
+##       mbsrtowcs
+## /usr/include/wchar.h:131:8: note: 'mbsrtowcs' declared here
+## size_t  mbsrtowcs(wchar_t * __restrict, const char ** __restrict, size_t,
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:8:12: error: incompatible pointer types initializing 'size_t (*)(wchar_t *, const char **, size_t, size_t, mbstate_t *)' with an expression of type 'size_t (wchar_t *restrict, const char **restrict, size_t, mbstate_t *restrict)' [-Werror,-Wincompatible-pointer-types]
+##   size_t (*b)(wchar_t *, const char **, size_t, size_t, mbstate_t *)
+##            ^
+## ./decltests/x7/wchar.c:11:7: error: use of undeclared identifier 'wcsnrtombs'; did you mean 'wcsrtombs'?
+##     = wcsnrtombs;
+##       ^~~~~~~~~~
+##       wcsrtombs
+## /usr/include/wchar.h:159:8: note: 'wcsrtombs' declared here
+## size_t  wcsrtombs(char * __restrict, const wchar_t ** __restrict, size_t,
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:10:12: error: incompatible pointer types initializing 'size_t (*)(char *, const wchar_t **, size_t, size_t, mbstate_t *)' with an expression of type 'size_t (char *restrict, const wchar_t **restrict, size_t, mbstate_t *restrict)' [-Werror,-Wincompatible-pointer-types]
+##   size_t (*c)(char *, const wchar_t **, size_t, size_t, mbstate_t *)
+##            ^
+## ./decltests/x7/wchar.c:13:47: error: use of undeclared identifier 'wcpcpy'; did you mean 'wcscpy'?
+##   wchar_t *(*d)(wchar_t *, const wchar_t *) = wcpcpy;
+##                                               ^~~~~~
+##                                               wcscpy
+## /usr/include/wchar.h:149:10: note: 'wcscpy' declared here
+## wchar_t *wcscpy(wchar_t * __restrict, const wchar_t * __restrict);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:14:55: error: use of undeclared identifier 'wcpncpy'; did you mean 'wcsncpy'?
+##   wchar_t *(*e)(wchar_t *, const wchar_t *, size_t) = wcpncpy;
+##                                                       ^~~~~~~
+##                                                       wcsncpy
+## /usr/include/wchar.h:156:10: note: 'wcsncpy' declared here
+## wchar_t *wcsncpy(wchar_t * __restrict , const wchar_t * __restrict, size_t);
+##          ^
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:15:36: error: use of undeclared identifier 'wcsdup'; did you mean 'wcscmp'?
+##   wchar_t *(*f)(const wchar_t *) = wcsdup;
+##                                    ^~~~~~
+##                                    wcscmp
+## /usr/include/wchar.h:147:5: note: 'wcscmp' declared here
+## int     wcscmp(const wchar_t *, const wchar_t *);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:15:14: error: incompatible pointer types initializing 'wchar_t *(*)(const wchar_t *)' with an expression of type 'int (const wchar_t *, const wchar_t *)' [-Werror,-Wincompatible-pointer-types]
+##   wchar_t *(*f)(const wchar_t *) = wcsdup;
+##              ^                     ~~~~~~
+## ./decltests/x7/wchar.c:16:44: error: use of undeclared identifier 'wcsnlen'; did you mean 'wcslen'?
+##   size_t   (*g)(const wchar_t *, size_t) = wcsnlen;
+##                                            ^~~~~~~
+##                                            wcslen
+## /usr/include/wchar.h:153:8: note: 'wcslen' declared here
+## size_t  wcslen(const wchar_t *);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:16:14: error: incompatible pointer types initializing 'size_t (*)(const wchar_t *, size_t)' with an expression of type 'size_t (const wchar_t *)' [-Werror,-Wincompatible-pointer-types]
+##   size_t   (*g)(const wchar_t *, size_t) = wcsnlen;
+##              ^                             ~~~~~~~
+## ./decltests/x7/wchar.c:18:49: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int    (*h)(const wchar_t *, const wchar_t *, locale_t) = wcscoll_l;
+##                                                 ^~~~~~~~
+## ./decltests/x7/wchar.c:18:61: error: use of undeclared identifier 'wcscoll_l'; did you mean 'wcscoll'?
+##   int    (*h)(const wchar_t *, const wchar_t *, locale_t) = wcscoll_l;
+##                                                             ^~~~~~~~~
+##                                                             wcscoll
+## /usr/include/wchar.h:148:5: note: 'wcscoll' declared here
+## int     wcscoll(const wchar_t *, const wchar_t *);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:18:12: error: incompatible pointer types initializing 'int (*)(const wchar_t *, const wchar_t *, int)' with an expression of type 'int (const wchar_t *, const wchar_t *)' [-Werror,-Wincompatible-pointer-types]
+##   int    (*h)(const wchar_t *, const wchar_t *, locale_t) = wcscoll_l;
+##            ^                                                ~~~~~~~~~
+## ./decltests/x7/wchar.c:19:51: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   size_t (*i)(wchar_t *, const wchar_t *, size_t, locale_t) = wcsxfrm_l;
+##                                                   ^~~~~~~~
+## ./decltests/x7/wchar.c:19:63: error: use of undeclared identifier 'wcsxfrm_l'; did you mean 'wcsxfrm'?
+##   size_t (*i)(wchar_t *, const wchar_t *, size_t, locale_t) = wcsxfrm_l;
+##                                                               ^~~~~~~~~
+##                                                               wcsxfrm
+## /usr/include/wchar.h:163:8: note: 'wcsxfrm' declared here
+## size_t  wcsxfrm(wchar_t * __restrict, const wchar_t * __restrict, size_t);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/wchar.c:19:12: error: incompatible pointer types initializing 'size_t (*)(wchar_t *, const wchar_t *, size_t, int)' with an expression of type 'size_t (wchar_t *restrict, const wchar_t *restrict, size_t)' [-Werror,-Wincompatible-pointer-types]
+##   size_t (*i)(wchar_t *, const wchar_t *, size_t, locale_t) = wcsxfrm_l;
+##            ^                                                  ~~~~~~~~~
+## ./decltests/x7/wchar.c:21:48: error: use of undeclared identifier 'wcscasecmp'
+##   int (*j)(const wchar_t *, const wchar_t *) = wcscasecmp;
+##                                                ^
+## ./decltests/x7/wchar.c:22:46: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int (*k)(const wchar_t *, const wchar_t *, locale_t) = wcscasecmp_l;
+##                                              ^~~~~~~~
+## fatal error: too many errors emitted, stopping now [-ferror-limit=]
+## 20 errors generated.
+*wctype.h
+$ Lacks explicit-locale character classification functions (POSIX.1-2008).
+## In file included from htest.c:2:
+## ./decltests/x7/wctype.c:6:26: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int       (*a)(wint_t, locale_t) = iswalnum_l;
+##                          ^~~~~~~~
+## ./decltests/x7/wctype.c:6:38: error: use of undeclared identifier 'iswalnum_l'; did you mean 'iswalnum'?
+##   int       (*a)(wint_t, locale_t) = iswalnum_l;
+##                                      ^~~~~~~~~~
+##                                      iswalnum
+## /usr/include/_wctype.h:72:1: note: 'iswalnum' declared here
+## iswalnum(wint_t _wc)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/wctype.c:6:15: error: incompatible pointer types initializing 'int (*)(wint_t, int)' with an expression of type 'int (wint_t)' [-Werror,-Wincompatible-pointer-types]
+##   int       (*a)(wint_t, locale_t) = iswalnum_l;
+##               ^                      ~~~~~~~~~~
+## ./decltests/x7/wctype.c:7:26: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int       (*b)(wint_t, locale_t) = iswalpha_l;
+##                          ^~~~~~~~
+## ./decltests/x7/wctype.c:7:38: error: use of undeclared identifier 'iswalpha_l'; did you mean 'iswalpha'?
+##   int       (*b)(wint_t, locale_t) = iswalpha_l;
+##                                      ^~~~~~~~~~
+##                                      iswalpha
+## /usr/include/_wctype.h:78:1: note: 'iswalpha' declared here
+## iswalpha(wint_t _wc)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/wctype.c:7:15: error: incompatible pointer types initializing 'int (*)(wint_t, int)' with an expression of type 'int (wint_t)' [-Werror,-Wincompatible-pointer-types]
+##   int       (*b)(wint_t, locale_t) = iswalpha_l;
+##               ^                      ~~~~~~~~~~
+## ./decltests/x7/wctype.c:8:26: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int       (*c)(wint_t, locale_t) = iswblank_l;
+##                          ^~~~~~~~
+## ./decltests/x7/wctype.c:8:38: error: use of undeclared identifier 'iswblank_l'; did you mean 'iswblank'?
+##   int       (*c)(wint_t, locale_t) = iswblank_l;
+##                                      ^~~~~~~~~~
+##                                      iswblank
+## /usr/include/wctype.h:63:1: note: 'iswblank' declared here
+## iswblank(wint_t _wc)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/wctype.c:8:15: error: incompatible pointer types initializing 'int (*)(wint_t, int)' with an expression of type 'int (wint_t)' [-Werror,-Wincompatible-pointer-types]
+##   int       (*c)(wint_t, locale_t) = iswblank_l;
+##               ^                      ~~~~~~~~~~
+## ./decltests/x7/wctype.c:9:26: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int       (*d)(wint_t, locale_t) = iswcntrl_l;
+##                          ^~~~~~~~
+## ./decltests/x7/wctype.c:9:38: error: use of undeclared identifier 'iswcntrl_l'; did you mean 'iswcntrl'?
+##   int       (*d)(wint_t, locale_t) = iswcntrl_l;
+##                                      ^~~~~~~~~~
+##                                      iswcntrl
+## /usr/include/_wctype.h:84:1: note: 'iswcntrl' declared here
+## iswcntrl(wint_t _wc)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/wctype.c:9:15: error: incompatible pointer types initializing 'int (*)(wint_t, int)' with an expression of type 'int (wint_t)' [-Werror,-Wincompatible-pointer-types]
+##   int       (*d)(wint_t, locale_t) = iswcntrl_l;
+##               ^                      ~~~~~~~~~~
+## ./decltests/x7/wctype.c:10:26: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int       (*e)(wint_t, locale_t) = iswdigit_l;
+##                          ^~~~~~~~
+## ./decltests/x7/wctype.c:10:38: error: use of undeclared identifier 'iswdigit_l'; did you mean 'iswdigit'?
+##   int       (*e)(wint_t, locale_t) = iswdigit_l;
+##                                      ^~~~~~~~~~
+##                                      iswdigit
+## /usr/include/_wctype.h:96:1: note: 'iswdigit' declared here
+## iswdigit(wint_t _wc)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/wctype.c:10:15: error: incompatible pointer types initializing 'int (*)(wint_t, int)' with an expression of type 'int (wint_t)' [-Werror,-Wincompatible-pointer-types]
+##   int       (*e)(wint_t, locale_t) = iswdigit_l;
+##               ^                      ~~~~~~~~~~
+## ./decltests/x7/wctype.c:11:26: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int       (*f)(wint_t, locale_t) = iswgraph_l;
+##                          ^~~~~~~~
+## ./decltests/x7/wctype.c:11:38: error: use of undeclared identifier 'iswgraph_l'; did you mean 'iswgraph'?
+##   int       (*f)(wint_t, locale_t) = iswgraph_l;
+##                                      ^~~~~~~~~~
+##                                      iswgraph
+## /usr/include/_wctype.h:102:1: note: 'iswgraph' declared here
+## iswgraph(wint_t _wc)
+## ^
+## In file included from htest.c:2:
+## ./decltests/x7/wctype.c:11:15: error: incompatible pointer types initializing 'int (*)(wint_t, int)' with an expression of type 'int (wint_t)' [-Werror,-Wincompatible-pointer-types]
+##   int       (*f)(wint_t, locale_t) = iswgraph_l;
+##               ^                      ~~~~~~~~~~
+## ./decltests/x7/wctype.c:12:26: error: type specifier missing, defaults to 'int' [-Werror,-Wimplicit-int]
+##   int       (*g)(wint_t, locale_t) = iswlower_l;
+##                          ^~~~~~~~
+## fatal error: too many errors emitted, stopping now [-ferror-limit=]
+## 20 errors generated.
++wordexp.h
+-xti.h
 arpa/ftp.h
-arpa/inet.h
++arpa/inet.h
 arpa/nameser.h
 arpa/nameser_compat.h
 arpa/telnet.h
 arpa/tftp.h
-%net/if.h
+@net/if.h
 $ Requires <code>sys/socket.h</code>.
 net/if_arp.h
 -net/ppp_defs.h
@@ -126,14 +1582,23 @@ $ Requires <code>netinet/in.h</code>.
 netinet/if_ether.h
 %netinet/igmp.h
 $ Requires <code>netinet/in.h</code>.
-netinet/in.h
+*netinet/in.h
+$ Lacks IPv6 support (POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x6/netinet_in.ip6.c:26:20: error: variable has incomplete type 'struct ipv6_mreq'
+##   struct ipv6_mreq ee;
+##                    ^
+## ./decltests/x6/netinet_in.ip6.c:26:10: note: forward declaration of 'struct ipv6_mreq'
+##   struct ipv6_mreq ee;
+##          ^
+## 1 error generated.
 netinet/in_systm.h
 netinet/ip.h
 %netinet/ip6.h
 $ Requires <code>netinet/in.h</code>.
 %netinet/ip_icmp.h
 $ Requires <code>netinet/ip.h</code>.
-netinet/tcp.h
++netinet/tcp.h
 netinet/udp.h
 %protocols/routed.h
 $ Requires <code>sys/socket.h</code>.
@@ -171,13 +1636,81 @@ rpcsvc/nfs_prot.h
 -rpcsvc/nis.h
 -rpcsvc/nislib.h
 rpcsvc/nlm_prot.h
-rpcsvc/rex.h
+!rpcsvc/rex.h
+$ Can't be used together with <code>sgtty.h</code>.
+## In file included from htest.c:2:
+## /usr/include/rpcsvc/rex.h:68:8: error: redefinition of 'sgttyb'
+## struct sgttyb {
+##        ^
+## /usr/include/sys/ioctl_compat.h:98:8: note: previous definition is here
+## struct sgttyb {
+##        ^
+## In file included from htest.c:2:
+## /usr/include/rpcsvc/rex.h:145:8: error: redefinition of 'tchars'
+## struct tchars {
+##        ^
+## /usr/include/sys/ioctl_compat.h:75:8: note: previous definition is here
+## struct tchars {
+##        ^
+## In file included from htest.c:2:
+## /usr/include/rpcsvc/rex.h:159:8: error: redefinition of 'ltchars'
+## struct ltchars {
+##        ^
+## /usr/include/sys/ioctl_compat.h:84:8: note: previous definition is here
+## struct ltchars {
+##        ^
+## 3 errors generated.
 rpcsvc/rquota.h
 rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
-%rpcsvc/yp_prot.h
+!rpcsvc/yp_prot.h
 $ Requires <code>rpc/rpc.h</code>.
+$ Can't be used together with <code>dlfcn.h</code>.
+$ Can't be used together with <code>unctrl.h</code>.
+$ Can't be used together with <code>ndbm.h</code>.
+$ Can't be used together with <code>stdbool.h</code>.
+$ Can't be used together with <code>curses.h</code>.
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:94:22: error: cannot combine with previous 'int' declaration specifier
+## typedef unsigned int bool;
+##                      ^
+## /opt/local/libexec/llvm-3.1/bin/../lib/clang/3.1/include/stdbool.h:31:14: note: expanded from macro 'bool'
+## #define bool _Bool
+##              ^
+## 1 error generated.
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:94:22: error: cannot combine with previous 'int' declaration specifier
+## typedef unsigned int bool;
+##                      ^
+## /opt/local/libexec/llvm-3.1/bin/../lib/clang/3.1/include/stdbool.h:31:14: note: expanded from macro 'bool'
+## #define bool _Bool
+##              ^
+## 1 error generated.
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:119:3: error: typedef redefinition with different types ('struct datum' vs 'struct datum')
+## } datum;
+##   ^
+## /usr/include/ndbm.h:97:3: note: previous definition is here
+## } datum;
+##   ^
+## 1 error generated.
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:94:22: error: cannot combine with previous 'int' declaration specifier
+## typedef unsigned int bool;
+##                      ^
+## /opt/local/libexec/llvm-3.1/bin/../lib/clang/3.1/include/stdbool.h:31:14: note: expanded from macro 'bool'
+## #define bool _Bool
+##              ^
+## 1 error generated.
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:94:22: error: cannot combine with previous 'int' declaration specifier
+## typedef unsigned int bool;
+##                      ^
+## /opt/local/libexec/llvm-3.1/bin/../lib/clang/3.1/include/stdbool.h:31:14: note: expanded from macro 'bool'
+## #define bool _Bool
+##              ^
+## 1 error generated.
 rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 %sys/acct.h
@@ -187,43 +1720,188 @@ sys/errno.h
 sys/fcntl.h
 sys/file.h
 sys/ioctl.h
-sys/ipc.h
-sys/mman.h
++sys/ipc.h
+*sys/mman.h
+$ Lacks support for typed memory objects (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x6/sys_mman.tym.c:5:3: error: use of undeclared identifier 'POSIX_TYPED_MEM_ALLOCATE'
+##   POSIX_TYPED_MEM_ALLOCATE,
+##   ^
+## ./decltests/x6/sys_mman.tym.c:6:3: error: use of undeclared identifier 'POSIX_TYPED_MEM_ALLOCATE_CONTIG'
+##   POSIX_TYPED_MEM_ALLOCATE_CONTIG,
+##   ^
+## ./decltests/x6/sys_mman.tym.c:7:3: error: use of undeclared identifier 'POSIX_TYPED_MEM_MAP_ALLOCATABLE'
+##   POSIX_TYPED_MEM_MAP_ALLOCATABLE,
+##   ^
+## ./decltests/x6/sys_mman.tym.c:12:31: error: variable has incomplete type 'struct posix_typed_mem_info'
+##   struct posix_typed_mem_info tmi;
+##                               ^
+## ./decltests/x6/sys_mman.tym.c:12:10: note: forward declaration of 'struct posix_typed_mem_info'
+##   struct posix_typed_mem_info tmi;
+##          ^
+## ./decltests/x6/sys_mman.tym.c:16:7: error: use of undeclared identifier 'posix_mem_offset'
+##     = posix_mem_offset;
+##       ^
+## ./decltests/x6/sys_mman.tym.c:17:50: error: use of undeclared identifier 'posix_typed_mem_get_info'
+##   int (*b)(int, struct posix_typed_mem_info *) = posix_typed_mem_get_info;
+##                                                  ^
+## ./decltests/x6/sys_mman.tym.c:18:38: error: use of undeclared identifier 'posix_typed_mem_open'
+##   int (*c)(const char *, int, int) = posix_typed_mem_open;
+##                                      ^
+## 7 errors generated.
 sys/mount.h
-sys/msg.h
++sys/msg.h
 -sys/mtio.h
 sys/param.h
 sys/poll.h
 -sys/procfs.h
 sys/queue.h
 sys/reboot.h
-sys/resource.h
-sys/select.h
-sys/sem.h
-sys/shm.h
++sys/resource.h
++sys/select.h
++sys/sem.h
++sys/shm.h
 sys/signal.h
-sys/socket.h
+*sys/socket.h
+$ Lacks <code>MSG_NOSIGNAL</code> (POSIX.1-2008).
+$ Lacks correct types for <code>msg_iovlen</code>, <code>msg_controllen</code>, and <code>cmsg_len</code> (POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x7/sys_socket.c:5:3: error: use of undeclared identifier 'MSG_NOSIGNAL'
+##   MSG_NOSIGNAL,
+##   ^
+## 1 error generated.
+## In file included from htest.c:2:
+## ./decltests/x5/sys_socket.mht.c:12:18: error: incompatible pointer types initializing 'size_t *' (aka 'unsigned long *') with an expression of type 'int *' [-Werror,-Wincompatible-pointer-types]
+##   size_t        *smil = &sm->msg_iovlen;
+##                  ^      ~~~~~~~~~~~~~~~
+## ./decltests/x5/sys_socket.mht.c:13:18: error: incompatible pointer types initializing 'size_t *' (aka 'unsigned long *') with an expression of type 'socklen_t *' (aka 'unsigned int *') [-Werror,-Wincompatible-pointer-types]
+##   size_t        *smcl = &sm->msg_controllen;
+##                  ^      ~~~~~~~~~~~~~~~~~~~
+## ./decltests/x5/sys_socket.mht.c:14:19: error: incompatible pointer types initializing 'size_t *' (aka 'unsigned long *') with an expression of type 'socklen_t *' (aka 'unsigned int *') [-Werror,-Wincompatible-pointer-types]
+##   size_t         *scl = &sc->cmsg_len;
+##                   ^     ~~~~~~~~~~~~~
+## 3 errors generated.
 %sys/socketvar.h
 $ Requires <code>sys/types.h</code>.
-sys/stat.h
+*sys/stat.h
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## ./decltests/x7/sys_stat.xsi.c:5:48: error: use of undeclared identifier 'mknodat'; did you mean 'mknod'?
+##   int (*a)(int, const char *, mode_t, dev_t) = mknodat;
+##                                                ^~~~~~~
+##                                                mknod
+## /usr/include/sys/stat.h:436:5: note: 'mknod' declared here
+## int     mknod(const char *, mode_t, dev_t);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/sys_stat.xsi.c:5:9: error: incompatible pointer types initializing 'int (*)(int, const char *, mode_t, dev_t)' with an expression of type 'int (const char *, mode_t, dev_t)' [-Werror,-Wincompatible-pointer-types]
+##   int (*a)(int, const char *, mode_t, dev_t) = mknodat;
+##         ^                                      ~~~~~~~
+## 2 errors generated.
+## In file included from htest.c:2:
+## ./decltests/x7/sys_stat.c:6:46: error: use of undeclared identifier 'futimens'
+##   int (*a)(int, const struct timespec [2]) = futimens;
+##                                              ^
+## ./decltests/x7/sys_stat.c:7:65: error: use of undeclared identifier 'utimensat'
+##   int (*b)(int, const char *, const struct timespec [2], int) = utimensat;
+##                                                                 ^
+## ./decltests/x7/sys_stat.c:9:46: error: use of undeclared identifier 'fchmodat'; did you mean 'fchmod'?
+##   int (*c)(int, const char *, mode_t, int) = fchmodat;
+##                                              ^~~~~~~~
+##                                              fchmod
+## /usr/include/sys/stat.h:430:5: note: 'fchmod' declared here
+## int     fchmod(int, mode_t) __DARWIN_ALIAS(fchmod);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/sys_stat.c:9:9: error: incompatible pointer types initializing 'int (*)(int, const char *, mode_t, int)' with an expression of type 'int (int, mode_t)' [-Werror,-Wincompatible-pointer-types]
+##   int (*c)(int, const char *, mode_t, int) = fchmodat;
+##         ^                                    ~~~~~~~~
+## ./decltests/x7/sys_stat.c:10:53: error: use of undeclared identifier 'fstatat'; did you mean 'fstat'?
+##   int (*d)(int, const char *, struct stat *, int) = fstatat;
+##                                                     ^~~~~~~
+##                                                     fstat
+## /usr/include/sys/stat.h:431:5: note: 'fstat' declared here
+## int     fstat(int, struct stat *) __DARWIN_INODE64(fstat);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/sys_stat.c:10:9: error: incompatible pointer types initializing 'int (*)(int, const char *, struct stat *, int)' with an expression of type 'int (int, struct stat *)' [-Werror,-Wincompatible-pointer-types]
+##   int (*d)(int, const char *, struct stat *, int) = fstatat;
+##         ^                                           ~~~~~~~
+## ./decltests/x7/sys_stat.c:11:41: error: use of undeclared identifier 'mkdirat'; did you mean 'mkdir'?
+##   int (*e)(int, const char *, mode_t) = mkdirat;
+##                                         ^~~~~~~
+##                                         mkdir
+## /usr/include/sys/stat.h:433:5: note: 'mkdir' declared here
+## int     mkdir(const char *, mode_t);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/sys_stat.c:11:9: error: incompatible pointer types initializing 'int (*)(int, const char *, mode_t)' with an expression of type 'int (const char *, mode_t)' [-Werror,-Wincompatible-pointer-types]
+##   int (*e)(int, const char *, mode_t) = mkdirat;
+##         ^                               ~~~~~~~
+## ./decltests/x7/sys_stat.c:12:41: error: use of undeclared identifier 'mkfifoat'; did you mean 'mkfifo'?
+##   int (*f)(int, const char *, mode_t) = mkfifoat;
+##                                         ^~~~~~~~
+##                                         mkfifo
+## /usr/include/sys/stat.h:434:5: note: 'mkfifo' declared here
+## int     mkfifo(const char *, mode_t);
+##         ^
+## In file included from htest.c:2:
+## ./decltests/x7/sys_stat.c:12:9: error: incompatible pointer types initializing 'int (*)(int, const char *, mode_t)' with an expression of type 'int (const char *, mode_t)' [-Werror,-Wincompatible-pointer-types]
+##   int (*f)(int, const char *, mode_t) = mkfifoat;
+##         ^                               ~~~~~~~~
+## ./decltests/x7/sys_stat.c:15:15: error: use of undeclared identifier 'UTIME_NOW'
+##   g.tv_nsec = UTIME_NOW;
+##               ^
+## ./decltests/x7/sys_stat.c:16:15: error: use of undeclared identifier 'UTIME_OMIT'
+##   g.tv_nsec = UTIME_OMIT;
+##               ^
+## 12 errors generated.
 -sys/statfs.h
-sys/statvfs.h
++sys/statvfs.h
 sys/syscall.h
 sys/syslog.h
 sys/termios.h
-sys/time.h
++sys/time.h
 sys/timeb.h
-sys/times.h
++sys/times.h
 -sys/timex.h
 -sys/ttold.h
-sys/types.h
+*sys/types.h
+$ Lacks spinlock types (optional in POSIX.1-2001).
+$ Lacks thread barrier types (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## ./decltests/x6/sys_types.spi.c:7:1: error: unknown type name 'pthread_spinlock_t'; did you mean 'pthread_rwlock_t'?
+## pthread_spinlock_t aa;
+## ^~~~~~~~~~~~~~~~~~
+## pthread_rwlock_t
+## /usr/include/sys/types.h:342:35: note: 'pthread_rwlock_t' declared here
+## typedef __darwin_pthread_rwlock_t       pthread_rwlock_t;
+##                                         ^
+## 1 error generated.
+## In file included from htest.c:2:
+## ./decltests/x6/sys_types.bar.c:7:1: error: unknown type name 'pthread_barrier_t'; did you mean 'pthread_attr_t'?
+## pthread_barrier_t     aa;
+## ^~~~~~~~~~~~~~~~~
+## pthread_attr_t
+## /usr/include/sys/types.h:318:34: note: 'pthread_attr_t' declared here
+## typedef __darwin_pthread_attr_t         pthread_attr_t;
+##                                         ^
+## In file included from htest.c:2:
+## ./decltests/x6/sys_types.bar.c:8:1: error: unknown type name 'pthread_barrierattr_t'; did you mean 'pthread_mutexattr_t'?
+## pthread_barrierattr_t ab;
+## ^~~~~~~~~~~~~~~~~~~~~
+## pthread_mutexattr_t
+## /usr/include/sys/types.h:334:38: note: 'pthread_mutexattr_t' declared here
+## typedef __darwin_pthread_mutexattr_t    pthread_mutexattr_t;
+##                                         ^
+## 2 errors generated.
 sys/ucontext.h
-sys/uio.h
-sys/un.h
++sys/uio.h
++sys/un.h
 sys/unistd.h
 sys/user.h
-sys/utsname.h
-sys/wait.h
++sys/utsname.h
++sys/wait.h
 # Additional scansys state below, for --recheck.
 :cccmd ['clang']
 :unameversion 0

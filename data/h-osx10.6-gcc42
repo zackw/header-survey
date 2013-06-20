@@ -5,116 +5,576 @@
 :label MacOS X
 :version 10.6
 :compiler GCC 4.2 (Apple)
-:gen 2
+:gen 3
 -a.out.h
-aio.h
+*aio.h
+$ Doesn't define <code>time_t</code> (required by POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x7/aio.c: In function 'f':
+## decltests/x7/aio.c:11: error: 'time_t' undeclared (first use in this function)
+## decltests/x7/aio.c:11: error: (Each undeclared identifier is reported only once
+## decltests/x7/aio.c:11: error: for each function it appears in.)
+## decltests/x7/aio.c:11: error: 'es' undeclared (first use in this function)
 alloca.h
 ar.h
-assert.h
-complex.h
-cpio.h
-ctype.h
++assert.h
+!complex.h
+$ In strict conformance mode, any use of <code>I</code> raises an error.
+## In file included from htest.c:1:
+## decltests/c99/complex.c:5:40: error: imaginary constants are a GCC extension
+## decltests/c99/complex.c:6:40: error: imaginary constants are a GCC extension
+## decltests/c99/complex.c:7:40: error: imaginary constants are a GCC extension
+## decltests/c99/complex.c:9:42: error: imaginary constants are a GCC extension
+## decltests/c99/complex.c:10:42: error: imaginary constants are a GCC extension
+## decltests/c99/complex.c:11:42: error: imaginary constants are a GCC extension
++cpio.h
+*ctype.h
+$ Lacks explicit-locale character classification functions (POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x7/ctype.c:6: error: expected declaration specifiers or '...' before 'locale_t'
+## cc1: warnings being treated as errors
+## decltests/x7/ctype.c: In function 'f':
+## decltests/x7/ctype.c:9: warning: implicit declaration of function 'isalnum_l'
+## decltests/x7/ctype.c:9: error: 'bb' undeclared (first use in this function)
+## decltests/x7/ctype.c:9: error: (Each undeclared identifier is reported only once
+## decltests/x7/ctype.c:9: error: for each function it appears in.)
+## decltests/x7/ctype.c:10: warning: implicit declaration of function 'isalpha_l'
+## decltests/x7/ctype.c:11: warning: implicit declaration of function 'isblank_l'
+## decltests/x7/ctype.c:12: warning: implicit declaration of function 'iscntrl_l'
+## decltests/x7/ctype.c:13: warning: implicit declaration of function 'isdigit_l'
+## decltests/x7/ctype.c:14: warning: implicit declaration of function 'isgraph_l'
+## decltests/x7/ctype.c:15: warning: implicit declaration of function 'islower_l'
+## decltests/x7/ctype.c:16: warning: implicit declaration of function 'isprint_l'
+## decltests/x7/ctype.c:17: warning: implicit declaration of function 'ispunct_l'
+## decltests/x7/ctype.c:18: warning: implicit declaration of function 'isspace_l'
+## decltests/x7/ctype.c:19: warning: implicit declaration of function 'isupper_l'
+## decltests/x7/ctype.c:20: warning: implicit declaration of function 'isxdigit_l'
+## decltests/x7/ctype.c:21: warning: implicit declaration of function 'toupper_l'
+## decltests/x7/ctype.c:22: warning: implicit declaration of function 'tolower_l'
+curses.h
 -direct.h
-dirent.h
-dlfcn.h
+*dirent.h
+$ Lacks all POSIX.1-2008 functions.
+## In file included from htest.c:2:
+## decltests/x7/dirent.c: In function 'f':
+## decltests/x7/dirent.c:9: error: 'alphasort' undeclared (first use in this function)
+## decltests/x7/dirent.c:9: error: (Each undeclared identifier is reported only once
+## decltests/x7/dirent.c:9: error: for each function it appears in.)
+## cc1: warnings being treated as errors
+## decltests/x7/dirent.c:11: warning: implicit declaration of function 'dirfd'
+## decltests/x7/dirent.c:12: warning: implicit declaration of function 'fdopendir'
+## decltests/x7/dirent.c:12: warning: initialization makes pointer from integer without a cast
+## decltests/x7/dirent.c:15: warning: implicit declaration of function 'scandir'
++dlfcn.h
 -elf.h
 -endian.h
 err.h
-errno.h
-fcntl.h
-fenv.h
-float.h
-fmtmsg.h
-fnmatch.h
+*errno.h
+$ Lacks <code>ENOTRECOVERABLE</code> and <code>EOWNERDEAD</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x7/errno.c: In function 'fn':
+## decltests/x7/errno.c:6: error: 'ENOTRECOVERABLE' undeclared (first use in this function)
+## decltests/x7/errno.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x7/errno.c:6: error: for each function it appears in.)
+## decltests/x7/errno.c:7: error: 'EOWNERDEAD' undeclared (first use in this function)
+*fcntl.h
+$ Lacks all POSIX.1-2008 features.
+$ Lacks I/O scheduling functions (optional in POSIX.1-2001).
+$ Lacks synchronized I/O support (optional in Single Unix v2).
+## In file included from htest.c:2:
+## decltests/x7/fcntl.c:5: error: 'F_DUPFD_CLOEXEC' undeclared here (not in a function)
+## decltests/x7/fcntl.c:7: error: 'O_CLOEXEC' undeclared here (not in a function)
+## decltests/x7/fcntl.c:8: error: 'O_DIRECTORY' undeclared here (not in a function)
+## decltests/x7/fcntl.c:9: error: 'O_NOFOLLOW' undeclared here (not in a function)
+## decltests/x7/fcntl.c:10: error: 'O_TTY_INIT' undeclared here (not in a function)
+## decltests/x7/fcntl.c:13: error: 'openat' undeclared here (not in a function)
+## cc1: warnings being treated as errors
+## decltests/x7/fcntl.c:13: warning: initialization from incompatible pointer type
+## decltests/x7/fcntl.c:13: error: initializer element is not constant
+## In file included from htest.c:2:
+## decltests/x6/fcntl.adv.c:5: error: 'POSIX_FADV_NORMAL' undeclared here (not in a function)
+## decltests/x6/fcntl.adv.c:6: error: 'POSIX_FADV_SEQUENTIAL' undeclared here (not in a function)
+## decltests/x6/fcntl.adv.c:7: error: 'POSIX_FADV_RANDOM' undeclared here (not in a function)
+## decltests/x6/fcntl.adv.c:8: error: 'POSIX_FADV_WILLNEED' undeclared here (not in a function)
+## decltests/x6/fcntl.adv.c:9: error: 'POSIX_FADV_DONTNEED' undeclared here (not in a function)
+## decltests/x6/fcntl.adv.c:10: error: 'POSIX_FADV_NOREUSE' undeclared here (not in a function)
+## decltests/x6/fcntl.adv.c: In function 'f':
+## decltests/x6/fcntl.adv.c:15: error: 'posix_fadvise' undeclared (first use in this function)
+## decltests/x6/fcntl.adv.c:15: error: (Each undeclared identifier is reported only once
+## decltests/x6/fcntl.adv.c:15: error: for each function it appears in.)
+## cc1: warnings being treated as errors
+## decltests/x6/fcntl.adv.c:15: warning: initialization from incompatible pointer type
+## decltests/x6/fcntl.adv.c:16: error: 'posix_fallocate' undeclared (first use in this function)
+## decltests/x6/fcntl.adv.c:16: warning: initialization from incompatible pointer type
+## In file included from htest.c:2:
+## decltests/x5/fcntl.sio.c:6: error: 'O_RSYNC' undeclared here (not in a function)
++fenv.h
++float.h
++fmtmsg.h
++fnmatch.h
 fstab.h
 fts.h
-ftw.h
++ftw.h
 getopt.h
-glob.h
-grp.h
-iconv.h
++glob.h
++grp.h
++iconv.h
 ifaddrs.h
-inttypes.h
++inttypes.h
 -iohw.h
-iso646.h
-langinfo.h
++iso646.h
+*langinfo.h
+$ Lacks <code>nl_langinfo_l</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x7/langinfo.c:4: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/langinfo.c:4: error: 'nl_langinfo_l' undeclared here (not in a function)
 -lastlog.h
-libgen.h
-limits.h
++libgen.h
+*limits.h
+$ Lacks limit constants for timers (optional in Single Unix v2).
+## In file included from htest.c:2:
+## decltests/x5/limits.tmr.c:6:2: error: #error "_POSIX_CLOCKRES_MIN"
 -link.h
-locale.h
+*locale.h
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## decltests/x7/locale.c:5: error: 'LC_COLLATE_MASK' undeclared here (not in a function)
+## decltests/x7/locale.c:6: error: 'LC_CTYPE_MASK' undeclared here (not in a function)
+## decltests/x7/locale.c:7: error: 'LC_MESSAGES_MASK' undeclared here (not in a function)
+## decltests/x7/locale.c:8: error: 'LC_MONETARY_MASK' undeclared here (not in a function)
+## decltests/x7/locale.c:9: error: 'LC_NUMERIC_MASK' undeclared here (not in a function)
+## decltests/x7/locale.c:10: error: 'LC_TIME_MASK' undeclared here (not in a function)
+## decltests/x7/locale.c:11: error: 'LC_ALL_MASK' undeclared here (not in a function)
+## decltests/x7/locale.c: In function 'ff':
+## decltests/x7/locale.c:16: error: 'locale_t' undeclared (first use in this function)
+## decltests/x7/locale.c:16: error: (Each undeclared identifier is reported only once
+## decltests/x7/locale.c:16: error: for each function it appears in.)
+## cc1: warnings being treated as errors
+## decltests/x7/locale.c:16: warning: statement with no effect
+## decltests/x7/locale.c:16: error: expected ';' before 'a'
+## decltests/x7/locale.c:17: warning: implicit declaration of function 'locale_t'
+## decltests/x7/locale.c:17: error: 'b' undeclared (first use in this function)
+## decltests/x7/locale.c:17: error: called object 'locale_t(*(int *)&<erroneous-expression>)' is not a function
+## decltests/x7/locale.c:17: error: 'duplocale' undeclared (first use in this function)
+## decltests/x7/locale.c:17: warning: statement with no effect
+## decltests/x7/locale.c:18: warning: parameter names (without types) in function declaration
+## decltests/x7/locale.c:18: error: 'freelocale' undeclared (first use in this function)
+## decltests/x7/locale.c:18: warning: initialization from incompatible pointer type
+## decltests/x7/locale.c:19: error: 'd' undeclared (first use in this function)
+## decltests/x7/locale.c:19: error: expected expression before 'int'
+## decltests/x7/locale.c:19: error: called object 'locale_t(*(int *)&<erroneous-expression>)' is not a function
+## decltests/x7/locale.c:19: error: 'newlocale' undeclared (first use in this function)
+## decltests/x7/locale.c:19: warning: statement with no effect
+## decltests/x7/locale.c:20: error: 'e' undeclared (first use in this function)
+## decltests/x7/locale.c:20: error: called object 'locale_t(*(int *)&<erroneous-expression>)' is not a function
+## decltests/x7/locale.c:20: error: 'uselocale' undeclared (first use in this function)
+## decltests/x7/locale.c:20: warning: statement with no effect
 -malloc.h
-math.h
++math.h
 memory.h
 -mntent.h
-monetary.h
+*monetary.h
+$ Lacks <code>strfmon_l</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x7/monetary.c:4: error: expected ')' before 'll'
 -mqueue.h
 ndbm.h
-netdb.h
-nl_types.h
+*netdb.h
+$ Lacks <code>NI_NUMERICSCOPE</code> (POSIX.1-2001).
+## In file included from htest.c:2:
+## decltests/x6/netdb.nsc.c:12: error: 'NI_NUMERICSCOPE' undeclared here (not in a function)
++nl_types.h
 omp.h
 paths.h
-poll.h
-pthread.h
-pwd.h
-regex.h
++poll.h
+*pthread.h
+$ Lacks lock functions with timeouts (optional in POSIX.1-2001).
+$ Lacks per-thread clock functions (optional in POSIX.1-2001).
+$ Lacks process-shared thread barrier functions (optional in POSIX.1-2001).
+$ Lacks spinlock functions (optional in POSIX.1-2001).
+$ Lacks thread barrier functions (optional in POSIX.1-2001).
+$ Lacks robust mutexes (POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x6/pthread.tmo.c: In function 'f':
+## decltests/x6/pthread.tmo.c:7: error: 'pthread_mutex_timedlock' undeclared (first use in this function)
+## decltests/x6/pthread.tmo.c:7: error: (Each undeclared identifier is reported only once
+## decltests/x6/pthread.tmo.c:7: error: for each function it appears in.)
+## decltests/x6/pthread.tmo.c:9: error: 'pthread_rwlock_timedrdlock' undeclared (first use in this function)
+## decltests/x6/pthread.tmo.c:11: error: 'pthread_rwlock_timedwrlock' undeclared (first use in this function)
+## In file included from htest.c:2:
+## decltests/x6/pthread.cs.c: In function 'f':
+## decltests/x6/pthread.cs.c:6: error: expected declaration specifiers or '...' before 'clockid_t'
+## decltests/x6/pthread.cs.c:6: error: 'pthread_condattr_getclock' undeclared (first use in this function)
+## decltests/x6/pthread.cs.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x6/pthread.cs.c:6: error: for each function it appears in.)
+## decltests/x6/pthread.cs.c:7: error: expected declaration specifiers or '...' before 'clockid_t'
+## decltests/x6/pthread.cs.c:7: error: 'pthread_condattr_setclock' undeclared (first use in this function)
+## decltests/x6/pthread.cs.c:8: error: expected declaration specifiers or '...' before 'clockid_t'
+## decltests/x6/pthread.cs.c:8: error: 'pthread_getcpuclockid' undeclared (first use in this function)
+## cc1: warnings being treated as errors
+## In file included from htest.c:2:
+## decltests/x6/pthread.bar.tsh.c: In function 'f':
+## decltests/x6/pthread.bar.tsh.c:6: warning: type defaults to 'int' in declaration of 'pthread_barrierattr_t'
+## decltests/x6/pthread.bar.tsh.c:6: error: expected ';', ',' or ')' before '*' token
+## decltests/x6/pthread.bar.tsh.c:8: error: expected ')' before '*' token
+## In file included from htest.c:2:
+## decltests/x6/pthread.spi.c: In function 'f':
+## decltests/x6/pthread.spi.c:6: error: 'pthread_spinlock_t' undeclared (first use in this function)
+## decltests/x6/pthread.spi.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x6/pthread.spi.c:6: error: for each function it appears in.)
+## decltests/x6/pthread.spi.c:6: error: expected ';' before 'x'
+## decltests/x6/pthread.spi.c:7: error: expected ')' before '*' token
+## decltests/x6/pthread.spi.c:8: error: expected ')' before '*' token
+## decltests/x6/pthread.spi.c:9: error: expected ')' before '*' token
+## decltests/x6/pthread.spi.c:10: error: expected ')' before '*' token
+## decltests/x6/pthread.spi.c:11: error: expected ')' before '*' token
+## In file included from htest.c:2:
+## decltests/x6/pthread.bar.c:5: error: 'PTHREAD_BARRIER_SERIAL_THREAD' undeclared here (not in a function)
+## decltests/x6/pthread.bar.c: In function 'f':
+## decltests/x6/pthread.bar.c:10: error: 'pthread_barrier_t' undeclared (first use in this function)
+## decltests/x6/pthread.bar.c:10: error: (Each undeclared identifier is reported only once
+## decltests/x6/pthread.bar.c:10: error: for each function it appears in.)
+## cc1: warnings being treated as errors
+## decltests/x6/pthread.bar.c:10: warning: statement with no effect
+## decltests/x6/pthread.bar.c:10: error: expected ';' before 'xa'
+## decltests/x6/pthread.bar.c:11: error: 'pthread_barrierattr_t' undeclared (first use in this function)
+## decltests/x6/pthread.bar.c:11: warning: statement with no effect
+## decltests/x6/pthread.bar.c:11: error: expected ';' before 'xb'
+## decltests/x6/pthread.bar.c:13: error: expected ')' before '*' token
+## decltests/x6/pthread.bar.c:14: error: expected ')' before '*' token
+## decltests/x6/pthread.bar.c:16: error: expected ')' before '*' token
+## decltests/x6/pthread.bar.c:17: error: expected ')' before '*' token
+## decltests/x6/pthread.bar.c:18: error: expected ')' before '*' token
+## In file included from htest.c:2:
+## decltests/x7/pthread.c:5: error: 'PTHREAD_MUTEX_ROBUST' undeclared here (not in a function)
+## decltests/x7/pthread.c:6: error: 'PTHREAD_MUTEX_STALLED' undeclared here (not in a function)
+## decltests/x7/pthread.c: In function 'f':
+## decltests/x7/pthread.c:11: error: 'pthread_mutex_consistent' undeclared (first use in this function)
+## decltests/x7/pthread.c:11: error: (Each undeclared identifier is reported only once
+## decltests/x7/pthread.c:11: error: for each function it appears in.)
+## cc1: warnings being treated as errors
+## decltests/x7/pthread.c:11: warning: initialization from incompatible pointer type
+## decltests/x7/pthread.c:12: error: 'pthread_mutexattr_getrobust' undeclared (first use in this function)
+## decltests/x7/pthread.c:12: warning: initialization from incompatible pointer type
+## decltests/x7/pthread.c:13: error: 'pthread_mutexattr_setrobust' undeclared (first use in this function)
+## decltests/x7/pthread.c:13: warning: initialization from incompatible pointer type
++pwd.h
+-re_comp.h
++regex.h
 -regexp.h
 resolv.h
-sched.h
-search.h
-semaphore.h
-setjmp.h
+*sched.h
+$ Lacks <code>sched_setscheduler</code> and <code>sched_setparam</code> (Single Unix v2).
+$ Lacks <code>sched_rr_get_interval</code> (optional in Single Unix v2).
+$ Lacks support for sporadic scheduling (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## decltests/x5/sched.parm.c: In function 'f':
+## decltests/x5/sched.parm.c:15: error: expected ')' before 'struct'
+## cc1: warnings being treated as errors
+## decltests/x5/sched.parm.c:16: warning: parameter names (without types) in function declaration
+## decltests/x5/sched.parm.c:16: error: 'sched_getscheduler' undeclared (first use in this function)
+## decltests/x5/sched.parm.c:16: error: (Each undeclared identifier is reported only once
+## decltests/x5/sched.parm.c:16: error: for each function it appears in.)
+## decltests/x5/sched.parm.c:17: error: expected ')' before 'const'
+## decltests/x5/sched.parm.c:18: error: expected ')' before 'int'
+## In file included from htest.c:2:
+## decltests/x5/sched.rri.c: In function 'f':
+## decltests/x5/sched.rri.c:8: error: expected ')' before 'struct'
+## In file included from htest.c:2:
+## decltests/x6/sched.ss.c:20:2: error: #error "no sporadic server scheduling"
+!search.h
+$ Can't be used together with <code>rpcsvc/nfs_prot.h</code>.
+## In file included from htest.c:2:
+## /usr/include/search.h:20: error: redefinition of 'struct entry'
+*semaphore.h
+$ Lacks <code>sem_timedwait</code> (optional in POSIX.1-2001).
+## cc1: warnings being treated as errors
+## In file included from htest.c:2:
+## decltests/x6/semaphore.tmo.c: In function 'f':
+## decltests/x6/semaphore.tmo.c:6: warning: 'struct timespec' declared inside parameter list
+## decltests/x6/semaphore.tmo.c:6: warning: its scope is only this definition or declaration, which is probably not what you want
+## decltests/x6/semaphore.tmo.c:6: error: 'sem_timedwait' undeclared (first use in this function)
+## decltests/x6/semaphore.tmo.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x6/semaphore.tmo.c:6: error: for each function it appears in.)
++setjmp.h
 sgtty.h
-signal.h
-spawn.h
+*signal.h
+$ Lacks <code>psignal</code> and <code>psiginfo</code> (POSIX.1-2008).
+$ Lacks realtime signals (optional in Single Unix v2).
+## In file included from htest.c:2:
+## decltests/x7/signal.c: In function 'f':
+## decltests/x7/signal.c:6: error: 'psiginfo' undeclared (first use in this function)
+## decltests/x7/signal.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x7/signal.c:6: error: for each function it appears in.)
+## decltests/x7/signal.c:7: error: 'psignal' undeclared (first use in this function)
+## In file included from htest.c:2:
+## decltests/x5/signal.rts.c: In function 't':
+## decltests/x5/signal.rts.c:15: error: 'SIGRTMIN' undeclared (first use in this function)
+## decltests/x5/signal.rts.c:15: error: (Each undeclared identifier is reported only once
+## decltests/x5/signal.rts.c:15: error: for each function it appears in.)
+## decltests/x5/signal.rts.c:16: error: 'SIGRTMAX' undeclared (first use in this function)
+## decltests/x5/signal.rts.c: In function 'f':
+## decltests/x5/signal.rts.c:34: error: 'sigqueue' undeclared (first use in this function)
+## cc1: warnings being treated as errors
+## decltests/x5/signal.rts.c:35: warning: 'struct timespec' declared inside parameter list
+## decltests/x5/signal.rts.c:35: warning: its scope is only this definition or declaration, which is probably not what you want
+## decltests/x5/signal.rts.c:36: error: 'sigtimedwait' undeclared (first use in this function)
+## decltests/x5/signal.rts.c:37: error: 'sigwaitinfo' undeclared (first use in this function)
+*spawn.h
+$ Lacks scheduling controls (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## decltests/x6/spawn.ps.c:5: error: 'POSIX_SPAWN_SETSCHEDPARAM' undeclared here (not in a function)
+## decltests/x6/spawn.ps.c:6: error: 'POSIX_SPAWN_SETSCHEDULER' undeclared here (not in a function)
+## cc1: warnings being treated as errors
+## decltests/x6/spawn.ps.c: In function 'f':
+## decltests/x6/spawn.ps.c:11: warning: 'struct sched_param' declared inside parameter list
+## decltests/x6/spawn.ps.c:11: warning: its scope is only this definition or declaration, which is probably not what you want
+## decltests/x6/spawn.ps.c:12: error: 'posix_spawnattr_getschedparam' undeclared (first use in this function)
+## decltests/x6/spawn.ps.c:12: error: (Each undeclared identifier is reported only once
+## decltests/x6/spawn.ps.c:12: error: for each function it appears in.)
+## decltests/x6/spawn.ps.c:12: warning: initialization from incompatible pointer type
+## decltests/x6/spawn.ps.c:13: error: 'posix_spawnattr_getschedpolicy' undeclared (first use in this function)
+## decltests/x6/spawn.ps.c:13: warning: initialization from incompatible pointer type
+## decltests/x6/spawn.ps.c:14: warning: 'struct sched_param' declared inside parameter list
+## decltests/x6/spawn.ps.c:15: error: 'posix_spawnattr_setschedparam' undeclared (first use in this function)
+## decltests/x6/spawn.ps.c:15: warning: initialization from incompatible pointer type
+## decltests/x6/spawn.ps.c:16: error: 'posix_spawnattr_setschedpolicy' undeclared (first use in this function)
+## decltests/x6/spawn.ps.c:16: warning: initialization from incompatible pointer type
 stab.h
 -stdalign.h
-stdarg.h
++stdarg.h
 -stdatomic.h
-stdbool.h
-stddef.h
++stdbool.h
++stddef.h
 -stdfix.h
-stdint.h
-stdio.h
-stdlib.h
++stdint.h
+*stdio.h
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## decltests/x7/stdio.c: In function 'f':
+## decltests/x7/stdio.c:6: error: 'dprintf' undeclared (first use in this function)
+## decltests/x7/stdio.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x7/stdio.c:6: error: for each function it appears in.)
+## decltests/x7/stdio.c:7: error: 'fmemopen' undeclared (first use in this function)
+## cc1: warnings being treated as errors
+## decltests/x7/stdio.c:8: warning: implicit declaration of function 'ssize_t'
+## decltests/x7/stdio.c:8: error: 'c' undeclared (first use in this function)
+## decltests/x7/stdio.c:8: error: expected expression before 'char'
+## decltests/x7/stdio.c:8: error: called object 'ssize_t(<erroneous-expression>)' is not a function
+## decltests/x7/stdio.c:8: error: 'getdelim' undeclared (first use in this function)
+## decltests/x7/stdio.c:9: error: 'd' undeclared (first use in this function)
+## decltests/x7/stdio.c:9: error: expected expression before 'char'
+## decltests/x7/stdio.c:9: error: called object 'ssize_t(<erroneous-expression>)' is not a function
+## decltests/x7/stdio.c:9: error: 'getline' undeclared (first use in this function)
+## decltests/x7/stdio.c:10: error: 'open_memstream' undeclared (first use in this function)
+## decltests/x7/stdio.c:11: error: 'renameat' undeclared (first use in this function)
+## decltests/x7/stdio.c:12: error: 'vdprintf' undeclared (first use in this function)
+*stdlib.h
+$ Lacks <code>mkdtemp</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x7/stdlib.c: In function 'f':
+## decltests/x7/stdlib.c:6: error: 'mkdtemp' undeclared (first use in this function)
+## decltests/x7/stdlib.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x7/stdlib.c:6: error: for each function it appears in.)
 -stdnoreturn.h
-string.h
-strings.h
+*string.h
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## decltests/x7/string.c:4: error: expected ')' before 'll'
+*strings.h
+$ Lacks <code>strcasecmp_l</code> and <code>strncasecmp_l</code> (POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x7/strings.c: In function 'f':
+## decltests/x7/strings.c:6: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/strings.c:6: error: 'strcasecmp_l' undeclared (first use in this function)
+## decltests/x7/strings.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x7/strings.c:6: error: for each function it appears in.)
+## decltests/x7/strings.c:7: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/strings.c:7: error: 'strncasecmp_l' undeclared (first use in this function)
 -stropts.h
 sysexits.h
-syslog.h
-tar.h
++syslog.h
++tar.h
+term.h
 termcap.h
 -termio.h
-termios.h
-tgmath.h
++termios.h
++tgmath.h
 -thread_db.h
 -threads.h
-time.h
+*time.h
+$ Lacks <code>strftime_l</code> (POSIX.1-2008).
+$ Lacks <code>CLOCK_MONOTONIC</code> (optional in POSIX.1-2001).
+$ Lacks <code>clock_getcpuclockid</code> (optional in POSIX.1-2001).
+$ Lacks <code>clock_nanosleep</code> (optional in POSIX.1-2001).
+$ Lacks timer support (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## decltests/x7/time.c: In function 'f':
+## decltests/x7/time.c:6: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/time.c:7: error: 'strftime_l' undeclared (first use in this function)
+## decltests/x7/time.c:7: error: (Each undeclared identifier is reported only once
+## decltests/x7/time.c:7: error: for each function it appears in.)
+## In file included from htest.c:2:
+## decltests/x6/time.mon.c:4: error: expected '=', ',', ';', 'asm' or '__attribute__' before 'xx'
+## cc1: warnings being treated as errors
+## decltests/x6/time.mon.c:6: warning: ISO C does not allow extra ';' outside of a function
+## In file included from htest.c:2:
+## decltests/x6/time.cpt.c: In function 'f':
+## decltests/x6/time.cpt.c:6: error: expected ')' before '*' token
+## In file included from htest.c:2:
+## decltests/x6/time.cs.c: In function 'f':
+## decltests/x6/time.cs.c:6: error: expected ')' before 'int'
+## In file included from htest.c:2:
+## decltests/x5/time.tmr.c: In function 'f':
+## decltests/x5/time.tmr.c:6: error: 'clockid_t' undeclared (first use in this function)
+## decltests/x5/time.tmr.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x5/time.tmr.c:6: error: for each function it appears in.)
+## decltests/x5/time.tmr.c:6: error: expected ';' before 'xx'
+## decltests/x5/time.tmr.c:7: error: 'TIMER_ABSTIME' undeclared (first use in this function)
+## decltests/x5/time.tmr.c:16: error: storage size of 'dd' isn't known
+## decltests/x5/time.tmr.c:20: error: expected ')' before 'struct'
+## decltests/x5/time.tmr.c:21: error: expected ')' before 'struct'
+## decltests/x5/time.tmr.c:22: error: expected ')' before 'const'
+## decltests/x5/time.tmr.c:24: error: expected ')' before 'struct'
+## cc1: warnings being treated as errors
+## decltests/x5/time.tmr.c:25: warning: parameter names (without types) in function declaration
+## decltests/x5/time.tmr.c:25: error: 'timer_delete' undeclared (first use in this function)
+## decltests/x5/time.tmr.c:26: error: expected ')' before 'struct'
+## decltests/x5/time.tmr.c:27: warning: parameter names (without types) in function declaration
+## decltests/x5/time.tmr.c:27: error: 'timer_getoverrun' undeclared (first use in this function)
+## decltests/x5/time.tmr.c:28: error: expected ')' before 'int'
+## In file included from htest.c:2:
+## decltests/x6/time.tmr.c:4: error: expected '=', ',', ';', 'asm' or '__attribute__' before 'xx'
+## cc1: warnings being treated as errors
+## decltests/x6/time.tmr.c:7: warning: ISO C does not allow extra ';' outside of a function
 -trace.h
 -uchar.h
-%ucontext.h
+!ucontext.h
 $ This OS deprecates <code>ucontext.h</code> and issues an
-$ <code>#error</code> if it is used without defining
-$ <code>_XOPEN_SOURCE</code>.
+$ <code>#error</code> if it is used without special preparation.
+## In file included from htest.c:1:
+## /usr/include/ucontext.h:42:2: error: #error ucontext routines are deprecated, and require _XOPEN_SOURCE to be defined
 ulimit.h
-unistd.h
+unctrl.h
+*unistd.h
+$ Lacks <code>fdatasync</code> (Single Unix v2).
+$ Lacks <code>_CS_V6_ENV</code> (POSIX.1-2001).
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## decltests/x5/unistd.sio.c: In function 'f':
+## decltests/x5/unistd.sio.c:6: error: 'fdatasync' undeclared (first use in this function)
+## decltests/x5/unistd.sio.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x5/unistd.sio.c:6: error: for each function it appears in.)
+## In file included from htest.c:2:
+## decltests/x6/unistd.c:20: error: '_CS_V6_ENV' undeclared here (not in a function)
+## In file included from htest.c:2:
+## decltests/x7/unistd.c:5: error: '_CS_POSIX_V7_ILP32_OFF32_CFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:6: error: '_CS_POSIX_V7_ILP32_OFF32_LDFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:7: error: '_CS_POSIX_V7_ILP32_OFF32_LIBS' undeclared here (not in a function)
+## decltests/x7/unistd.c:8: error: '_CS_POSIX_V7_ILP32_OFFBIG_CFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:9: error: '_CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:10: error: '_CS_POSIX_V7_ILP32_OFFBIG_LIBS' undeclared here (not in a function)
+## decltests/x7/unistd.c:11: error: '_CS_POSIX_V7_LP64_OFF64_CFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:12: error: '_CS_POSIX_V7_LP64_OFF64_LDFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:13: error: '_CS_POSIX_V7_LP64_OFF64_LIBS' undeclared here (not in a function)
+## decltests/x7/unistd.c:14: error: '_CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:15: error: '_CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:16: error: '_CS_POSIX_V7_LPBIG_OFFBIG_LIBS' undeclared here (not in a function)
+## decltests/x7/unistd.c:17: error: '_CS_POSIX_V7_THREADS_CFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:18: error: '_CS_POSIX_V7_THREADS_LDFLAGS' undeclared here (not in a function)
+## decltests/x7/unistd.c:19: error: '_CS_POSIX_V7_WIDTH_RESTRICTED_ENVS' undeclared here (not in a function)
+## decltests/x7/unistd.c:20: error: '_CS_V7_ENV' undeclared here (not in a function)
+## decltests/x7/unistd.c:23: error: '_PC_TIMESTAMP_RESOLUTION' undeclared here (not in a function)
+## decltests/x7/unistd.c:25: error: '_SC_THREAD_ROBUST_PRIO_INHERIT' undeclared here (not in a function)
+## decltests/x7/unistd.c:26: error: '_SC_THREAD_ROBUST_PRIO_PROTECT' undeclared here (not in a function)
+## decltests/x7/unistd.c:27: error: '_SC_V7_ILP32_OFF32' undeclared here (not in a function)
+## decltests/x7/unistd.c:28: error: '_SC_V7_ILP32_OFFBIG' undeclared here (not in a function)
+## decltests/x7/unistd.c:29: error: '_SC_V7_LP64_OFF64' undeclared here (not in a function)
+## decltests/x7/unistd.c:30: error: '_SC_V7_LPBIG_OFFBIG' undeclared here (not in a function)
+## decltests/x7/unistd.c:31: error: '_SC_XOPEN_UUCP' undeclared here (not in a function)
 utime.h
 utmp.h
-utmpx.h
++utmpx.h
 !varargs.h
 $ Explicitly unimplemented: contains only an <code>#error</code> directive
 $ telling the programmer to use <code>stdarg.h</code> instead.
-wchar.h
-wctype.h
-wordexp.h
+## In file included from htest.c:1:
+## /usr/lib/gcc/i686-apple-darwin10/4.2.1/include/varargs.h:4:2: error: #error "GCC no longer implements <varargs.h>."
+## /usr/lib/gcc/i686-apple-darwin10/4.2.1/include/varargs.h:5:2: error: #error "Revise your code to use <stdarg.h>."
+*wchar.h
+$ Lacks all POSIX.1-2008 functions.
+## In file included from htest.c:2:
+## decltests/x7/wchar.c: In function 'f':
+## decltests/x7/wchar.c:6: error: 'open_wmemstream' undeclared (first use in this function)
+## decltests/x7/wchar.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x7/wchar.c:6: error: for each function it appears in.)
+## decltests/x7/wchar.c:9: error: 'mbsnrtowcs' undeclared (first use in this function)
+## decltests/x7/wchar.c:11: error: 'wcsnrtombs' undeclared (first use in this function)
+## decltests/x7/wchar.c:13: error: 'wcpcpy' undeclared (first use in this function)
+## decltests/x7/wchar.c:14: error: 'wcpncpy' undeclared (first use in this function)
+## decltests/x7/wchar.c:15: error: 'wcsdup' undeclared (first use in this function)
+## decltests/x7/wchar.c:16: error: 'wcsnlen' undeclared (first use in this function)
+## decltests/x7/wchar.c:18: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wchar.c:18: error: 'wcscoll_l' undeclared (first use in this function)
+## decltests/x7/wchar.c:19: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wchar.c:19: error: 'wcsxfrm_l' undeclared (first use in this function)
+## decltests/x7/wchar.c:21: error: 'wcscasecmp' undeclared (first use in this function)
+## decltests/x7/wchar.c:22: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wchar.c:22: error: 'wcscasecmp_l' undeclared (first use in this function)
+## decltests/x7/wchar.c:23: error: 'wcsncasecmp' undeclared (first use in this function)
+## decltests/x7/wchar.c:24: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wchar.c:24: error: 'wcsncasecmp_l' undeclared (first use in this function)
+*wctype.h
+$ Lacks explicit-locale character classification functions (POSIX.1-2008).
+## In file included from htest.c:2:
+## decltests/x7/wctype.c: In function 'f':
+## decltests/x7/wctype.c:6: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:6: error: 'iswalnum_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x7/wctype.c:6: error: for each function it appears in.)
+## decltests/x7/wctype.c:7: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:7: error: 'iswalpha_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:8: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:8: error: 'iswblank_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:9: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:9: error: 'iswcntrl_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:10: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:10: error: 'iswdigit_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:11: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:11: error: 'iswgraph_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:12: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:12: error: 'iswlower_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:13: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:13: error: 'iswprint_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:14: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:14: error: 'iswpunct_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:15: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:15: error: 'iswspace_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:16: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:16: error: 'iswupper_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:17: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:17: error: 'iswxdigit_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:18: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:18: error: 'towlower_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:19: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:19: error: 'towupper_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:20: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:20: error: 'wctype_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:21: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:21: error: 'iswctype_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:22: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:22: error: 'wctrans_l' undeclared (first use in this function)
+## decltests/x7/wctype.c:23: error: expected declaration specifiers or '...' before 'locale_t'
+## decltests/x7/wctype.c:23: error: 'towctrans_l' undeclared (first use in this function)
++wordexp.h
+-xti.h
 arpa/ftp.h
-arpa/inet.h
++arpa/inet.h
 arpa/nameser.h
 arpa/nameser_compat.h
 arpa/telnet.h
 arpa/tftp.h
-%net/if.h
+@net/if.h
 $ Requires <code>sys/socket.h</code>.
 net/if_arp.h
 -net/ppp_defs.h
@@ -124,14 +584,18 @@ $ Requires <code>netinet/in.h</code>.
 netinet/if_ether.h
 %netinet/igmp.h
 $ Requires <code>netinet/in.h</code>.
-netinet/in.h
+*netinet/in.h
+$ Lacks IPv6 support (POSIX.1-2001).
+## In file included from htest.c:2:
+## decltests/x6/netinet_in.ip6.c: In function 'f':
+## decltests/x6/netinet_in.ip6.c:26: error: storage size of 'ee' isn't known
 netinet/in_systm.h
 netinet/ip.h
 %netinet/ip6.h
 $ Requires <code>netinet/in.h</code>.
 %netinet/ip_icmp.h
 $ Requires <code>netinet/ip.h</code>.
-netinet/tcp.h
++netinet/tcp.h
 netinet/udp.h
 %protocols/routed.h
 $ Requires <code>sys/socket.h</code>.
@@ -169,13 +633,34 @@ rpcsvc/nfs_prot.h
 -rpcsvc/nis.h
 -rpcsvc/nislib.h
 rpcsvc/nlm_prot.h
-rpcsvc/rex.h
+!rpcsvc/rex.h
+$ Can't be used together with <code>sgtty.h</code>.
+## In file included from htest.c:2:
+## /usr/include/rpcsvc/rex.h:68: error: redefinition of 'struct sgttyb'
+## /usr/include/rpcsvc/rex.h:145: error: redefinition of 'struct tchars'
+## /usr/include/rpcsvc/rex.h:159: error: redefinition of 'struct ltchars'
 rpcsvc/rquota.h
 rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
-%rpcsvc/yp_prot.h
+!rpcsvc/yp_prot.h
 $ Requires <code>rpc/rpc.h</code>.
+$ Can't be used together with <code>dlfcn.h</code>.
+$ Can't be used together with <code>unctrl.h</code>.
+$ Can't be used together with <code>ndbm.h</code>.
+$ Can't be used together with <code>stdbool.h</code>.
+$ Can't be used together with <code>curses.h</code>.
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:94: error: two or more data types in declaration specifiers
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:94: error: two or more data types in declaration specifiers
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:119: error: conflicting types for 'datum'
+## /usr/include/ndbm.h:97: error: previous declaration of 'datum' was here
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:94: error: two or more data types in declaration specifiers
+## In file included from htest.c:3:
+## /usr/include/rpcsvc/yp_prot.h:94: error: two or more data types in declaration specifiers
 rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 %sys/acct.h
@@ -185,43 +670,96 @@ sys/errno.h
 sys/fcntl.h
 sys/file.h
 sys/ioctl.h
-sys/ipc.h
-sys/mman.h
++sys/ipc.h
+*sys/mman.h
+$ Lacks support for typed memory objects (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## decltests/x6/sys_mman.tym.c:5: error: 'POSIX_TYPED_MEM_ALLOCATE' undeclared here (not in a function)
+## decltests/x6/sys_mman.tym.c:6: error: 'POSIX_TYPED_MEM_ALLOCATE_CONTIG' undeclared here (not in a function)
+## decltests/x6/sys_mman.tym.c:7: error: 'POSIX_TYPED_MEM_MAP_ALLOCATABLE' undeclared here (not in a function)
+## decltests/x6/sys_mman.tym.c: In function 'f':
+## decltests/x6/sys_mman.tym.c:12: error: storage size of 'tmi' isn't known
+## decltests/x6/sys_mman.tym.c:13: error: request for member 'posix_tmi_length' in something not a structure or union
+## cc1: warnings being treated as errors
+## decltests/x6/sys_mman.tym.c:13: warning: initialization from incompatible pointer type
+## decltests/x6/sys_mman.tym.c:16: error: 'posix_mem_offset' undeclared (first use in this function)
+## decltests/x6/sys_mman.tym.c:16: error: (Each undeclared identifier is reported only once
+## decltests/x6/sys_mman.tym.c:16: error: for each function it appears in.)
+## decltests/x6/sys_mman.tym.c:16: warning: initialization from incompatible pointer type
+## decltests/x6/sys_mman.tym.c:17: error: 'posix_typed_mem_get_info' undeclared (first use in this function)
+## decltests/x6/sys_mman.tym.c:17: warning: initialization from incompatible pointer type
+## decltests/x6/sys_mman.tym.c:18: error: 'posix_typed_mem_open' undeclared (first use in this function)
+## decltests/x6/sys_mman.tym.c:18: warning: initialization from incompatible pointer type
 sys/mount.h
-sys/msg.h
++sys/msg.h
 -sys/mtio.h
 sys/param.h
 sys/poll.h
 -sys/procfs.h
 sys/queue.h
 sys/reboot.h
-sys/resource.h
-sys/select.h
-sys/sem.h
-sys/shm.h
++sys/resource.h
++sys/select.h
++sys/sem.h
++sys/shm.h
 sys/signal.h
-sys/socket.h
+*sys/socket.h
+$ Lacks <code>MSG_NOSIGNAL</code> (POSIX.1-2008).
+$ Lacks correct types for <code>msg_iovlen</code>, <code>msg_controllen</code>, and <code>cmsg_len</code> (POSIX.1-2001).
+## In file included from htest.c:2:
+## decltests/x7/sys_socket.c:5: error: 'MSG_NOSIGNAL' undeclared here (not in a function)
+## cc1: warnings being treated as errors
+## In file included from htest.c:2:
+## decltests/x5/sys_socket.mht.c: In function 'ff':
+## decltests/x5/sys_socket.mht.c:12: warning: initialization from incompatible pointer type
+## decltests/x5/sys_socket.mht.c:13: warning: initialization from incompatible pointer type
+## decltests/x5/sys_socket.mht.c:14: warning: initialization from incompatible pointer type
 %sys/socketvar.h
 $ Requires <code>sys/types.h</code>.
-sys/stat.h
+*sys/stat.h
+$ Lacks all POSIX.1-2008 features.
+## In file included from htest.c:2:
+## decltests/x7/sys_stat.xsi.c: In function 'f':
+## decltests/x7/sys_stat.xsi.c:5: error: 'mknodat' undeclared (first use in this function)
+## decltests/x7/sys_stat.xsi.c:5: error: (Each undeclared identifier is reported only once
+## decltests/x7/sys_stat.xsi.c:5: error: for each function it appears in.)
+## In file included from htest.c:2:
+## decltests/x7/sys_stat.c: In function 'f':
+## decltests/x7/sys_stat.c:6: error: 'futimens' undeclared (first use in this function)
+## decltests/x7/sys_stat.c:6: error: (Each undeclared identifier is reported only once
+## decltests/x7/sys_stat.c:6: error: for each function it appears in.)
+## decltests/x7/sys_stat.c:7: error: 'utimensat' undeclared (first use in this function)
+## decltests/x7/sys_stat.c:9: error: 'fchmodat' undeclared (first use in this function)
+## decltests/x7/sys_stat.c:10: error: 'fstatat' undeclared (first use in this function)
+## decltests/x7/sys_stat.c:11: error: 'mkdirat' undeclared (first use in this function)
+## decltests/x7/sys_stat.c:12: error: 'mkfifoat' undeclared (first use in this function)
+## decltests/x7/sys_stat.c:15: error: 'UTIME_NOW' undeclared (first use in this function)
+## decltests/x7/sys_stat.c:16: error: 'UTIME_OMIT' undeclared (first use in this function)
 -sys/statfs.h
-sys/statvfs.h
++sys/statvfs.h
 sys/syscall.h
 sys/syslog.h
 sys/termios.h
-sys/time.h
++sys/time.h
 sys/timeb.h
-sys/times.h
++sys/times.h
 -sys/timex.h
 -sys/ttold.h
-sys/types.h
+*sys/types.h
+$ Lacks spinlock types (optional in POSIX.1-2001).
+$ Lacks thread barrier types (optional in POSIX.1-2001).
+## In file included from htest.c:2:
+## decltests/x6/sys_types.spi.c:7: error: expected '=', ',', ';', 'asm' or '__attribute__' before 'aa'
+## In file included from htest.c:2:
+## decltests/x6/sys_types.bar.c:7: error: expected '=', ',', ';', 'asm' or '__attribute__' before 'aa'
+## decltests/x6/sys_types.bar.c:8: error: expected '=', ',', ';', 'asm' or '__attribute__' before 'ab'
 sys/ucontext.h
-sys/uio.h
-sys/un.h
++sys/uio.h
++sys/un.h
 sys/unistd.h
 sys/user.h
-sys/utsname.h
-sys/wait.h
++sys/utsname.h
++sys/wait.h
 # Additional scansys state below, for --recheck.
 :cccmd ['/usr/bin/gcc']
 :unameversion 0
