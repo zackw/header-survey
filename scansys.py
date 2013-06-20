@@ -623,6 +623,7 @@ class Metadata:
 
             if (self.ccid.find("GCC") != -1 or
                 self.ccid.find("gcc") != -1 or
+                self.ccid.find("clang") != -1 or
                 self.ccid.find("LLVM") != -1):
                 # gcc & llvm are a little _too_ picky with just the
                 # first four...
@@ -1002,6 +1003,8 @@ class DeclTest:
     def note_failure(self, header, errors):
         # If this test has no label, it is the "baseline" requirement
         # for its header, so the header is considered BUGGY.
+        for e in errors[2:]:
+            header.append_ahid(e)
         std = self.STANDARD_NAMES[self.std]
         if self.label is None:
             header.state = Header.BUGGY
@@ -1026,8 +1029,6 @@ class DeclTest:
             else:
                 lacking = "Lacks %s (%s)." % (label, std)
             header.append_avis(lacking)
-            for e in errors[2:]:
-                header.append_ahid(e)
 
 class Dataset:
     """Holds all the data collected over the course of one run."""
