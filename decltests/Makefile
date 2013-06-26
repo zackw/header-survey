@@ -11,7 +11,8 @@ O     := $(TESTS:.ini=.o)
 # the 1995 amendment to C89 as C89, but some systems treat that as C99
 # material.
 
-CFLAGS = -O -std=c99 -pedantic -W -Wall -Wno-deprecated-declarations -Werror
+CFLAGS = -O -std=c99 -pedantic -W -Wall -Werror \
+-Wno-deprecated-declarations -Wno-unknown-pragmas
 
 trial: $(O)
 

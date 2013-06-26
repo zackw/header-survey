@@ -270,7 +270,13 @@ class TestTypes(TestComponent):
         for k,v in items.items():
             if self.pp_special_key(k, v): continue
 
-            if v == "opaque":
+            k = " ".join(k.split("."))
+
+            if v[:5] == "expr:":
+                pitems[k] = TestDecl(self.infname, self.std, self.ann,
+                                     tag=k, dtype=k, init=v[5:])
+
+            elif v == "opaque":
                 # Just test that a local variable of this type can be declared.
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
                                      tag=k, dtype=k)
