@@ -101,8 +101,11 @@ def crunch_fncall(val):
         call = []
         argdecl = []
         for t, v in zip(calltypes, string.letters[:len(calltypes)]):
-            call.append(v)
-            argdecl.append(t + " " + v)
+            if len(t) >= 7 and t[:5] == "expr(" and t[-1] == ")":
+                call.append(t[5:-1])
+            else:
+                call.append(v)
+                argdecl.append(t + " " + v)
         call = ", ".join(call)
         argdecl = ", ".join(argdecl)
 
@@ -238,32 +241,6 @@ class TestComponent:
             items[k].generate(outf)
         outf.write("\n")
 
-class TestPreamble(TestComponent):
-    def preprocess(self, items):
-        self.header  = items["header"]
-        self.globals = items.get("global", "").strip()
-        self.extra_includes = items.get("extra_includes", "").split()
-        for k in items.keys():
-            if (k != "global" and k != "header" and k != "baseline"
-                and k != "extra_includes"):
-                raise RuntimeError("%s: unrecognized preamble item '%s'"
-                                   % (self.infname, k))
-
-    def generate(self, outf):
-        # It simplifies matters if we just always request the highest
-        # relevant level of _XOPEN_SOURCE.
-        outf.write("#define _XOPEN_SOURCE 700\n")
-        outf.write("#include <%s>\n\n" % self.header)
-
-        if self.globals != "":
-            outf.write(self.globals)
-            outf.write("\n\n")
-
-    def gen_extra_includes(self, outf):
-        for h in self.extra_includes:
-            outf.write("#include <%s>\n" % h)
-        outf.write("\n")
-
 class TestTypes(TestComponent):
     def preprocess(self, items):
         pitems = {}
@@ -272,9 +249,9 @@ class TestTypes(TestComponent):
 
             k = " ".join(k.split("."))
 
-            if v[:5] == "expr:":
+            if len(v) >= 7 and v[:5] == "expr(" and v[-1] == ")":
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=k, init=v[5:])
+                                     tag=k, dtype=k, init=v[5:-1])
 
             elif v == "opaque":
                 # Just test that a local variable of this type can be declared.
@@ -303,6 +280,9 @@ class TestTypes(TestComponent):
             elif v == "unsigned" or v == "integral" or v == "arithmetic":
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
                                      tag=k, dtype=k, init="1")
+            elif v == "floating":
+                pitems[k] = TestDecl(self.infname, self.std, self.ann,
+                                     tag=k, dtype=k, init="6.02e23")
             else:
                 raise RuntimeError("%s [types:%s:%s]: %s: "
                                    "unimplemented type category %s"
@@ -359,6 +339,11 @@ class TestConstants(TestComponent):
             elif v.find(">") != -1 or v.find("<") != -1 or v.find("=") != -1:
                 pitems[k] = TestCondition(self.infname, self.std, self.ann,
                                           tag=k, expr=k + " " + v)
+            elif v == "str":
+                # testing for a string literal
+                pitems[k] = TestDecl(self.infname, self.std, self.ann,
+                                     tag=k, dtype="const char $[]",
+                                     init = "\"\"" + k + "\"\"")
             else:
                 if v == "": v = "int"
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
@@ -479,7 +464,6 @@ class TestSpecial(TestComponent):
 
 class TestProgram:
     COMPONENTS = {
-        "preamble"  : TestPreamble,
         "types"     : TestTypes,
         "structs"   : TestStructs,
         "constants" : TestConstants,
@@ -490,30 +474,71 @@ class TestProgram:
     }
 
     def __init__(self, fname):
+        self.header = None
+        self.baseline = None
+        self.global_decls = ""
         self.infname = fname
+        self.extra_includes = []
+        for k in self.COMPONENTS.keys():
+            setattr(self, k, [])
 
+        self.load(fname)
+
+    def load(self, fname):
         # We would like to use RawConfigParser but that wasn't available
         # in 2.0, so instead we always use get() with raw=1.
         spec = ConfigParser.ConfigParser()
         spec.optionxform = lambda x: x # make option names case sensitive
         spec.read(fname)
 
-        self.header   = spec.get("preamble", "header", raw=1)
-        self.baseline = spec.get("preamble", "baseline", raw=1)
-
-        for k in self.COMPONENTS.keys():
-            setattr(self, k, [])
-
         for sect in spec.sections():
             what, std, ann = splitto(sect, ":", 3)
             items = {}
             for k in spec.options(sect):
                 items[k] = spec.get(sect, k, raw=1)
-            getattr(self, what).append(self.COMPONENTS[what](fname, std, ann,
-                                                             items))
+            if what == "preamble":
+                if std != "" or ann != "":
+                    raise RuntimeError("%s: [preamble] section cannot be "
+                                       "annotated" % fname)
+                self.load_preamble(fname, items)
+            else:
+                getattr(self, what).append(
+                    self.COMPONENTS[what](fname, std, ann, items))
+
+    def load_preamble(self, fname, items):
+        if self.header is None:
+            self.header = items["header"]
+        del items["header"]
+
+        if self.baseline is None:
+            self.baseline = items["baseline"]
+        del items["baseline"]
+
+        if items.has_key("global"):
+            if self.global_decls != "":
+                self.global_decls = self.global_decls + "\n" + items["global"]
+            else:
+                self.global_decls = items["global"]
+            del items["global"]
+
+        if items.has_key("extra_includes"):
+            self.extra_includes.extend(items["extra_includes"].split())
+            del items["extra_includes"]
+
+        if items.has_key("includes"):
+            for h in items["includes"].split():
+                if h.endswith(".h"): h = h[:-2]
+                h = "_".join(h.split("/")) + ".ini"
+                self.load(os.path.join(os.path.dirname(fname), h))
+            del items["includes"]
+
+        if len(items) > 0:
+            raise RuntimeError("%s: unrecognized [preamble] items: %s"
+                               % (fname, ", ".join(items.keys())))
 
     def generate(self, outf):
-        for c in self.preamble:  c.generate(outf)
+        self.gen_preamble(outf)
+
         for c in self.types:     c.generate(outf)
         for c in self.structs:   c.generate(outf)
         for c in self.constants: c.generate(outf)
@@ -524,10 +549,28 @@ class TestProgram:
         # that take a va_list argument, but doesn't declare va_list
         # itself.  they happen at this point because they can spoil
         # tests for types, structs, constants, and globals.
-        for c in self.preamble:  c.gen_extra_includes(outf)
+        self.gen_extra_includes(outf)
+
         for c in self.functions: c.generate(outf)
         for c in self.fn_macros: c.generate(outf)
         for c in self.special:   c.generate(outf)
+
+    def gen_preamble(self, outf):
+        # It simplifies matters if we just always request the highest
+        # relevant level of _XOPEN_SOURCE.
+        outf.write("#define _XOPEN_SOURCE 700\n")
+        outf.write("#include <%s>\n\n" % self.header)
+
+        if self.global_decls != "":
+            outf.write(self.global_decls)
+            outf.write("\n\n")
+
+    def gen_extra_includes(self, outf):
+        if len(self.extra_includes) == 0: return
+        for h in self.extra_includes:
+            outf.write("#include <%s>\n" % h)
+        outf.write("\n")
+
 
 def main():
     if len(sys.argv) == 2:
