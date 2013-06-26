@@ -141,6 +141,7 @@ def maybe_fix_ConfigParser():
             r'(?P<value>.*)$'            # everything up to eol
             )
         p = ConfigParser.ConfigParser()
+        test.seek(0)
         p.readfp(test)
 
 maybe_fix_ConfigParser()
