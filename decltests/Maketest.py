@@ -105,7 +105,7 @@ def crunch_fncall(val):
                 call.append(t[5:-1])
             else:
                 call.append(v)
-                argdecl.append(t + " " + v)
+                argdecl.append(mkdeclarator(t, v))
         call = ", ".join(call)
         argdecl = ", ".join(argdecl)
 
