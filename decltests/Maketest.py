@@ -60,7 +60,9 @@ def mkdeclarator(dtype, name):
     # (this is mainly for function pointer declarations).  Otherwise it
     # goes at the end.
     ds = splitto(dtype, "$", 2)
-    if ds[0][-1] in idchars:
+    if name == "": # for function prototypes with argument name omitted
+        return ds[0] + ds[1]
+    elif ds[0][-1] in idchars:
         return ds[0] + " " + name + ds[1]
     else:
         return ds[0] + name + ds[1]
@@ -96,7 +98,7 @@ def crunch_fncall(val):
         else:
             calltypes = argtypes
 
-        argtypes = ", ".join(argtypes)
+        argtypes = ", ".join([mkdeclarator(x, "") for x in argtypes])
 
         call = []
         argdecl = []
