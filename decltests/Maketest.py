@@ -275,6 +275,10 @@ class TestTypes(TestComponent):
                 # Just test that a local variable of this type can be declared.
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
                                      tag=k, dtype=k)
+            elif v == "opaque struct":
+                # Same as "opaque" but tacks "struct" on the beginning of the typename.
+                pitems[k] = TestDecl(self.infname, self.std, self.ann,
+                                     tag=k, dtype="struct " + k)
             elif v == "incomplete":
                 # Test that a pointer to this type can be declared.
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
