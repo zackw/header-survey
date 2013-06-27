@@ -300,8 +300,9 @@ class TestStructs(TestComponent):
                 raise RuntimeError("%s [structs:%s:%s]: %s: missing field name"
                                    % (self.infname, self.std, self.ann, k))
             # "s_TAG" is shorthand for "struct TAG", as "option" names
-            # cannot contain spaces
+            # cannot contain spaces; similarly, "u_TAG" for "union TAG"
             if typ[:2] == "s_": typ = "struct " + typ[2:]
+            if typ[:2] == "u_": typ = "union " + typ[2:]
 
             # There are two tests for each field, because some systems
             # have "harmless" divergences from the precise type
@@ -313,16 +314,25 @@ class TestStructs(TestComponent):
             #
             # If the declared type is "integral" or "arithmetic"
             # we skip the first test.
+            #
+            # If the declared type is "O:something", we chop off the
+            # O: and skip the second test.  (O is for Opaque, but this
+            # should be used for any non-scalar type.)
             argv=mkdeclarator(mk_pointer_to(typ), "xx")
+            opaque = 0
+            if v.startswith("O:"):
+                v = v[2:]
+                opaque = 1
             if v != "integral" and v != "arithmetic":
                 pitems[k+".1"] = TestFn(self.infname, self.std, self.ann,
                                         tag=k+".1",
                                         rtype=mk_pointer_to(v), argv=argv,
                                         body="return &xx->" + field)
-            pitems[k+".2"] = TestFn(self.infname, self.std, self.ann,
-                                    tag=k+".2",
-                                    rtype="void", argv=argv,
-                                    body="xx->" + field + " = 0")
+            if not opaque:
+                pitems[k+".2"] = TestFn(self.infname, self.std, self.ann,
+                                        tag=k+".2",
+                                        rtype="void", argv=argv,
+                                        body="xx->" + field + " = 0")
 
         self.items = pitems
 
