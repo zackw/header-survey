@@ -336,16 +336,26 @@ class TestStructs(TestComponent):
             # If the declared type is "O:something", we chop off the
             # O: and skip the second test.  (O is for Opaque, but this
             # should be used for any non-scalar type.)
+            #
+            # If the declared type ends with [], we adjust the first test
+            # to avoid attempting to return an array (which is invalid)
+            # and skip the second test.
             argv=mkdeclarator(mk_pointer_to(typ), "xx")
             opaque = 0
+            addressop = "&"
             if v.startswith("O:"):
                 v = v[2:]
                 opaque = 1
+            if v.endswith("[]"):
+                v = v[:-2]
+                opaque = 1
+                addressop = ""
             if v != "integral" and v != "arithmetic":
                 pitems[k+".1"] = TestFn(self.infname, self.std, self.ann,
                                         tag=k+".1",
                                         rtype=mk_pointer_to(v), argv=argv,
-                                        body="return &xx->" + field)
+                                        body="return %sxx->%s" % (addressop,
+                                                                  field))
             if not opaque:
                 pitems[k+".2"] = TestFn(self.infname, self.std, self.ann,
                                         tag=k+".2",
