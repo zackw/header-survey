@@ -165,18 +165,26 @@ class TestItem:
 
 idchars = string.letters + string.digits + "_"
 class TestDecl(TestItem):
-    def __init__(self, infname, std, ann, tag, dtype, init=""):
+    def __init__(self, infname, std, ann, tag, dtype, init="", cond=""):
         TestItem.__init__(self, infname, std, ann, tag)
 
         self.dtype = squishwhite(dtype)
         self.init = squishwhite(init)
+        self.cond = squishwhite(cond)
 
     def _generate(self, outf):
         decl = mkdeclarator(self.dtype, self.name)
+        if self.cond != "":
+            if self.cond[0] == '?':
+                outf.write("#if %s\n" % self.cond[1:])
+            else:
+                outf.write("#ifdef %s\n" % self.cond)
         if self.init == "":
             outf.write(decl + ";\n")
         else:
             outf.write("%s = %s;\n" % (decl, self.init))
+        if self.cond != "":
+            outf.write("#endif\n")
 
 class TestFn(TestItem):
     def __init__(self, infname, std, ann, tag, rtype="", argv="", body=""):
@@ -205,13 +213,21 @@ class TestFn(TestItem):
             outf.write("%s { %s }\n" % (decl, self.body))
 
 class TestCondition(TestItem):
-    def __init__(self, infname, std, ann, tag, expr):
+    def __init__(self, infname, std, ann, tag, expr, cond=""):
         TestItem.__init__(self, infname, std, ann, tag)
         self.expr = squishwhite(expr)
+        self.cond = squishwhite(cond)
 
     def _generate(self, outf):
+        if self.cond != "":
+            if self.cond[0] == '?':
+                outf.write("#if %s\n" % self.cond[1:])
+            else:
+                outf.write("#ifdef %s\n" % self.cond)
         outf.write("extern char %s[(%s) ? 1 : -1];\n"
                    % (self.name, self.expr))
+        if self.cond != "":
+            outf.write("#endif\n")
 
 class TestComponent:
     def __init__(self, infname, std, ann, items):
@@ -345,21 +361,55 @@ class TestConstants(TestComponent):
         for k,v in items.items():
             if self.pp_special_key(k, v): continue
 
-            if v.find("$") != -1:
+            # Constants may be conditionally defined; notably, X/Open
+            # specifies lots of these in limits.h and unistd.h.  To
+            # handle this, when the value starts with "ifdef:", we
+            # wrap #ifdef NAME ... #endif around the test.  It can
+            # also start with "if CONDITION:" which case we wrap #if
+            # CONDITION ... #endif around the test.  Note that in the
+            # latter case, CONDITION may not contain a colon.
+            cond = ""
+            if v.startswith("ifdef:"):
+                cond = k
+                v = v[6:]
+            elif v.startswith("if "):
+                colon = v.find(":")
+                if colon == -1:
+                    raise RuntimeError("%s [constants:%s:%s]: %s: "
+                                       "ill-formed #if expression"
+                                       % (self.infname, self.std, self.ann, k))
+                cond = '?'+v[3:colon]
+                v = v[(colon+1):]
+
+            # If 'k' starts with a dollar sign, it is not a real
+            # constant name; 'v' is an expression to be tested
+            # literally.  Otherwise, if 'v' contains dollar signs,
+            # each of them is replaced with 'k' (the constant name) to
+            # form the expression to test; or if it starts with a
+            # relational operator, 'k' is inserted before the
+            # operator.
+            if k.startswith("$"):
                 pitems[k] = TestCondition(self.infname, self.std, self.ann,
-                                          tag=k, expr=dollar_re.sub(k, v))
+                                          tag=k, expr=v, cond=cond)
+            elif v.find("$") != -1:
+                pitems[k] = TestCondition(self.infname, self.std, self.ann,
+                                          tag=k, expr=dollar_re.sub(k, v),
+                                          cond=cond)
             elif v.find(">") != -1 or v.find("<") != -1 or v.find("=") != -1:
                 pitems[k] = TestCondition(self.infname, self.std, self.ann,
-                                          tag=k, expr=k + " " + v)
+                                          tag=k, expr=k + " " + v,
+                                          cond=cond)
             elif v == "str":
                 # testing for a string literal
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
                                      tag=k, dtype="const char $[]",
-                                     init = "\"\"" + k + "\"\"")
+                                     init = "\"\"" + k + "\"\"",
+                                     cond=cond)
             else:
                 if v == "": v = "int"
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=v, init=k)
+                                     tag=k, dtype=v, init=k,
+                                     cond=cond)
         self.items = pitems
 
 class TestGlobals(TestComponent):
