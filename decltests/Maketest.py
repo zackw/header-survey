@@ -296,6 +296,7 @@ class TestTypes(TestComponent):
                 pitems[k] = TestFn(self.infname, self.std, self.ann,
                                    tag=k, argv="struct " + k + " *xx")
 
+            # ??? Can we do better about enforcing signed/unsigned/floating/integralness?
             elif v == "signed":
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
                                      tag=k, dtype=k, init="-1")
@@ -305,6 +306,9 @@ class TestTypes(TestComponent):
             elif v == "floating":
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
                                      tag=k, dtype=k, init="6.02e23")
+            elif v == "scalar":
+                pitems[k] = TestDecl(self.infname, self.std, self.ann,
+                                     tag=k, dtype=k, init="0")
             else:
                 raise RuntimeError("%s [types:%s:%s]: %s: "
                                    "unimplemented type category %s"
@@ -483,7 +487,7 @@ class TestFnMacros(TestComponent):
                                tag=k,
                                rtype = rtype,
                                argv  = argdecl,
-                               body  = "return %s(%s);" % (k, call))
+                               body  = "%s%s(%s);" % (return_, k, call))
         self.items = pitems
 
 class TestSpecial(TestComponent):
