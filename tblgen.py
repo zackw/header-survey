@@ -51,7 +51,7 @@ from string import punctuation as _punctuation
 # Generation number expected by the current revision of this program.
 # Should match scansys.py.
 MIN_ACCEPTABLE_GENERATION_NO = 1
-MAX_ACCEPTABLE_GENERATION_NO = 2
+MAX_ACCEPTABLE_GENERATION_NO = 3
 
 def sorthdr(hs):
     """Sort a list of pathnames, ASCII case-insensitively.
@@ -256,17 +256,21 @@ class HeaderNotes(object):
 
         states = set(v[0] for v in self.state.itervalues())
         label = ''
-        for c in ('Y', 'P', 'B', 'N', 'X'):
-            if c in states:
-                label += c
-                states.remove(c)
-        if len(states) > 0:
-            raise RuntimeError("{}: unrecognized label char(s) {}. Data: {!r}"
-                               .format(self.header,
-                                       ''.join(c for c in states),
-                                       self.state))
+        if len(states) == 1:
+            label = states.pop()
+        elif len(states) == 2:
+            if 'P' in states and 'PD' in states:
+                label = 'PD'
+            elif 'I' in states and 'ID' in states:
+                label = 'ID'
+            elif 'C' in states and 'CD' in states:
+                label = CD
+            else:
+                label = 'CC'
+        else:
+            label = 'CC'
 
-        if label == 'Y' or label == 'N':
+        if label == 'A' or label == 'C':
             elt = T.div
             for v in self.state.itervalues():
                 if len(v[1]) > 0:
@@ -275,9 +279,6 @@ class HeaderNotes(object):
         else:
             elt = T.summary
 
-        # We don't have icons for combinations involving X.
-        if 'X' in label: label = 'X'
-
         return elt(label, class_ = label.lower())
 
     def output_ann(self):
@@ -285,21 +286,30 @@ class HeaderNotes(object):
         H = genshi.HTML
         T = genshi.builder.tag
 
+        default_text = {
+            'X' : "No data.",
+            'A' : "Absent.",
+            'B' : "Unusuably buggy [DETAILS MISSING].",
+            'P' : "Present.",
+            'PD': "Present, has dependencies [DETAILS MISSING].",
+            'I' : "Incomplete [DETAILS MISSING].",
+            'ID': "Incomplete, has dependencies [DETAILS MISSING].",
+            'C' : "Complete.",
+            'CD': "Complete, has dependencies [DETAILS MISSING].",
+        }
+
         merged_anns = collections.defaultdict(list)
         for compiler, notes in self.state.iteritems():
             if len(notes[1]) > 0:
                 text = " ".join(notes[1])
             else:
-                if notes[0] == 'P' or notes[0] == 'B':
+                text = default_text[notes[0]]
+                if "DETAILS MISSING" in text:
                     sys.stderr.write("{}: warning: details missing for {}"
                                      " (state {})".format(self.header,
                                                           compiler,
                                                           notes[0]))
-                text = ({ 'Y': "Usable.",
-                          'P': "Requires something [DETAILS MISSING].",
-                          'B': "Unusably buggy [DETAILS MISSING].",
-                          'N': "Absent.",
-                          'X': "No data." })[notes[0]]
+
             merged_anns[text].append(compiler)
 
         final_anns = []
@@ -412,19 +422,24 @@ class Dataset(object):
                     prev_item.annotate(tags['compiler'], l)
                 else:
                     line = line.replace('\\', '/')
-                    if line[0] in _punctuation:
+                    if line[0] not in _punctuation:
+                        p = 'P' # Present
+                        l = line
+                    else:
                         p = line[0]
                         l = line[1:]
-                        if p == '!': p = 'B'
-                        elif p == '%': p = 'P'
-                        elif p == '-': p = 'N'
+                        if p == '-':   p = 'A'  # Absent
+                        elif p == '!': p = 'B'  # Buggy
+                        elif p == '%': p = 'PD' # Present, Dependent
+                        elif p == '+': p = 'C'  # Complete
+                        elif p == '@': p = 'CD' # Complete, Dependent
+                        elif p == '*': p = 'I'  # Incomplete
+                        elif p == '&': p = 'ID' # Incomplete, Dependent
                         else:
                             raise RuntimeError("{}:{}: "
                                                "unsupported tag symbol: {}"
                                                .format(fname, lno+1, p))
-                    else:
-                        p = 'Y'
-                        l = line
+
                     if l in items:
                         raise RuntimeError("{}: duplicate header-line {!r}"
                                            .format(fname, line))
@@ -470,10 +485,11 @@ class Dataset(object):
             self.items[h] = HeaderNotes(h, self.compiler, tag)
 
     def fixup(self, stds):
-        if self.gen == 2:
-            # In a generation 2 data set, any header that isn't listed is
-            # a header that was added to the baselines after the inventory
-            # was taken.
+        if self.gen == 3 or self.gen == 2:
+            # In a generation 2 or 3 data set, any header that isn't
+            # listed is a header that was added to the baselines after
+            # the inventory was taken.
+            # We don't need to correct anything else.
             for s in stds:
                 for h in s:
                     self.ensure(h, 'X')
@@ -494,7 +510,7 @@ class Dataset(object):
                                     'xti.h'))
             for s in stds:
                 for h in s:
-                    self.ensure(h, 'X' if h in exceptions else 'N')
+                    self.ensure(h, 'X' if h in exceptions else 'P')
 
         elif self.gen < 1:
             raise RuntimeError("generation {} is too old".format(self.gen))

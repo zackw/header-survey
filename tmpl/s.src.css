@@ -51,11 +51,9 @@ td {
   padding: 8px 6px 0;
 }
 
-.x,
-.y, .p, .b, .n,
-.yp, .yb, .yn, .pb, .pn, .bn,
-.ypb, .ypn, .ybn, .pbn,
-.ypbn {
+.x, .a, .b, .p, .i, .c, .d,
+.pd, .id, .cd, .cc
+{
   text-indent: -9999em;
   width: 30px;
   height: 30px;
@@ -67,14 +65,11 @@ td {
 .cl  /* category leftmost */    { border-left: 1px solid black; }
 .cb  /* category bottommost */  { border-bottom: 1px solid black; }
 
-.x.cl,
-.y.cl, .p.cl, .b.cl, .n.cl,
-.yp.cl, .yb.cl, .yn.cl, .pb.cl, .pn.cl, .bn.cl,
-.ypb.cl, .ypn.cl, .ybn.cl, .pbn.cl,
-.ypbn.cl {
+.x.cl, .a.cl, .b.cl, .p.cl, .i.cl, .c.cl, .d.cl,
+.pd.cl, .id.cl, .cd.cl, .cc.cl
+{
   width: 29px;
 }
-
 
 /* background colors */
 thead         { background-color: hsl(0,0%,87%); }
@@ -151,7 +146,7 @@ td { font-size: 9px; line-height: 9px; }
   line-height: 15px;
   font-weight: normal;
 }
-.key-y, .key-p, .key-b, .key-n, .key-x {
+.key-x, .key-a, .key-b, .key-p, .key-i, .key-c, .key-d, .key-cc {
   text-indent: -9999em;
   display: inline-block;
   vertical-align: middle;
@@ -159,32 +154,30 @@ td { font-size: 9px; line-height: 9px; }
   height: 12px;
   padding-right: 2px;
   background-image: url("spritesheet.png");
+  background-size: 264px 24px;
   background-clip: content-box;
-  background-size: 96px 96px;
   overflow: hidden;
 }
-.key-y { background-position:  -5px -30px; }
-.key-p { background-position:  -5px -54px; }
-.key-b { background-position: -30px  -5px; }
-.key-n { background-position: -54px  -5px; }
-.key-x { background-position:  -5px  -6px; }
 
-.x   { background-position:  0px    0px; }
-.y   { background-position:  0px  -30px; }
-.p   { background-position:  0px  -60px; }
-.b   { background-position: -30px   0px; }
-.n   { background-position: -60px   0px; }
-.yp  { background-position:  0px  -90px; }
-.yb  { background-position: -30px -30px; }
-.yn  { background-position: -60px -30px; }
-.pb  { background-position: -30px -60px; }
-.pn  { background-position: -60px -60px; }
-.bn  { background-position: -90px   0px; }
-.ypb { background-position: -30px -90px; }
-.ypn { background-position: -60px -90px; }
-.ybn { background-position: -90px -30px; }
-.pbn { background-position: -90px -60px; }
-.ypbn{ background-position: -90px -90px; }
+.key-x  { background-position:   -3px -5px; background-size: 220px 20px; }
+.key-a  { background-position:  -30px -6px; }
+.key-b  { background-position:  -54px -6px; }
+.key-p  { background-position:  -78px -6px; }
+.key-i  { background-position: -126px -6px; }
+.key-c  { background-position: -174px -6px; }
+.key-d  { background-position: -228px -3px; }
+.key-cc { background-position: -183px -3.5px; background-size: 198px 18px; }
+
+.x      { background-position:    0px 0px; }
+.a      { background-position:  -30px 0px; }
+.b      { background-position:  -60px 0px; }
+.p      { background-position:  -90px 0px; }
+.pd     { background-position: -120px 0px; }
+.i      { background-position: -150px 0px; }
+.id     { background-position: -180px 0px; }
+.c      { background-position: -210px 0px; }
+.cd     { background-position: -240px 0px; }
+.cc     { background-position: -300px 0px; }
 
 details {
   display: block;

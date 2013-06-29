@@ -1,99 +1,217 @@
-<?xml version="1.0"?>
-<!-- Copyright 2013 Zack Weinberg <zackw@panix.com> and other contributors.
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-     http://www.apache.org/licenses/LICENSE-2.0
-     There is NO WARRANTY. -->
-<svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:xlink="http://www.w3.org/1999/xlink"
-     version="1.1" viewBox="0 0 120 120">
-<defs>
-<symbol id="sY" viewBox="0 0 30 30">
-  <path fill="#4a4" d="m26,15a11,11,0,1,1,-22,0,11,11,0,1,1,22,0z"/>
-</symbol>
-<symbol id="sP" viewBox="0 0 30 30">
-  <path stroke-linejoin="round" stroke-linecap="round" stroke-width="3"
-        fill="none" stroke="#80c"
-        d="m27,15-9,3-3,9-3-9-9-3,9-3,3-9,3,9z"/>
-</symbol>
-<symbol id="sB" viewBox="0 0 30 30">
-  <path stroke-linecap="round" stroke-width="4" stroke="#d40000" fill="none"
-        d="m3,3,24,24m0-24-24,24"/>
-</symbol>
-<symbol id="sN" viewBox="0 0 30 30">
-  <path fill="none" stroke="#555"
-        d="m26,15a11,11,0,1,1,-22,0,11,11,0,1,1,22,0z"/>
-</symbol>
-<symbol id="sX" viewBox="0 0 30 30">
-  <path fill="#ff8000"
-        d="m16.14,20.82-0.4-2.2c0-0.36-0.04-0.68-0.04-0.92,0-1.64,0.36-1.64,1.72-3.04l1.48-1.52c1.92-2,2.56-3.36,2.56-5.08,0-3.84-2.6-6.24-6.6-6.24-2.28,0-4.36,0.6-6.32,1.96v3.24c2.12-1.56,4.08-2.36,5.76-2.36,2.36,0,3.92,1.44,3.92,3.44-0.08,1.24-0.56,2.28-1.76,3.4l-1.48,1.56c-2.04,2.2-2.36,3.12-2.36,5.48l-0.44,2.28h3.96m-2,2.56c-1.28,0-2.32,1.08-2.32,2.44,0,1.32,1.04,2.36,2.32,2.36s2.4-1.04,2.4-2.36c0-1.36-1.12-2.44-2.4-2.44"/>
-</symbol>
-</defs>
-<g id="x" transform="translate(0,0)">
-  <use xlink:href="#sX" x="7.5" y="7.5" width="15" height="15"/>
-</g>
-<g id="y" transform="translate(0,30)">
-  <use xlink:href="#sY" x="7.5" y="7.5" width="15" height="15"/>
-</g>
-<g id="p" transform="translate(0,60)">
-  <use xlink:href="#sP" x="7.5" y="7.5" width="15" height="15"/>
-</g>
-<g id="b" transform="translate(30,0)">
-  <use xlink:href="#sB" x="7.5" y="7.5" width="15" height="15"/>
-</g>
-<g id="n" transform="translate(60,0)">
-  <use xlink:href="#sN" x="7.5" y="7.5" width="15" height="15"/>
-</g>
-<g id="yp" transform="translate(0,90)">
-  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sP" x="15" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="yb" transform="translate(30,30)">
-  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sB" x="15" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="yn" transform="translate(60,30)">
-  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="pb" transform="translate(30,60)">
-  <use xlink:href="#sP" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sB" x="15" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="pn" transform="translate(60,60)">
-  <use xlink:href="#sP" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="bn" transform="translate(90,0)">
-  <use xlink:href="#sB" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="ypb" transform="translate(30,90)">
-  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sP" x="15" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sB" x="7.5" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="ypn" transform="translate(60,90)">
-  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sP" x="15" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sN" x="7.5" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="ybn" transform="translate(90,30)">
-  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sB" x="7.5" y="15" width="7.5" height="7.5"/>
-  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="pbn" transform="translate(90,60)">
-  <use xlink:href="#sP" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sB" x="7.5" y="15" width="7.5" height="7.5"/>
-  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
-</g>
-<g id="ypbn" transform="translate(90,90)">
-  <use xlink:href="#sY" x="7.5" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sP" x="15" y="7.5" width="7.5" height="7.5"/>
-  <use xlink:href="#sB" x="7.5" y="15" width="7.5" height="7.5"/>
-  <use xlink:href="#sN" x="15" y="15" width="7.5" height="7.5"/>
-</g>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
 
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="330"
+   height="30"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.48.4 r9939"
+   sodipodi:docname="spritesheet.svg"
+   inkscape:export-filename="/home/zack/projects/ha/header-survey/tmpl/spritesheet.png"
+   inkscape:export-xdpi="90"
+   inkscape:export-ydpi="90">
+  <defs
+     id="defs4">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath3030">
+      <path
+         style="fill:#ffffff;fill-opacity:1;stroke:none"
+         d="m 253.75,3.75 0,7.5 11.25,11.25 0,2.5 -20,0 0,-20 z"
+         id="path3032"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="ccccccc" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath3795">
+      <path
+         style="fill:#ffffff;fill-opacity:1;stroke:none"
+         d="m 134.8125,6.5625 0,5.625 8.4375,8.4375 -0.75,1.875 -15,0 0,-15 z"
+         id="path3797"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="ccccccc" />
+    </clipPath>
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="19.087344"
+     inkscape:cx="188.02569"
+     inkscape:cy="16.292658"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="true"
+     showborder="true"
+     inkscape:window-width="1920"
+     inkscape:window-height="1147"
+     inkscape:window-x="0"
+     inkscape:window-y="27"
+     inkscape:window-maximized="1"
+     borderlayer="true"
+     inkscape:showpageshadow="true">
+    <inkscape:grid
+       type="xygrid"
+       id="grid3331"
+       empspacing="6"
+       visible="true"
+       enabled="true"
+       snapvisiblegridlinesonly="true"
+       spacingx="2.5px"
+       spacingy="2.5px"
+       originx="0px"
+       originy="0px" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="path4245"
+       inkscape:connector-curvature="0"
+       d="m 232.5,15 a 7.5,7.5 0 0 1 -15,0 7.5,7.5 0 1 1 15,0 z"
+       style="fill:#118811;fill-opacity:1" />
+    <path
+       id="path4246"
+       inkscape:connector-curvature="0"
+       d="M 68.571429,8.5714286 81.428572,21.428571 m 0,-12.8571424 -12.857143,12.8571424"
+       style="fill:none;stroke:#dd0000;stroke-width:2.14285707;stroke-linecap:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+    <path
+       id="path4248"
+       inkscape:connector-curvature="0"
+       d="m 15.646754,18.311836 -0.22693,-1.251896 c 0,-0.204856 -0.02269,-0.38695 -0.02269,-0.523521 0,-0.933232 0.204237,-0.933232 0.975801,-1.729894 l 0.839644,-0.864947 C 18.301847,12.80349 18.664936,12.02959 18.664936,11.050835 18.664936,8.8657057 17.189886,7.5 14.920578,7.5 c -1.293505,0 -2.473545,0.3414263 -3.585506,1.1153263 v 1.8437027 c 1.202733,-0.8877088 2.314694,-1.342944 3.267802,-1.342944 1.338893,0 2.223922,0.8194233 2.223922,1.957511 -0.04539,0.705615 -0.317703,1.297421 -0.998494,1.934749 l -0.839645,0.887709 c -1.157347,1.251898 -1.338891,1.775418 -1.338891,3.118361 l -0.249624,1.297421 h 2.246618 m -1.134653,1.456753 c -0.726179,0 -1.316199,0.614568 -1.316199,1.388467 0,0.751138 0.59002,1.342944 1.316199,1.342944 0.726178,0 1.361584,-0.591806 1.361584,-1.342944 0,-0.773899 -0.635406,-1.388467 -1.361584,-1.388467"
+       style="fill:#ff8800;fill-opacity:1" />
+    <path
+       style="fill:#118811;fill-opacity:1"
+       d="m 265,15 a 10,10 0 0 1 -20,0 10,10 0 1 1 20,0 z"
+       inkscape:connector-curvature="0"
+       id="path4142"
+       clip-path="url(#clipPath3030)"
+       transform="matrix(0.75,0,0,0.75,63.75,3.75)" />
+    <path
+       style="fill:#118811;fill-opacity:1"
+       d="m 165,7.5 a 7.5,7.5 0 0 0 -7.5,7.5 7.5,7.5 0 0 0 7.5,7.5 l 0,-15 z"
+       id="path4144"
+       inkscape:connector-curvature="0" />
+    <path
+       id="path4149"
+       d="m 195,7.5 a 7.5,7.5 0 0 0 -7.5,7.5 7.5,7.5 0 0 0 7.5,7.5 l 0,-15 z"
+       style="fill:#118811;fill-opacity:1"
+       inkscape:connector-curvature="0" />
+    <path
+       transform="matrix(1.2375,0,0,1.2375,63.28125,19.28125)"
+       d="m 117.5,-7.5 c 0,0.3952847 -3.47049,0.9704915 -3.75,1.25 -0.27951,0.2795085 -0.85472,3.75 -1.25,3.75 -0.39528,0 -0.97049,-3.4704915 -1.25,-3.75 -0.27951,-0.2795085 -3.75,-0.8547153 -3.75,-1.25 0,-0.3952847 3.47049,-0.9704915 3.75,-1.25 0.27951,-0.2795085 0.85472,-3.75 1.25,-3.75 0.39528,0 0.97049,3.4704915 1.25,3.75 0.27951,0.2795085 3.75,0.8547153 3.75,1.25 z"
+       inkscape:randomized="0"
+       inkscape:rounded="0.1"
+       inkscape:flatsided="false"
+       sodipodi:arg2="0.78539816"
+       sodipodi:arg1="0"
+       sodipodi:r2="1.767767"
+       sodipodi:r1="5"
+       sodipodi:cy="-7.5"
+       sodipodi:cx="112.5"
+       sodipodi:sides="4"
+       id="path4179"
+       style="fill:#aa00ff;fill-opacity:1;stroke:none"
+       sodipodi:type="star" />
+    <path
+       transform="matrix(0,1.2375,-1.2375,0,253.21875,-129.21875)"
+       d="m 117.5,-7.5 c 0,0.3952847 -3.47049,0.9704915 -3.75,1.25 -0.27951,0.2795085 -0.85472,3.75 -1.25,3.75 -0.39528,0 -0.97049,-3.4704915 -1.25,-3.75 -0.27951,-0.2795085 -3.75,-0.8547153 -3.75,-1.25 0,-0.3952847 3.47049,-0.9704915 3.75,-1.25 0.27951,-0.2795085 0.85472,-3.75 1.25,-3.75 0.39528,0 0.97049,3.4704915 1.25,3.75 0.27951,0.2795085 3.75,0.8547153 3.75,1.25 z"
+       inkscape:randomized="0"
+       inkscape:rounded="0.1"
+       inkscape:flatsided="false"
+       sodipodi:arg2="0.78539816"
+       sodipodi:arg1="0"
+       sodipodi:r2="1.767767"
+       sodipodi:r1="5"
+       sodipodi:cy="-7.5"
+       sodipodi:cx="112.5"
+       sodipodi:sides="4"
+       id="path4173"
+       style="fill:#aa00ff;fill-opacity:1;stroke:none"
+       sodipodi:type="star" />
+    <path
+       sodipodi:type="star"
+       style="fill:#aa00ff;fill-opacity:1;stroke:none"
+       id="path4206"
+       sodipodi:sides="4"
+       sodipodi:cx="112.5"
+       sodipodi:cy="-7.5"
+       sodipodi:r1="5"
+       sodipodi:r2="1.767767"
+       sodipodi:arg1="0"
+       sodipodi:arg2="0.78539816"
+       inkscape:flatsided="false"
+       inkscape:rounded="0.1"
+       inkscape:randomized="0"
+       d="m 117.5,-7.5 c 0,0.3952847 -3.47049,0.9704915 -3.75,1.25 -0.27951,0.2795085 -0.85472,3.75 -1.25,3.75 -0.39528,0 -0.97049,-3.4704915 -1.25,-3.75 -0.27951,-0.2795085 -3.75,-0.8547153 -3.75,-1.25 0,-0.3952847 3.47049,-0.9704915 3.75,-1.25 0.27951,-0.2795085 0.85472,-3.75 1.25,-3.75 0.39528,0 0.97049,3.4704915 1.25,3.75 0.27951,0.2795085 3.75,0.8547153 3.75,1.25 z"
+       transform="matrix(0,1.2375,-1.2375,0,283.21825,-129.21825)" />
+    <path
+       sodipodi:type="star"
+       style="fill:#aa00ff;fill-opacity:1;stroke:none"
+       id="path4155"
+       sodipodi:sides="4"
+       sodipodi:cx="112.5"
+       sodipodi:cy="-7.5"
+       sodipodi:r1="5"
+       sodipodi:r2="1.767767"
+       sodipodi:arg1="0"
+       sodipodi:arg2="0.78539816"
+       inkscape:flatsided="false"
+       inkscape:rounded="0.1"
+       inkscape:randomized="0"
+       d="m 117.5,-7.5 c 0,0.3952847 -3.47049,0.9704915 -3.75,1.25 -0.27951,0.2795085 -0.85472,3.75 -1.25,3.75 -0.39528,0 -0.97049,-3.4704915 -1.25,-3.75 -0.27951,-0.2795085 -3.75,-0.8547153 -3.75,-1.25 0,-0.3952847 3.47049,-0.9704915 3.75,-1.25 0.27951,-0.2795085 0.85472,-3.75 1.25,-3.75 0.39528,0 0.97049,3.4704915 1.25,3.75 0.27951,0.2795085 3.75,0.8547153 3.75,1.25 z"
+       transform="matrix(1.2375,0,0,1.2375,3.28125,19.28125)" />
+    <path
+       inkscape:connector-curvature="0"
+       d="m 324.99986,19.561726 0,-2.10388 c -1.30662,0.553651 -1.79383,0.841552 -3.29977,0.841552 -2.03744,-0.04429 -3.03401,-1.240184 -3.03401,-3.299768 0,-1.993147 1.04087,-3.277622 3.03401,-3.277622 1.46165,0.06643 1.92671,0.243607 3.29977,0.797259 l 0,-2.103879 c -1.08516,-0.332192 -2.12603,-0.6643827 -3.38835,-0.6643827 -3.52123,0 -5.62511,2.0595897 -5.62511,5.2486247 0.0442,3.122596 2.03744,5.248624 5.51438,5.248624 1.24018,0 2.48036,-0.332191 3.49908,-0.686528 m -10.98654,0 0,-2.10388 c -1.30662,0.553651 -1.79383,0.841552 -3.29977,0.841552 -2.03743,-0.04429 -3.034,-1.240184 -3.034,-3.299768 0,-1.993147 1.04086,-3.277622 3.034,-3.277622 1.46165,0.06643 1.92672,0.243607 3.29977,0.797259 l 0,-2.103879 c -1.08516,-0.332192 -2.12602,-0.6643827 -3.38835,-0.6643827 -3.52122,0 -5.62511,2.0595897 -5.62511,5.2486247 0.0442,3.122596 2.03744,5.248624 5.51439,5.248624 1.24017,0 2.48035,-0.332191 3.49907,-0.686528"
+       style="font-size:24px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#555555;fill-opacity:1;stroke:none;font-family:Gillius ADF;-inkscape-font-specification:Gillius ADF Bold"
+       id="path3013" />
+    <rect
+       style="fill:#888888;fill-opacity:1;stroke:none"
+       id="rect3788"
+       width="10"
+       height="10"
+       x="100"
+       y="10" />
+    <rect
+       style="fill:none;stroke:#888888;stroke-width:0.90909094;stroke-opacity:1"
+       id="rect3790"
+       width="9.090909"
+       height="9.090909"
+       x="40.454544"
+       y="10.454546" />
+    <rect
+       y="10"
+       x="130"
+       height="10"
+       width="10"
+       id="rect3793"
+       style="fill:#888888;fill-opacity:1;stroke:none"
+       clip-path="url(#clipPath3795)" />
+  </g>
 </svg>
