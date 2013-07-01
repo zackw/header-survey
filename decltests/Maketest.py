@@ -542,6 +542,22 @@ class TestSpecial(TestComponent):
         for k,e in zip(keys, enabled):
             items[k].enabled = e
 
+# TestSpecialDecls is more-or-less a raw interface to TestDecl, and is
+# intended for cases where the name of interest isn't a type or
+# constant name (e.g. <stdalign.h>, where the name of interest is a
+# type specifier).
+class TestSpecialDecls(TestComponent):
+    def preprocess(self, items):
+        pitems = {}
+        for k, v in items.items():
+            if self.pp_special_key(k, v): continue
+
+            (dtype, init) = splitto(v, "=", 2)
+            pitems[k] = TestDecl(self.infname, self.std, self.ann,
+                                 tag=k, dtype=dtype, init=init)
+
+        self.items = pitems
+
 class TestProgram:
     COMPONENTS = {
         "types"     : TestTypes,
@@ -550,7 +566,8 @@ class TestProgram:
         "globals"   : TestGlobals,
         "functions" : TestFunctions,
         "fn_macros" : TestFnMacros,
-        "special"   : TestSpecial
+        "special"   : TestSpecial,
+        "special_decls" : TestSpecialDecls,
     }
 
     def __init__(self, fname):
@@ -623,6 +640,7 @@ class TestProgram:
         for c in self.structs:   c.generate(outf)
         for c in self.constants: c.generate(outf)
         for c in self.globals:   c.generate(outf)
+        for c in self.special_decls: c.generate(outf)
 
         # extra includes are to provide any types that are necessary
         # to formulate function calls: e.g. stdio.h declares functions
