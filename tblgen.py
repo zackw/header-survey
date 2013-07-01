@@ -30,6 +30,7 @@
 
 from __future__ import unicode_literals
 
+import ConfigParser
 import argparse
 import collections
 import copy
@@ -391,10 +392,6 @@ class Dataset(object):
     def from_file(cls, fname):
         def file_label(fname):
             label = fname
-            if fname.startswith("b-") or fname.startswith("h-"):
-                label = label[2:]
-            if fname.endswith(".txt"):
-                label = label[:-4]
             label = label.replace("-", " ")
 
         tags = { 'label'    : file_label(fname),
@@ -510,7 +507,7 @@ class Dataset(object):
                                     'xti.h'))
             for s in stds:
                 for h in s:
-                    self.ensure(h, 'X' if h in exceptions else 'P')
+                    self.ensure(h, 'X' if h in exceptions else 'A')
 
         elif self.gen < 1:
             raise RuntimeError("generation {} is too old".format(self.gen))
@@ -562,20 +559,15 @@ def preprocess_osgrp(osgroup):
     nverlist.append(one)
     return nverlist
 
-def preprocess(datasets):
-    # separate standards-sets from os-sets, cluster os-sets by label
+def preprocess(datasets, stds):
+    # cluster os-sets by label
     osgrps = {}
-    stds = []
     for d in datasets:
-        if d.category == "standard":
-            stds.append(d)
+        other = osgrps.get(d.label)
+        if other is not None:
+            other.append(d)
         else:
-            other = osgrps.get(d.label)
-            if other is not None:
-                other.append(d)
-            else:
-                osgrps[d.label] = [d]
-    stds.sort()
+            osgrps[d.label] = [d]
 
     # apply fixups to all os-sets
     for og in osgrps.itervalues():
@@ -604,7 +596,7 @@ def preprocess(datasets):
         curcatlist.append(os)
     oscats.append(curcatlist)
 
-    return oscats, stds
+    return oscats
 
 def load_datasets(dirname):
     datasets = []
@@ -616,15 +608,12 @@ def load_datasets(dirname):
         raise SystemExit(1)
 
     for fname in files:
-        if not (fname.startswith("b-") or fname.startswith("h-")):
-            continue
         # ignore backup files
         if fname[-1] == '~': continue
         try:
             d = Dataset.from_file(os.path.join(dirname, fname))
-            if (d.category != 'standard' and
-                (d.gen < MIN_ACCEPTABLE_GENERATION_NO or
-                 d.gen > MAX_ACCEPTABLE_GENERATION_NO)):
+            if (d.gen < MIN_ACCEPTABLE_GENERATION_NO or
+                d.gen > MAX_ACCEPTABLE_GENERATION_NO):
                 explanation = ("out of date"
                                if d.gen < MIN_ACCEPTABLE_GENERATION_NO
                                else "too new")
@@ -643,6 +632,38 @@ def load_datasets(dirname):
 
     if rv != 0: raise SystemExit(rv)
     return datasets
+
+def load_standards(fname):
+
+    f = ConfigParser.ConfigParser()
+    f.read(fname)
+
+    sections = set(f.sections())
+    sections.remove("standards")
+
+    stds = []
+    for tag in f.options("standards"):
+        seq, label = f.get("standards", tag).split(". ")
+        headers = f.options(tag)
+        stds.append(Dataset(items=headers,
+                            tags = { "category": "standard",
+                                     "sequence": int(seq),
+                                     "label": label }))
+        sections.remove(tag)
+        for h in headers:
+            if not h.endswith(".h"):
+                raise RuntimeError("{}[{}]: is '{}' really a header?"
+                                   .format(fname, tag, h))
+            if f.get(tag, h) != "":
+                raise RuntimeError("{}[{}]: junk after header {}: {}"
+                                   .format(fname, tag, h, f.get(tag, h)))
+
+    if len(sections) > 0:
+        raise RuntimeError("unreferenced sections: {}"
+                           .format(" ".join(sections)))
+
+    stds.sort()
+    return stds
 
 
 # If someone can suggest a more elegant, or at least less repetitive,
@@ -730,7 +751,8 @@ def inline_styles_and_scripts(stream, tmpldir):
 class PageWriter(object):
     def __init__(self, args):
         datasets = load_datasets(args.datadir)
-        self.oscats, self.stds = preprocess(datasets)
+        self.stds = load_standards(args.standards)
+        self.oscats = preprocess(datasets, self.stds)
         self.tmpldir = args.template
         self.loader = genshi.template.TemplateLoader(self.tmpldir)
         self.update_date = time.strftime("%e %B %Y").strip()
@@ -796,6 +818,12 @@ written to OUTDIR.
     argp.add_argument('-t', '--template', metavar='TMPLDIR',
                       help='directory containing template for webpage',
                       default='tmpl')
+    argp.add_argument('-s', '--standards', metavar='FILE',
+                      help='config file listing all headers to consider',
+                      default='headers.ini')
+    argp.add_argument('-p', '--prereqs', metavar='FILE',
+                      help='config file giving prerequisites for headers',
+                      default='prereqs.ini')
     argp.add_argument('-o', '--output', metavar='OUTDIR',
                       help='output directory; contents will be overwritten!',
                       default='web')

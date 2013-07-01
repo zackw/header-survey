@@ -1219,6 +1219,8 @@ class HeaderProber:
                         continue
                     headers[l] = seqno
 
+        if len(headers) == 0:
+	    raise SystemExit("no headers to scan!")
         self.headers = toposort_headers(headers, self.prerequisites)
 
     def read_decltests(self, dtestdir):

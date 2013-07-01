@@ -1,7 +1,0 @@
-# These headers are specified in ISO/IEC TR 18037, an optional
-# extension to C1999/C2011 to facilitate coding for embedded processors.
-:category standard
-:sequence 4
-:label TR 18037 (embedded C)
-iohw.h
-stdfix.h
