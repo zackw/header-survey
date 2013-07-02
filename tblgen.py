@@ -271,7 +271,7 @@ class HeaderNotes(object):
         else:
             label = 'CC'
 
-        if label == 'A' or label == 'C':
+        if label == 'A' or label == 'C' or label == 'P' or label == 'X':
             elt = T.div
             for v in self.state.itervalues():
                 if len(v[1]) > 0:

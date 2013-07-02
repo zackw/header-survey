@@ -31,11 +31,11 @@ th {
 }
 th.keyholder { overflow: visible }
 th.stdholder {
-  width: 96px; height: auto; vertical-align: bottom;
+  width: 108px; height: auto; vertical-align: bottom;
   padding: 5px 6px;
 }
 th.headerholder {
-  width: 168px; height: auto; vertical-align: bottom;
+  width: 180px; height: auto; vertical-align: bottom;
   padding: 5px 6px;
 }
 td {
@@ -45,10 +45,12 @@ td {
 .h /* header */ {
   font-family: monospace;
   padding: 0 6px;
+  width: 180px;
 }
 .std {
   vertical-align: top;
   padding: 8px 6px 0;
+  width: 108px;
 }
 
 .x, .a, .b, .p, .i, .c, .d,
@@ -93,14 +95,14 @@ td { font-size: 9px; line-height: 9px; }
   display: block;
   position: relative;
   bottom: 0px;
-  left: 130px;
+  left: 150px;
   height: 30px;
   padding: 10px 0 0 0;
   overflow: visible;
   text-align: center;
 }
 .skew {
-  height: 130px;
+  height: 150px;
   width: 30px;
   position: relative;
   padding: 0;
@@ -109,7 +111,7 @@ td { font-size: 9px; line-height: 9px; }
   display: block;
   position: relative;
   top: 0px;
-  left: 65px;
+  left: 75px;
   height: 100%;
   width: 100%;
   transform:skew(-45deg,0deg);

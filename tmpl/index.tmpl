@@ -11,7 +11,7 @@
 <head>
 <meta charset="utf-8"/>
 <title t:content="title"/>
-<link rel="stylesheet" href="s.src.css"/>
+<link rel="stylesheet" href="s.css"/>
 </head>
 <body>
 <h1 t:content="title"/>
@@ -29,6 +29,20 @@ and all associated code may be found at
 improvements, additional OS inventories, etc. are all welcome; please
 see <a href="https://github.com/zackw/header-survey#readme">the
   README</a> in the source repository.</p>
+<p>WARNING: The new information about whether headers are “complete”
+or “incomplete” is not yet definitive, and (as you can see) only
+available for a few OSes right now.  Please <i>don’t</i> send me
+updated inventories until further notice; I’ve still got parts all
+over the floor.</p>
+<p>However, please <i>do</i> let me know if you notice display
+problems in any reasonably modern browser.  Currently known issues in
+that department: The table header doesn’t stay aligned with the body
+when the window is narrower than the table. This is a limitation of
+the sticky-header script I wrote, which I have no idea how to fix;
+help would be much appreciated.  There’s a one-pixel gap right below
+the header in some browsers.  This is a bug in Webkit, and it
+disappears if you open the inspector, so I can’t even try to come up
+with a workaround.</p>
 <table>
   <thead class="sticky">
     <tr>
