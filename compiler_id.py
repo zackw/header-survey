@@ -473,7 +473,7 @@ def probe_max_c_and_xopen_versions(cc, compiler):
                 "#error X_5\n"
                 "#elif _POSIX_VERSION >= 199309L\n"
                 "#error X_4\n"
-                "#else"
+                "#else\n"
                 "#error X_0\n"
                 "#endif\n")
         f.close()
@@ -485,7 +485,8 @@ def probe_max_c_and_xopen_versions(cc, compiler):
                                          [D+"_XOPEN_SOURCE=700",
                                           D+"_XOPEN_SOURCE=600",
                                           D+"_XOPEN_SOURCE=500",
-                                          D+"_XOPEN_SOURCE=4"])
+                                          D+"_XOPEN_SOURCE=4",
+                                          ""])
         (pver, popt) = probe_max_version(cmdline, test_c, xverre, nonexre,
                                          [D+"_POSIX_C_SOURCE=200809L",
                                           D+"_POSIX_C_SOURCE=200112L",
