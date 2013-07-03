@@ -38,7 +38,7 @@ inttypes.h
 iso646.h
 langinfo.h
 %lastlog.h
-$ Requires <code>time.h</code>.
+$P time.h
 libgen.h
 limits.h
 -link.h
@@ -59,12 +59,9 @@ pthread.h
 pwd.h
 regex.h
 %regexp.h
-$ <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/regexp.html"
-$ >SVID <code>regexp.h</code></a> requires the including file to define
-$ several macros, which are used in the bodies of inlined function
-$ definitions.
+$S regexp.h
 %resolv.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 sched.h
 search.h
 semaphore.h
@@ -116,84 +113,81 @@ arpa/telnet.h
 arpa/tftp.h
 net/if.h
 %net/if_arp.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 -net/ppp_defs.h
 net/route.h
 netinet/icmp6.h
 netinet/if_ether.h
 %netinet/igmp.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/in.h
 %netinet/in_systm.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %netinet/ip.h
-$ Requires <code>netinet/in.h</code> and <code>netinet/in_systm.h</code>.
+$P netinet/in.h netinet/in_systm.h
 netinet/ip6.h
 %netinet/ip_icmp.h
-$ Requires <code>netinet/in.h</code>, <code>netinet/in_systm.h</code>, and
-$ <code>netinet/ip.h</code>.
+$P netinet/in.h netinet/in_systm.h netinet/ip.h
 %netinet/tcp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %netinet/udp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %protocols/routed.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 protocols/rwhod.h
 %protocols/timed.h
-$ Requires <code>sys/param.h</code> and <code>sys/time.h</code>.
+$P sys/param.h sys/time.h
 %rpc/auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/auth_des.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/auth_unix.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/des_crypt.h
 %rpc/key_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_rmt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/rpc.h
 %rpc/rpc_msg.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/svc_auth.h
 rpc/types.h
 %rpc/xdr.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 -rpcsvc/bootparam_prot.h
 !rpcsvc/mount.h
-$ Declarations depending on a typedef, <code>fhandle_t</code>, which is
-$ only defined in what appear to be private kernel headers.
-$ Other OSes define this type in this header.
+$E irix_fhandle_t
 -rpcsvc/nfs_prot.h
 -rpcsvc/nis.h
 -rpcsvc/nislib.h
 %rpcsvc/nlm_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpcsvc/rex.h
-$ Requires <code>rpc/rpc.h</code> and <code>sys/ttold.h</code>.
+$P rpc/rpc.h sys/ttold.h
 %rpcsvc/rquota.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpcsvc/rstat.h
 %rpcsvc/sm_inter.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpcsvc/spray.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpcsvc/yp_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpcsvc/ypclnt.h
 %rpcsvc/yppasswd.h
-$ Requires <code>pwd.h</code>.
+$P pwd.h
 sys/acct.h
 %sys/dir.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/errno.h
 sys/fcntl.h
 sys/file.h

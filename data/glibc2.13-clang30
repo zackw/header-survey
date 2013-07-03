@@ -114,10 +114,7 @@ paths.h
 re_comp.h
 +regex.h
 %regexp.h
-$ <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/regexp.html"
-$ >SVID <code>regexp.h</code></a> requires the including file to define
-$ several macros, which are used in the bodies of inlined function
-$ definitions.
+$S regexp.h
 resolv.h
 *sched.h
 $ Lacks support for sporadic scheduling (optional in POSIX.1-2001).
@@ -195,13 +192,7 @@ utime.h
 utmp.h
 +utmpx.h
 !varargs.h
-$ Explicitly unimplemented: contains only an <code>#error</code> directive
-$ telling the programmer to use <code>stdarg.h</code> instead.
-## In file included from htest.c:1:
-## /usr/include/clang/3.0/include/varargs.h:25:4: error: #error "Please use <stdarg.h> instead of <varargs.h>"
-##   #error "Please use <stdarg.h> instead of <varargs.h>"
-##    ^
-## 1 error generated.
+$E unimpl_varargs
 *wchar.h
 $ Lacks <code>wcpcpy</code> and <code>wcpncpy</code> (POSIX.1-2008).
 ## In file included from htest.c:2:
@@ -265,145 +256,10 @@ rpc/xdr.h
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 !rpcsvc/nfs_prot.h
-$ Can't be used together with <code>rpcsvc/bootparam_prot.h</code>.
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:33:2: error: redefinition of enumerator 'NFS_OK'
-##         NFS_OK = 0,
-##         ^
-## /usr/include/linux/nfs.h:43:2: note: previous definition is here
-##         NFS_OK = 0,                     /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:34:2: error: redefinition of enumerator 'NFSERR_PERM'
-##         NFSERR_PERM = 1,
-##         ^
-## /usr/include/linux/nfs.h:44:2: note: previous definition is here
-##         NFSERR_PERM = 1,                /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:35:2: error: redefinition of enumerator 'NFSERR_NOENT'
-##         NFSERR_NOENT = 2,
-##         ^
-## /usr/include/linux/nfs.h:45:2: note: previous definition is here
-##         NFSERR_NOENT = 2,               /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:36:2: error: redefinition of enumerator 'NFSERR_IO'
-##         NFSERR_IO = 5,
-##         ^
-## /usr/include/linux/nfs.h:46:2: note: previous definition is here
-##         NFSERR_IO = 5,                  /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:37:2: error: redefinition of enumerator 'NFSERR_NXIO'
-##         NFSERR_NXIO = 6,
-##         ^
-## /usr/include/linux/nfs.h:47:2: note: previous definition is here
-##         NFSERR_NXIO = 6,                /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:38:2: error: redefinition of enumerator 'NFSERR_ACCES'
-##         NFSERR_ACCES = 13,
-##         ^
-## /usr/include/linux/nfs.h:49:2: note: previous definition is here
-##         NFSERR_ACCES = 13,              /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:39:2: error: redefinition of enumerator 'NFSERR_EXIST'
-##         NFSERR_EXIST = 17,
-##         ^
-## /usr/include/linux/nfs.h:50:2: note: previous definition is here
-##         NFSERR_EXIST = 17,              /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:40:2: error: redefinition of enumerator 'NFSERR_NODEV'
-##         NFSERR_NODEV = 19,
-##         ^
-## /usr/include/linux/nfs.h:52:2: note: previous definition is here
-##         NFSERR_NODEV = 19,              /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:41:2: error: redefinition of enumerator 'NFSERR_NOTDIR'
-##         NFSERR_NOTDIR = 20,
-##         ^
-## /usr/include/linux/nfs.h:53:2: note: previous definition is here
-##         NFSERR_NOTDIR = 20,             /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:42:2: error: redefinition of enumerator 'NFSERR_ISDIR'
-##         NFSERR_ISDIR = 21,
-##         ^
-## /usr/include/linux/nfs.h:54:2: note: previous definition is here
-##         NFSERR_ISDIR = 21,              /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:43:2: error: redefinition of enumerator 'NFSERR_FBIG'
-##         NFSERR_FBIG = 27,
-##         ^
-## /usr/include/linux/nfs.h:56:2: note: previous definition is here
-##         NFSERR_FBIG = 27,               /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:44:2: error: redefinition of enumerator 'NFSERR_NOSPC'
-##         NFSERR_NOSPC = 28,
-##         ^
-## /usr/include/linux/nfs.h:57:2: note: previous definition is here
-##         NFSERR_NOSPC = 28,              /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:45:2: error: redefinition of enumerator 'NFSERR_ROFS'
-##         NFSERR_ROFS = 30,
-##         ^
-## /usr/include/linux/nfs.h:58:2: note: previous definition is here
-##         NFSERR_ROFS = 30,               /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:46:2: error: redefinition of enumerator 'NFSERR_NAMETOOLONG'
-##         NFSERR_NAMETOOLONG = 63,
-##         ^
-## /usr/include/linux/nfs.h:61:2: note: previous definition is here
-##         NFSERR_NAMETOOLONG = 63,        /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:47:2: error: redefinition of enumerator 'NFSERR_NOTEMPTY'
-##         NFSERR_NOTEMPTY = 66,
-##         ^
-## /usr/include/linux/nfs.h:62:2: note: previous definition is here
-##         NFSERR_NOTEMPTY = 66,           /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:48:2: error: redefinition of enumerator 'NFSERR_DQUOT'
-##         NFSERR_DQUOT = 69,
-##         ^
-## /usr/include/linux/nfs.h:63:2: note: previous definition is here
-##         NFSERR_DQUOT = 69,              /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:49:2: error: redefinition of enumerator 'NFSERR_STALE'
-##         NFSERR_STALE = 70,
-##         ^
-## /usr/include/linux/nfs.h:64:2: note: previous definition is here
-##         NFSERR_STALE = 70,              /* v2 v3 v4 */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:50:2: error: redefinition of enumerator 'NFSERR_WFLUSH'
-##         NFSERR_WFLUSH = 99,
-##         ^
-## /usr/include/linux/nfs.h:66:2: note: previous definition is here
-##         NFSERR_WFLUSH = 99,             /* v2    */
-##         ^
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/nfs_prot.h:55:2: error: redefinition of enumerator 'NFNON'
-##         NFNON = 0,
-##         ^
-## /usr/include/linux/nfs.h:120:2: note: previous definition is here
-##         NFNON = 0,
-##         ^
-## fatal error: too many errors emitted, stopping now [-ferror-limit=]
-## 20 errors generated.
+$C rpcsvc/bootparam_prot.h
 rpcsvc/nis.h
 %rpcsvc/nislib.h
-$ Requires <code>rpcsvc/nis.h</code>.
+$P rpcsvc/nis.h
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
 rpcsvc/rquota.h
@@ -413,15 +269,7 @@ rpcsvc/spray.h
 rpcsvc/yp_prot.h
 rpcsvc/ypclnt.h
 !rpcsvc/yppasswd.h
-$ Can't be used together with <code>pwd.h</code>.
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/yppasswd.h:17:8: error: redefinition of 'passwd'
-## struct passwd {
-##        ^
-## /usr/include/pwd.h:50:8: note: previous definition is here
-## struct passwd
-##        ^
-## 1 error generated.
+$C pwd.h
 sys/acct.h
 sys/dir.h
 sys/errno.h

@@ -99,8 +99,7 @@ utime.h
 utmp.h
 utmpx.h
 !varargs.h
-$ Explicitly unimplemented: contains only an <code>#error</code> directive
-$ telling the programmer to use <code>stdarg.h</code> instead.
+$E unimpl_varargs
 wchar.h
 wctype.h
 wordexp.h
@@ -112,30 +111,29 @@ arpa/telnet.h
 arpa/tftp.h
 net/if.h
 %net/if_arp.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 -net/ppp_defs.h
 net/route.h
 netinet/icmp6.h
 %netinet/if_ether.h
-$ Requires <code>net/if.h</code>.
+$P net/if.h
 %netinet/igmp.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/in.h
 %netinet/in_systm.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %netinet/ip.h
-$ Requires <code>netinet/in.h</code> and <code>netinet/in_systm.h</code>.
+$P netinet/in.h netinet/in_systm.h
 netinet/ip6.h
 %netinet/ip_icmp.h
-$ Requires <code>netinet/in.h</code>, <code>netinet/in_systm.h</code>, and
-$ <code>netinet/ip.h</code>.
+$P netinet/in.h netinet/in_systm.h netinet/ip.h
 %netinet/tcp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %netinet/udp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 -protocols/routed.h
 %protocols/rwhod.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 -protocols/timed.h
 rpc/auth.h
 rpc/auth_des.h
@@ -168,7 +166,7 @@ rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 sys/acct.h
 %sys/dir.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/errno.h
 sys/fcntl.h
 sys/file.h
@@ -178,7 +176,7 @@ sys/mman.h
 sys/mount.h
 sys/msg.h
 %sys/mtio.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/param.h
 sys/poll.h
 -sys/procfs.h

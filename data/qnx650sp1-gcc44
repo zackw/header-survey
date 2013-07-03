@@ -74,7 +74,7 @@ arpa/ftp.h
 arpa/inet.h
 arpa/nameser.h
 %arpa/nameser_compat.h
-$ Requires <code>sys/param.h</code>.
+$P sys/param.h
 arpa/telnet.h
 arpa/tftp.h
 net/if.h
@@ -93,27 +93,27 @@ netinet/udp.h
 protocols/routed.h
 protocols/rwhod.h
 %rpc/auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/auth_unix.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_rmt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/rpc.h
 %rpc/rpc_msg.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc_auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/types.h
 %rpc/xdr.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 sys/dir.h
 sys/file.h
 sys/ioctl.h

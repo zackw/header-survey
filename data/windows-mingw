@@ -62,7 +62,7 @@ pthread.h
 sched.h
 search.h
 %semaphore.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 setjmp.h
 -sgtty.h
 signal.h
@@ -100,8 +100,7 @@ utime.h
 -utmp.h
 -utmpx.h
 !varargs.h
-$ Explicitly unimplemented: contains only an <code>#error</code> directive
-$ telling the programmer to use <code>stdarg.h</code> instead.
+$E unimpl_varargs
 wchar.h
 wctype.h
 -wordexp.h

@@ -27,7 +27,7 @@ float.h
 fnmatch.h
 -fstab.h
 %fts.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 -ftw.h
 getopt.h
 -glob.h
@@ -100,8 +100,7 @@ utime.h
 utmp.h
 -utmpx.h
 !varargs.h
-$ Explicitly unimplemented: contains only an <code>#error</code> directive
-$ telling the programmer to use <code>stdarg.h</code> instead.
+$E unimpl_varargs
 wchar.h
 wctype.h
 -wordexp.h
@@ -116,19 +115,19 @@ net/if_arp.h
 -net/ppp_defs.h
 net/route.h
 %netinet/icmp6.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/if_ether.h
 -netinet/igmp.h
 netinet/in.h
 %netinet/in_systm.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 netinet/ip.h
 %netinet/ip6.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/ip_icmp.h
 netinet/tcp.h
 %netinet/udp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 -protocols/routed.h
 -protocols/rwhod.h
 -protocols/timed.h
@@ -199,7 +198,7 @@ sys/types.h
 -sys/ucontext.h
 sys/uio.h
 %sys/un.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 -sys/unistd.h
 -sys/user.h
 sys/utsname.h

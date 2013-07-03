@@ -114,27 +114,27 @@ arpa/telnet.h
 arpa/tftp.h
 net/if.h
 %net/if_arp.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 %net/ppp_defs.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %net/route.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 %netinet/icmp6.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 %netinet/if_ether.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 %netinet/igmp.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/in.h
 netinet/in_systm.h
 netinet/ip.h
 %netinet/ip6.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 %netinet/ip_icmp.h
-$ Requires <code>netinet/ip.h</code>.
+$P netinet/ip.h
 netinet/tcp.h
 %netinet/udp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 protocols/routed.h
 protocols/rwhod.h
 protocols/timed.h
@@ -200,7 +200,7 @@ sys/time.h
 sys/timeb.h
 sys/times.h
 %sys/timex.h
-$ Requires <code>sys/time.h</code>.
+$P sys/time.h
 -sys/ttold.h
 sys/types.h
 sys/ucontext.h

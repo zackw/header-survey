@@ -7,7 +7,7 @@
 :compiler GCC 4.1
 :gen 2
 %a.out.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 aio.h
 -alloca.h
 ar.h
@@ -29,14 +29,14 @@ fmtmsg.h
 fnmatch.h
 fstab.h
 %fts.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 ftw.h
 getopt.h
 glob.h
 grp.h
 iconv.h
 %ifaddrs.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 inttypes.h
 -iohw.h
 iso646.h
@@ -63,7 +63,7 @@ pwd.h
 regex.h
 regexp.h
 %resolv.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 sched.h
 search.h
 semaphore.h
@@ -102,11 +102,10 @@ ulimit.h
 unistd.h
 utime.h
 %utmp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 utmpx.h
 !varargs.h
-$ Explicitly unimplemented: contains only an <code>#error</code> directive
-$ telling the programmer to use <code>stdarg.h</code> instead.
+$E unimpl_varargs
 wchar.h
 wctype.h
 wordexp.h
@@ -118,62 +117,60 @@ arpa/telnet.h
 arpa/tftp.h
 net/if.h
 %net/if_arp.h
-$ Requires <code>sys/types.h</code> and <code>sys/socket.h</code>.
+$P sys/types.h sys/socket.h
 %net/ppp_defs.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 net/route.h
 %netinet/icmp6.h
-$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
+$P sys/types.h netinet/in.h
 %netinet/if_ether.h
-$ Requires <code>net/if.h</code> and <code>netinet/in.h</code>.
+$P net/if.h netinet/in.h
 %netinet/igmp.h
-$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
+$P sys/types.h netinet/in.h
 netinet/in.h
 %netinet/in_systm.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %netinet/ip.h
-$ Requires <code>sys/types.h</code>, <code>netinet/in.h</code>, and
-$ <code>netinet/in_systm.h</code>.
+$P sys/types.h netinet/in.h netinet/in_systm.h
 %netinet/ip6.h
-$ Requires <code>sys/types.h</code> and <code>netinet/in.h</code>.
+$P sys/types.h netinet/in.h
 %netinet/ip_icmp.h
-$ Requires <code>sys/types.h</code>, <code>netinet/in.h</code>,
-$ <code>netinet/in_systm.h</code>, and <code>netinet/ip.h</code>.
+$P sys/types.h netinet/in.h netinet/in_systm.h netinet/ip.h
 %netinet/tcp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %netinet/udp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %protocols/routed.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %protocols/rwhod.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %protocols/timed.h
-$ Requires <code>sys/param.h</code>.
+$P sys/param.h
 %rpc/auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 -rpc/auth_des.h
 %rpc/auth_unix.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 -rpc/des_crypt.h
 -rpc/key_prot.h
 %rpc/pmap_clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_rmt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/rpc.h
 %rpc/rpc_msg.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc_auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/types.h
 %rpc/xdr.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 rpcsvc/nfs_prot.h
@@ -186,12 +183,12 @@ rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
 %rpcsvc/yp_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpcsvc/ypclnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpcsvc/yppasswd.h
 %sys/acct.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/dir.h
 sys/errno.h
 sys/fcntl.h
@@ -202,7 +199,7 @@ sys/mman.h
 sys/mount.h
 sys/msg.h
 %sys/mtio.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/param.h
 sys/poll.h
 -sys/procfs.h
@@ -213,7 +210,7 @@ sys/select.h
 sys/sem.h
 sys/shm.h
 %sys/signal.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/socket.h
 sys/socketvar.h
 sys/stat.h
@@ -224,10 +221,10 @@ sys/syslog.h
 sys/termios.h
 sys/time.h
 %sys/timeb.h
-$ Requires <code>time.h</code>.
+$P time.h
 sys/times.h
 %sys/timex.h
-$ Requires <code>sys/time.h</code>.
+$P sys/time.h
 -sys/ttold.h
 sys/types.h
 sys/ucontext.h
@@ -235,7 +232,7 @@ sys/uio.h
 sys/un.h
 sys/unistd.h
 %sys/user.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/utsname.h
 sys/wait.h
 # Additional scansys state below, for --recheck.

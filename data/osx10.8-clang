@@ -95,18 +95,15 @@ tgmath.h
 time.h
 -trace.h
 -uchar.h
-%ucontext.h
-$ This OS deprecates <code>ucontext.h</code> and issues an
-$ <code>#error</code> if it is used without defining
-$ <code>_XOPEN_SOURCE</code>.
+!ucontext.h
+$E deprec_ucontext
 ulimit.h
 unistd.h
 utime.h
 utmp.h
 utmpx.h
 !varargs.h
-$ Explicitly unimplemented: contains only an <code>#error</code> directive
-$ telling the programmer to use <code>stdarg.h</code> instead.
+$E unimpl_varargs
 wchar.h
 wctype.h
 wordexp.h
@@ -117,54 +114,54 @@ arpa/nameser_compat.h
 arpa/telnet.h
 arpa/tftp.h
 %net/if.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 net/if_arp.h
 -net/ppp_defs.h
 net/route.h
 %netinet/icmp6.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/if_ether.h
 %netinet/igmp.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/in.h
 netinet/in_systm.h
 netinet/ip.h
 %netinet/ip6.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 %netinet/ip_icmp.h
-$ Requires <code>netinet/ip.h</code>.
+$P netinet/ip.h
 netinet/tcp.h
 netinet/udp.h
 %protocols/routed.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 protocols/rwhod.h
 %protocols/timed.h
-$ Requires <code>sys/param.h</code>.
+$P sys/param.h
 %rpc/auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 -rpc/auth_des.h
 %rpc/auth_unix.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 -rpc/des_crypt.h
 -rpc/key_prot.h
 %rpc/pmap_clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_rmt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/rpc.h
 %rpc/rpc_msg.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc_auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/types.h
 %rpc/xdr.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 rpcsvc/nfs_prot.h
@@ -177,11 +174,11 @@ rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
 %rpcsvc/yp_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 %sys/acct.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/dir.h
 sys/errno.h
 sys/fcntl.h
@@ -204,7 +201,7 @@ sys/shm.h
 sys/signal.h
 sys/socket.h
 %sys/socketvar.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/stat.h
 -sys/statfs.h
 sys/statvfs.h

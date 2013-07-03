@@ -283,9 +283,7 @@ $ Lacks support for sporadic scheduling (optional in POSIX.1-2001).
 ## In file included from htest.c:2:
 ## decltests/x6/sched.ss.c:20:2: error: #error "no sporadic server scheduling"
 !search.h
-$ Can't be used together with <code>rpcsvc/nfs_prot.h</code>.
-## In file included from htest.c:2:
-## /usr/include/search.h:20: error: redefinition of 'struct entry'
+$C rpcsvc/nfs_prot.h
 *semaphore.h
 $ Lacks <code>sem_timedwait</code> (optional in POSIX.1-2001).
 ## cc1: warnings being treated as errors
@@ -450,8 +448,7 @@ $ Lacks timer support (optional in POSIX.1-2001).
 -trace.h
 -uchar.h
 !ucontext.h
-$ This OS deprecates <code>ucontext.h</code> and issues an
-$ <code>#error</code> if it is used without special preparation.
+$E deprec_ucontext
 ## In file included from htest.c:1:
 ## /usr/include/ucontext.h:42:2: error: #error ucontext routines are deprecated, and require _XOPEN_SOURCE to be defined
 ulimit.h
@@ -496,8 +493,7 @@ utime.h
 utmp.h
 +utmpx.h
 !varargs.h
-$ Explicitly unimplemented: contains only an <code>#error</code> directive
-$ telling the programmer to use <code>stdarg.h</code> instead.
+$E unimpl_varargs
 ## In file included from htest.c:1:
 ## /usr/lib/gcc/i686-apple-darwin10/4.2.1/include/varargs.h:4:2: error: #error "GCC no longer implements <varargs.h>."
 ## /usr/lib/gcc/i686-apple-darwin10/4.2.1/include/varargs.h:5:2: error: #error "Revise your code to use <stdarg.h>."
@@ -575,15 +571,15 @@ arpa/nameser_compat.h
 arpa/telnet.h
 arpa/tftp.h
 @net/if.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 net/if_arp.h
 -net/ppp_defs.h
 net/route.h
 %netinet/icmp6.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/if_ether.h
 %netinet/igmp.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 *netinet/in.h
 $ Lacks IPv6 support (POSIX.1-2001).
 ## In file included from htest.c:2:
@@ -592,41 +588,41 @@ $ Lacks IPv6 support (POSIX.1-2001).
 netinet/in_systm.h
 netinet/ip.h
 %netinet/ip6.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 %netinet/ip_icmp.h
-$ Requires <code>netinet/ip.h</code>.
+$P netinet/ip.h
 +netinet/tcp.h
 netinet/udp.h
 %protocols/routed.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 protocols/rwhod.h
 %protocols/timed.h
-$ Requires <code>sys/param.h</code>.
+$P sys/param.h
 %rpc/auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 -rpc/auth_des.h
 %rpc/auth_unix.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 -rpc/des_crypt.h
 -rpc/key_prot.h
 %rpc/pmap_clnt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_prot.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/pmap_rmt.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/rpc.h
 %rpc/rpc_msg.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 %rpc/svc_auth.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/types.h
 %rpc/xdr.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 rpcsvc/nfs_prot.h
@@ -634,37 +630,18 @@ rpcsvc/nfs_prot.h
 -rpcsvc/nislib.h
 rpcsvc/nlm_prot.h
 !rpcsvc/rex.h
-$ Can't be used together with <code>sgtty.h</code>.
-## In file included from htest.c:2:
-## /usr/include/rpcsvc/rex.h:68: error: redefinition of 'struct sgttyb'
-## /usr/include/rpcsvc/rex.h:145: error: redefinition of 'struct tchars'
-## /usr/include/rpcsvc/rex.h:159: error: redefinition of 'struct ltchars'
+$C sgtty.h
 rpcsvc/rquota.h
 rpcsvc/rstat.h
 rpcsvc/sm_inter.h
 rpcsvc/spray.h
 !rpcsvc/yp_prot.h
-$ Requires <code>rpc/rpc.h</code>.
-$ Can't be used together with <code>dlfcn.h</code>.
-$ Can't be used together with <code>unctrl.h</code>.
-$ Can't be used together with <code>ndbm.h</code>.
-$ Can't be used together with <code>stdbool.h</code>.
-$ Can't be used together with <code>curses.h</code>.
-## In file included from htest.c:3:
-## /usr/include/rpcsvc/yp_prot.h:94: error: two or more data types in declaration specifiers
-## In file included from htest.c:3:
-## /usr/include/rpcsvc/yp_prot.h:94: error: two or more data types in declaration specifiers
-## In file included from htest.c:3:
-## /usr/include/rpcsvc/yp_prot.h:119: error: conflicting types for 'datum'
-## /usr/include/ndbm.h:97: error: previous declaration of 'datum' was here
-## In file included from htest.c:3:
-## /usr/include/rpcsvc/yp_prot.h:94: error: two or more data types in declaration specifiers
-## In file included from htest.c:3:
-## /usr/include/rpcsvc/yp_prot.h:94: error: two or more data types in declaration specifiers
+$P rpc/rpc.h
+$C dlfcn.h unctrl.h ndbm.h stdbool.h curses.h
 rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 %sys/acct.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/dir.h
 sys/errno.h
 sys/fcntl.h
@@ -715,7 +692,7 @@ $ Lacks correct types for <code>msg_iovlen</code>, <code>msg_controllen</code>, 
 ## decltests/x5/sys_socket.mht.c:13: warning: initialization from incompatible pointer type
 ## decltests/x5/sys_socket.mht.c:14: warning: initialization from incompatible pointer type
 %sys/socketvar.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 *sys/stat.h
 $ Lacks all POSIX.1-2008 features.
 ## In file included from htest.c:2:

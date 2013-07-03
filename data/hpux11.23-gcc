@@ -87,31 +87,30 @@ arpa/telnet.h
 arpa/tftp.h
 net/if.h
 %net/if_arp.h
-$ Requires <code>sys/socket.h</code>.
+$P sys/socket.h
 net/route.h
 netinet/icmp6.h
 %netinet/if_ether.h
-$ Requires <code>net/if.h</code>.
+$P net/if.h
 %netinet/igmp.h
-$ Requires <code>netinet/in.h</code>.
+$P netinet/in.h
 netinet/in.h
 %netinet/in_systm.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %netinet/ip.h
-$ Requires <code>netinet/in.h</code> and <code>netinet/in_systm.h</code>.
+$P netinet/in.h netinet/in_systm.h
 netinet/ip6.h
 %netinet/ip_icmp.h
-$ Requires <code>netinet/in.h</code>, <code>netinet/in_systm.h</code>, and
-$ <code>netinet/ip.h</code>.
+$P netinet/in.h netinet/in_systm.h netinet/ip.h
 %netinet/tcp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %netinet/udp.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 %protocols/rwhod.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 rpc/auth.h
 %rpc/auth_des.h
-$ Requires <code>rpc/rpc.h</code>.
+$P rpc/rpc.h
 rpc/auth_unix.h
 rpc/clnt.h
 rpc/des_crypt.h
@@ -128,7 +127,7 @@ rpc/xdr.h
 rpcsvc/mount.h
 rpcsvc/nis.h
 %rpcsvc/nislib.h
-$ Requires <code>rpcsvc/nis.h</code>.
+$P rpcsvc/nis.h
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
 rpcsvc/rquota.h
@@ -140,7 +139,7 @@ rpcsvc/ypclnt.h
 rpcsvc/yppasswd.h
 sys/acct.h
 %sys/dir.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/errno.h
 sys/fcntl.h
 sys/file.h
@@ -150,7 +149,7 @@ sys/mman.h
 sys/mount.h
 sys/msg.h
 %sys/mtio.h
-$ Requires <code>sys/types.h</code>.
+$P sys/types.h
 sys/param.h
 sys/poll.h
 sys/reboot.h
@@ -161,13 +160,7 @@ sys/shm.h
 sys/signal.h
 sys/socket.h
 !sys/socketvar.h
-$ Objects to <code>extern struct sotimeq sotimeq_hash[];</code> when
-$ <code>struct sotimeq</code> is an incomplete type.  In this case, the
-$ necessary definition is immediately below the offending declaration.
-## gcc -c htest.c > htest-out.txt 2>&1
-## In file included from htest.c:3:
-## /usr/include/sys/socketvar.h:516: error: array type has incomplete
-##                                          element type
+$E hpux_sotimeq_hash
 sys/stat.h
 sys/statvfs.h
 sys/syscall.h

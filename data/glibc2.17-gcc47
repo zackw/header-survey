@@ -83,10 +83,7 @@ paths.h
 re_comp.h
 +regex.h
 %regexp.h
-$ <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/regexp.html"
-$ >SVID <code>regexp.h</code></a> requires the including file to define
-$ several macros, which are used in the bodies of inlined function
-$ definitions.
+$S regexp.h
 resolv.h
 *sched.h
 $ Lacks support for sporadic scheduling (optional in POSIX.1-2001).
@@ -142,8 +139,7 @@ utime.h
 utmp.h
 +utmpx.h
 !varargs.h
-$ Explicitly unimplemented: contains only an <code>#error</code> directive
-$ telling the programmer to use <code>stdarg.h</code> instead.
+$E unimpl_varargs
 ## In file included from htest.c:1:0:
 ## /usr/lib/gcc/x86_64-linux-gnu/4.7/include/varargs.h:4:2: error: #error "GCC no longer implements <varargs.h>."
 ## /usr/lib/gcc/x86_64-linux-gnu/4.7/include/varargs.h:5:2: error: #error "Revise your code to use <stdarg.h>."
@@ -212,172 +208,10 @@ rpc/xdr.h
 rpcsvc/bootparam_prot.h
 rpcsvc/mount.h
 !rpcsvc/nfs_prot.h
-$ Can't be used together with <code>rpcsvc/bootparam_prot.h</code>.
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:33:2: error: redeclaration of enumerator 'NFS_OK'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:43:2: note: previous definition of 'NFS_OK' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:34:2: error: redeclaration of enumerator 'NFSERR_PERM'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:44:2: note: previous definition of 'NFSERR_PERM' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:35:2: error: redeclaration of enumerator 'NFSERR_NOENT'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:45:2: note: previous definition of 'NFSERR_NOENT' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:36:2: error: redeclaration of enumerator 'NFSERR_IO'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:46:2: note: previous definition of 'NFSERR_IO' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:37:2: error: redeclaration of enumerator 'NFSERR_NXIO'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:47:2: note: previous definition of 'NFSERR_NXIO' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:38:2: error: redeclaration of enumerator 'NFSERR_ACCES'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:49:2: note: previous definition of 'NFSERR_ACCES' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:39:2: error: redeclaration of enumerator 'NFSERR_EXIST'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:50:2: note: previous definition of 'NFSERR_EXIST' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:40:2: error: redeclaration of enumerator 'NFSERR_NODEV'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:52:2: note: previous definition of 'NFSERR_NODEV' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:41:2: error: redeclaration of enumerator 'NFSERR_NOTDIR'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:53:2: note: previous definition of 'NFSERR_NOTDIR' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:42:2: error: redeclaration of enumerator 'NFSERR_ISDIR'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:54:2: note: previous definition of 'NFSERR_ISDIR' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:43:2: error: redeclaration of enumerator 'NFSERR_FBIG'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:56:2: note: previous definition of 'NFSERR_FBIG' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:44:2: error: redeclaration of enumerator 'NFSERR_NOSPC'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:57:2: note: previous definition of 'NFSERR_NOSPC' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:45:2: error: redeclaration of enumerator 'NFSERR_ROFS'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:58:2: note: previous definition of 'NFSERR_ROFS' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:46:2: error: redeclaration of enumerator 'NFSERR_NAMETOOLONG'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:61:2: note: previous definition of 'NFSERR_NAMETOOLONG' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:47:2: error: redeclaration of enumerator 'NFSERR_NOTEMPTY'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:62:2: note: previous definition of 'NFSERR_NOTEMPTY' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:48:2: error: redeclaration of enumerator 'NFSERR_DQUOT'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:63:2: note: previous definition of 'NFSERR_DQUOT' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:49:2: error: redeclaration of enumerator 'NFSERR_STALE'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:64:2: note: previous definition of 'NFSERR_STALE' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:50:2: error: redeclaration of enumerator 'NFSERR_WFLUSH'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:66:2: note: previous definition of 'NFSERR_WFLUSH' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:55:2: error: redeclaration of enumerator 'NFNON'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:120:2: note: previous definition of 'NFNON' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:56:2: error: redeclaration of enumerator 'NFREG'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:121:2: note: previous definition of 'NFREG' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:57:2: error: redeclaration of enumerator 'NFDIR'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:122:2: note: previous definition of 'NFDIR' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:58:2: error: redeclaration of enumerator 'NFBLK'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:123:2: note: previous definition of 'NFBLK' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:59:2: error: redeclaration of enumerator 'NFCHR'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:124:2: note: previous definition of 'NFCHR' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:60:2: error: redeclaration of enumerator 'NFLNK'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:125:2: note: previous definition of 'NFLNK' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:61:2: error: redeclaration of enumerator 'NFSOCK'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:126:2: note: previous definition of 'NFSOCK' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:62:2: error: redeclaration of enumerator 'NFBAD'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:127:2: note: previous definition of 'NFBAD' was here
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/nfs_prot.h:63:2: error: redeclaration of enumerator 'NFFIFO'
-## In file included from /usr/include/nfs/nfs.h:1:0,
-##                  from /usr/include/rpcsvc/bootparam_prot.h:19,
-##                  from htest.c:1:
-## /usr/include/linux/nfs.h:128:2: note: previous definition of 'NFFIFO' was here
+$C rpcsvc/bootparam_prot.h
 rpcsvc/nis.h
 %rpcsvc/nislib.h
-$ Requires <code>rpcsvc/nis.h</code>.
+$P rpcsvc/nis.h
 rpcsvc/nlm_prot.h
 rpcsvc/rex.h
 rpcsvc/rquota.h
@@ -387,11 +221,7 @@ rpcsvc/spray.h
 rpcsvc/yp_prot.h
 rpcsvc/ypclnt.h
 !rpcsvc/yppasswd.h
-$ Can't be used together with <code>pwd.h</code>.
-## In file included from htest.c:2:0:
-## /usr/include/rpcsvc/yppasswd.h:17:8: error: redefinition of 'struct passwd'
-## In file included from htest.c:1:0:
-## /usr/include/pwd.h:50:8: note: originally defined here
+$C pwd.h
 sys/acct.h
 sys/dir.h
 sys/errno.h

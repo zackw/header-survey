@@ -31,6 +31,7 @@
 from __future__ import unicode_literals
 
 import ConfigParser
+import cgi
 import argparse
 import collections
 import copy
@@ -214,6 +215,15 @@ def update_directory_tree(srcdir, dstdir, process_file):
     if not success:
         raise SystemExit(1)
 
+def list_to_English(lst, conjunction):
+    lst = ["<code>" + cgi.escape(x) + "</code>" for x in lst]
+    if len(lst) == 1:
+        return lst[0] + "."
+    elif len(lst) == 2:
+        return lst[0] + " " + conjunction + " " + lst[1] + "."
+    else:
+        return ", ".join(lst[:-1]) + ", " + conjunction + " " + lst[-1] + "."
+
 class HeaderNotes(object):
     """Data object representing what we know about one header on one
        OS.  It records the _state_ and the _annotations_ for each
@@ -226,8 +236,50 @@ class HeaderNotes(object):
         self.header      = header
         self.state       = { compiler: (state, []) }
 
+    # The most common types of annotation are given letter codes in
+    # the data files, then expanded here.
+    @staticmethod
+    def expand_conflict_annotation(text):
+        # The text is a space-separated list of headers with which the
+        # current header cannot be used.
+        return "Can’t be used with " + list_to_English(text.split(), "or")
+
+    @staticmethod
+    def expand_prereq_annotation(text):
+        return "Requires " + list_to_English(text.split(), "and")
+
+    error_data = None
+    error_file = None
+    @classmethod
+    def expand_error_annotation(cls, text):
+        if cls.error_data is None:
+            cls.error_data = ConfigParser.RawConfigParser()
+            cls.error_data.read(cls.error_file)
+        return cls.error_data.get(text.strip(), "desc")
+
+    special_data = None
+    special_file = None
+    special_desc_re = None
+    @classmethod
+    def expand_special_annotation(cls, text):
+        if cls.special_data is None:
+            cls.special_data = ConfigParser.RawConfigParser()
+            cls.special_data.read(cls.special_file)
+            cls.special_desc_re = re.compile(r'(?s)/\* *(.*?) *\*/')
+
+        return cls.special_desc_re.\
+            search(cls.special_data.get("special", text.strip())).group(1)
+
     def annotate(self, compiler, line):
-        self.state[compiler][1].append(line)
+        expand_annotation = {
+            'C': self.expand_conflict_annotation,
+            'E': self.expand_error_annotation,
+            'P': self.expand_prereq_annotation,
+            'S': self.expand_special_annotation
+        }
+        if line[0] != ' ':
+            line = expand_annotation[line[0]](line[1:])
+        self.state[compiler][1].append(line.strip())
 
     # Notes are not ordered, but can be equal or unequal.
     def __eq__(self, other):
@@ -302,7 +354,7 @@ class HeaderNotes(object):
         merged_anns = collections.defaultdict(list)
         for compiler, notes in self.state.iteritems():
             if len(notes[1]) > 0:
-                text = " ".join(notes[1])
+                text = "<br>".join(notes[1])
             else:
                 text = default_text[notes[0]]
                 if "DETAILS MISSING" in text:
@@ -411,7 +463,7 @@ class Dataset(object):
                         tags[k] = type(d)(v)
                     # else: ignore unrecognized tags
                 elif line[0] == '$':
-                    l = line[1:].strip()
+                    l = line[1:]
                     if prev_item is None:
                         raise RuntimeError("{}:{}: {!r}:"
                                            "annotation without header"
@@ -824,11 +876,16 @@ written to OUTDIR.
     argp.add_argument('-p', '--prereqs', metavar='FILE',
                       help='config file giving prerequisites for headers',
                       default='prereqs.ini')
+    argp.add_argument('-e', '--errors', metavar='FILE',
+                      help='config file giving error templates',
+                      default='errors.ini')
     argp.add_argument('-o', '--output', metavar='OUTDIR',
                       help='output directory; contents will be overwritten!',
                       default='web')
 
     args = argp.parse_args()
+    HeaderNotes.error_file = args.errors
+    HeaderNotes.special_file = args.prereqs
     writer = PageWriter(args)
     update_directory_tree(args.template, args.output, writer)
 
