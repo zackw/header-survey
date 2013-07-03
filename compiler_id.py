@@ -301,7 +301,6 @@ def new_compiler_id(cc):
     # #error directive, identifying the compiler in use.
     compilers = []
     for sect in data.sections():
-        if sect == "DEFAULTS": continue
         # Some compilers are imitated - their identifying macros are
         # also defined by other compilers.  Sort these to the end.
         imitated = data.has_option(sect, "imitated")
@@ -310,6 +309,7 @@ def new_compiler_id(cc):
 
     test1 = None
     test2 = None
+    test2_o = None
     try:
         test1 = named_tmpfile(prefix="cci", suffix="c")
         f = open(test1, "w")
@@ -330,6 +330,7 @@ def new_compiler_id(cc):
 
         # Confirm the identification.
         version_argv = data.get(compiler, "version").split()
+        version_out = data.get(compiler, "version_out")
 
         for i in range(len(version_argv)):
             if version_argv[i].startswith("$."):
@@ -339,6 +340,12 @@ def new_compiler_id(cc):
                 f.close()
                 version_argv[i] = test2
                 break
+
+        if version_out != "":
+            if version_out.startswith("$."):
+                (root, ext) = os.path.splitext(test2)
+                version_out = root + version_out[1:]
+            test2_o = version_out
 
         (rc, msg) = invoke(cc + version_argv)
         if rc != 0:
@@ -370,20 +377,128 @@ def new_compiler_id(cc):
             details = -1
 
         if details != -1:
-            return "%s %s (%s)" % (compiler, version, details)
+            return (compiler, "%s %s (%s)" % (compiler, version, details))
         else:
-            return "%s %s" % (compiler, version)
+            return (compiler, "%s %s" % (compiler, version))
 
     finally:
-        if test1 is not None: delete_if_exists(test1)
-        if test2 is not None:
-            delete_if_exists(test2)
-            (root, ext) = os.path.splitext(test2)
-            delete_if_exists(root + ".i")
-            delete_if_exists(root + ".s")
-            delete_if_exists(root + ".o")
-            delete_if_exists(root + ".obj")
+        if test1   is not None: delete_if_exists(test1)
+        if test2   is not None: delete_if_exists(test2)
+        if test2_o is not None: delete_if_exists(test2_o)
+
+def probe_max_version(cmd, test_c, verre, topts):
+    found = None
+    for opt in topts:
+        if opt == "no":
+            continue
+        if opt == "":
+            cmdline = cmd + [test_c]
+        else:
+            cmdline = cmd + [opt, test_c]
+        (rc, msg) = invoke(cmdline)
+        for line in msg:
+            m = verre.search(line)
+            if m:
+                found = (m.group(1), opt)
+                # Try not to return a zero version.
+                if int(found[0]) != 0:
+                    return found
+
+    # But we will return a zero version if we couldn't do any better.
+    if found is not None:
+        return found
+
+    for line in msg: sys.stderr.write("| " + line.strip() + "\n")
+    raise SystemExit("No version number found.")
+
+
+def probe_max_c_and_xopen_versions(cc, compiler):
+    data = ConfigParser.ConfigParser()
+    data.read("compilers.ini")
+
+    test_i = None
+    test_c = None
+    try:
+        test_c = named_tmpfile(prefix="cci", suffix="c")
+        (test_root, _) = os.path.splitext(test_c)
+
+        preproc = data.get(compiler, "preproc").split()
+        test_i = data.get(compiler, "preproc_out")
+        if test_i.startswith("$."):
+            test_i = test_root + test_i[1:]
+
+        for i in range(len(preproc)):
+            if preproc[i].startswith("$."):
+                preproc[i] = test_root + preproc[i][1:]
+
+        cmdline = cc + preproc
+
+        f = open(test_c, "w")
+        f.write("#if __STDC_VERSION__ >= 201112L\n"
+                "#error C_2011\n"
+                "#elif __STDC_VERSION__ >= 199901L\n"
+                "#error C_1999\n"
+                "#elif __STDC__ >= 1\n"
+                "#error C_1989\n"
+                "#else\n"
+                "#error C_0\n"
+                "#endif\n")
+        f.close()
+
+        cverre = re.compile(r"\berror\b.*C_([0-9]+)\b")
+        (cver, copt) = probe_max_version(cmdline, test_c, cverre,
+                                         [data.get(compiler, "c2011"),
+                                          data.get(compiler, "c1999"),
+                                          data.get(compiler, "c1989"),
+                                          ""])
+
+        cmdline.append(copt)
+
+        f = open(test_c, "w")
+        f.write("#include <unistd.h>\n"
+                "#if _POSIX_VERSION >= 200809L\n"
+                "#error X_7\n"
+                "#elif _POSIX_VERSION >= 200112L\n"
+                "#error X_6\n"
+                "#elif _POSIX_VERSION >= 199506L\n"
+                "#error X_5\n"
+                "#elif _POSIX_VERSION >= 199309L\n"
+                "#error X_4\n"
+                "#else"
+                "#error X_0\n"
+                "#endif\n")
+        f.close()
+
+        D = data.get(compiler, "define")
+
+        xverre = re.compile(r"\berror\b.*X_([0-9])\b")
+        (xver, xopt) = probe_max_version(cmdline, test_c, xverre,
+                                         [D+"_XOPEN_SOURCE=700",
+                                          D+"_XOPEN_SOURCE=600",
+                                          D+"_XOPEN_SOURCE=500",
+                                          D+"_XOPEN_SOURCE=4"])
+        (pver, popt) = probe_max_version(cmdline, test_c, xverre,
+                                         [D+"_POSIX_C_SOURCE=200809L",
+                                          D+"_POSIX_C_SOURCE=200112L",
+                                          D+"_POSIX_C_SOURCE=199506L",
+                                          D+"_POSIX_C_SOURCE=199309L",
+                                          D+"_POSIX_C_SOURCE=2",
+                                          ""])
+
+        if int(xver) >= int(pver):
+            return (cver, copt, xver, xopt)
+        else:
+            return (cver, copt, pver, popt)
+
+    finally:
+        if test_c is not None: delete_if_exists(test_c)
+        if test_i is not None: delete_if_exists(test_i)
 
 if __name__ == '__main__':
-    print "old:", old_compiler_id(sys.argv[1:])
-    print "new:", new_compiler_id(sys.argv[1:])
+    cc = sys.argv[1:]
+    print "old:", old_compiler_id(cc)
+    (compiler, label) = new_compiler_id(cc)
+    print "new:", label
+    (cver, copt, xver, xopt) = probe_max_c_and_xopen_versions(cc, compiler)
+    print "C:  ", cver, copt
+    print "X:  ", xver, xopt
