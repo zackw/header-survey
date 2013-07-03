@@ -386,7 +386,7 @@ def new_compiler_id(cc):
         if test2   is not None: delete_if_exists(test2)
         if test2_o is not None: delete_if_exists(test2_o)
 
-def probe_max_version(cmd, test_c, verre, topts):
+def probe_max_version(cmd, test_c, verre, nonexre, topts):
     found = None
     for opt in topts:
         if opt == "no":
@@ -403,6 +403,10 @@ def probe_max_version(cmd, test_c, verre, topts):
                 # Try not to return a zero version.
                 if int(found[0]) != 0:
                     return found
+            m = nonexre.search(line)
+            if m:
+                # If we got a failure because a file doesn't exist, give up.
+                return ("0", "")
 
     # But we will return a zero version if we couldn't do any better.
     if found is not None:
@@ -416,22 +420,26 @@ def probe_max_c_and_xopen_versions(cc, compiler):
     data = ConfigParser.ConfigParser()
     data.read("compilers.ini")
 
+    nonexre = re.compile(data.get(compiler, "notfound_re"))
+
     test_i = None
     test_c = None
     try:
         test_c = named_tmpfile(prefix="cci", suffix="c")
         (test_root, _) = os.path.splitext(test_c)
 
-        preproc = data.get(compiler, "preproc").split()
         test_i = data.get(compiler, "preproc_out")
         if test_i.startswith("$."):
             test_i = test_root + test_i[1:]
 
+        preproc = data.get(compiler, "preproc").split()
         for i in range(len(preproc)):
             if preproc[i].startswith("$."):
                 preproc[i] = test_root + preproc[i][1:]
 
-        cmdline = cc + preproc
+        conform = data.get(compiler, "conform").split()
+
+        cmdline = cc + conform + preproc
 
         f = open(test_c, "w")
         f.write("#if __STDC_VERSION__ >= 201112L\n"
@@ -446,13 +454,14 @@ def probe_max_c_and_xopen_versions(cc, compiler):
         f.close()
 
         cverre = re.compile(r"\berror\b.*C_([0-9]+)\b")
-        (cver, copt) = probe_max_version(cmdline, test_c, cverre,
+        (cver, copt) = probe_max_version(cmdline, test_c, cverre, nonexre,
                                          [data.get(compiler, "c2011"),
                                           data.get(compiler, "c1999"),
                                           data.get(compiler, "c1989"),
                                           ""])
 
-        cmdline.append(copt)
+        if copt != "":
+            cmdline.append(copt)
 
         f = open(test_c, "w")
         f.write("#include <unistd.h>\n"
@@ -472,12 +481,12 @@ def probe_max_c_and_xopen_versions(cc, compiler):
         D = data.get(compiler, "define")
 
         xverre = re.compile(r"\berror\b.*X_([0-9])\b")
-        (xver, xopt) = probe_max_version(cmdline, test_c, xverre,
+        (xver, xopt) = probe_max_version(cmdline, test_c, xverre, nonexre,
                                          [D+"_XOPEN_SOURCE=700",
                                           D+"_XOPEN_SOURCE=600",
                                           D+"_XOPEN_SOURCE=500",
                                           D+"_XOPEN_SOURCE=4"])
-        (pver, popt) = probe_max_version(cmdline, test_c, xverre,
+        (pver, popt) = probe_max_version(cmdline, test_c, xverre, nonexre,
                                          [D+"_POSIX_C_SOURCE=200809L",
                                           D+"_POSIX_C_SOURCE=200112L",
                                           D+"_POSIX_C_SOURCE=199506L",
