@@ -379,10 +379,10 @@ def new_compiler_id(cc):
         if test2 is not None:
             delete_if_exists(test2)
             (root, ext) = os.path.splitext(test2)
-            delete_if_exists(test2 + ".i")
-            delete_if_exists(test2 + ".s")
-            delete_if_exists(test2 + ".o")
-            delete_if_exists(test2 + ".obj")
+            delete_if_exists(root + ".i")
+            delete_if_exists(root + ".s")
+            delete_if_exists(root + ".o")
+            delete_if_exists(root + ".obj")
 
 if __name__ == '__main__':
     print "old:", old_compiler_id(sys.argv[1:])
