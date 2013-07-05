@@ -20,10 +20,18 @@ import re
 import string
 import sys
 
+# At some point in the 2.x series, match.group(N) changed from returning
+# -1 to returning None if the group was part of an unmatched alternative.
+# Also reject the empty string (this can be returned on a successful match,
+# but is never what we want in context).
+def group_matched(grp):
+    return grp is not None and grp != -1 and grp != ""
+
 def delete_if_exists(fname):
     """Delete FNAME; do not raise an exception if FNAME already
        doesn't exist.  Used to clean up files that may or may not
        have been created by a compile invocation."""
+    if fname is None: return
     try: os.remove(fname)
     except EnvironmentError, e:
         if e.errno != errno.ENOENT:
@@ -363,8 +371,8 @@ def new_compiler_id(data, cc):
         except IndexError:
             versio1 = match.group("version1")
             versio2 = match.group("version2")
-            if versio1 != -1: version = versio1
-            elif versio2 != -1: version = versio2
+            if group_matched(versio1): version = versio1
+            elif group_matched(versio2): version = versio2
             else:
                 for line in msg: sys.stderr.write("| " + line.strip() + "\n")
                 raise SystemExit("No version number found.")
@@ -375,11 +383,12 @@ def new_compiler_id(data, cc):
         except IndexError:
             try:
                 detail1 = match.group("details1")
-                detail2 = match.group("details2")
-                if detail1 != -1 and detail1.lower() != compiler:
+                if group_matched(detail1) and detail1.lower() != compiler:
                     details = detail1
-                elif detail2 != -1 and detail2.lower() != compiler:
-                    details = detail2
+                else:
+                    detail2 = match.group("details2")
+                    if group_matched(detail2) and detail2.lower() != compiler:
+                        details = detail2
             except IndexError:
                 pass
 
@@ -393,18 +402,11 @@ def new_compiler_id(data, cc):
         if test2   is not None: delete_if_exists(test2)
         if test2_o is not None: delete_if_exists(test2_o)
 
-def probe_max_c_version(data, compiler, cc):
-    known_c_versions = {
-        "201112": 2011,
-        "199901": 1999,
-        "199409": 1989,
-        "1":      1989,
-    }
-    result_re = re.compile(r"^@@ ([0-9]+|__STDC_VERSION__)[ULul]*$")
-
+def probe_max_version(data, compiler, cc, probes, testcode):
     conform = data.get(compiler, "conform").split()
     preproc = data.get(compiler, "preproc").split()
     preproc_out = data.get(compiler, "preproc_out")
+    define = data.get(compiler, "define")
 
     test_i = None
     test_c = None
@@ -413,7 +415,8 @@ def probe_max_c_version(data, compiler, cc):
         (test_root, _) = os.path.splitext(test_c)
 
         f = open(test_c, "w")
-        f.write("@@ __STDC_VERSION__\n")
+        f.write(testcode)
+        f.write("\n")
         f.close()
 
         test_i = data.get(compiler, "preproc_out")
@@ -424,190 +427,88 @@ def probe_max_c_version(data, compiler, cc):
             if preproc[i].startswith("$."):
                 preproc[i] = test_root + preproc[i][1:]
 
-        cc_conform = cc + conform
+        cc_conform = cc + conform + preproc
 
-        for exp, opt in [(2011, data.get(compiler, "c2011")),
-                         (1999, data.get(compiler, "c1999")),
-                         (1989, data.get(compiler, "c1989")),
-                         (0, "")]:
-            if opt == "no": continue
+        failures = []
+        for (opts, defines, expected, tag) in probes:
+            if opts == "":
+                opts = []
+            else:
+                opts = opts.split()
+            if defines == "":
+                defines = []
+            else:
+                defines = [define + d for d in defines.split()]
 
-            cmdline = cc_conform[:]
-            if opt != "":
-                cmdline.extend(opt.split())
-            cmdline.extend(preproc)
-            cmdline.append(test_c)
+            (rc, msg) = invoke(cc_conform + opts + defines +
+                               [define + "EXPECTED=" + expected, test_c])
+            if rc == 0:
+                return (tag, opts + defines)
 
-            (rc, msg) = invoke(cmdline)
-            if rc != 0:
-                # assume that a failure with a non-empty option is due to
-                # the option being unrecognized
-                if opt != "":
-                    continue
-                for line in msg: sys.stderr.write("| " + line.strip() + "\n")
-                raise SystemExit("Trial preprocessor invocation failed.")
+            failures.append("")
+            failures.extend(msg)
 
-            result = universal_readlines(test_i)
-            result.reverse()
-            cver = 0
-            for line in result:
-                m = result_re.match(line)
-                if m:
-                    cver = known_c_versions.get(m.group(1), 0)
-                    break
-            if exp == cver or exp == 0:
-                cc_conform.extend(opt.split())
-                return ("c"+str(cver), opt, cc_conform)
+        for l in failures: sys.stderr.write("| %s\n" % l)
+        raise SystemExit("Version-probe failure.")
+
     finally:
-        if test_c is not None: delete_if_exists(test_c)
-        if test_i is not None: delete_if_exists(test_i)
+        delete_if_exists(test_i)
+        delete_if_exists(test_c)
+
+def probe_max_c_version(data, compiler, cc):
+    all_versions = [
+        (data.get(compiler, "c2011"), "", "201112L", "c2011"),
+        (data.get(compiler, "c1999"), "", "199901L", "c1999"),
+
+        # There are two possible values of __STDC_VERSION__ for C1989.
+        (data.get(compiler, "c1989"), "EXPECTED2=1", "199409L", "c1989"),
+    ]
+    versions = []
+    for v in all_versions:
+        if v[0] != "no":
+            versions.append(v)
+
+    return probe_max_version(data, compiler, cc, versions, r"""
+#if __STDC_VERSION__ != EXPECTED && \
+    (!defined EXPECTED2 || __STDC_VERSION__ != EXPECTED2)
+#error "wrong version"
+#endif""")
 
 def probe_max_posix_version(data, compiler, cc):
-    known_posix_versions = {
-        "200809" : 2008,
-        "200112" : 2001,
-        "199506" : 1995,
-        "199309" : 1993,
-        "2"      : 1991,
-    }
-    result_re = re.compile(r"^@@ ([0-9]+|_POSIX_VERSION\b)[ulUL]*$")
-    notfound_re = re.compile(data.get(compiler, "notfound_re"), re.VERBOSE)
+    # If _XOPEN_SOURCE works, we want to use it instead of _POSIX_C_SOURCE,
+    # as it may enable more stuff.
+    #
+    # Some systems (e.g. NetBSD) support _XOPEN_SOURCE as input to
+    # feature selection but don't bother defining _XOPEN_VERSION in
+    # response.  They _do_, however, respond with the appropriate
+    # _POSIX_VERSION definition.
+    #
+    # So for each _POSIX_VERSION level we are interested in, try
+    # selecting it first with _XOPEN_SOURCE and then, if that didn't
+    # work, with _POSIX_C_SOURCE.
+    #
+    # There were meaningful values of _XOPEN_SOURCE and _POSIX_C_SOURCE
+    # prior to 500 / 199506L, but they are so old that probing for them
+    # is not worth the trouble.
+    #
+    # The very last trial doesn't even include unistd.h, in case the
+    # failures are because it doesn't exist.
+    return probe_max_version(data, compiler, cc, [
+            ("", "_XOPEN_SOURCE=700",       "200809L", "p2008"),
+            ("", "_POSIX_C_SOURCE=200809L", "200809L", "p2008"),
+            ("", "_XOPEN_SOURCE=600",       "200112L", "p2001"),
+            ("", "_POSIX_C_SOURCE=200112L", "200112L", "p2001"),
+            ("", "_XOPEN_SOURCE=500",       "199506L", "p1995"),
+            ("", "_POSIX_C_SOURCE=199506L", "199506L", "p1995"),
+            ("", "",                        "0",       "p0"),
+        ], r"""
+#if EXPECTED != 0
+#include <unistd.h>
+#if _POSIX_VERSION != EXPECTED
+#error "wrong version"
+#endif
+#endif""")
 
-    define = data.get(compiler, "define")
-    preproc = data.get(compiler, "preproc").split()
-    preproc_out = data.get(compiler, "preproc_out")
-
-    test_i = None
-    test_c = None
-    try:
-        test_c = named_tmpfile(prefix="cci", suffix="c")
-        (test_root, _) = os.path.splitext(test_c)
-
-        f = open(test_c, "w")
-        f.write("#include <unistd.h>\n"
-                "@@ _POSIX_VERSION\n")
-        f.close()
-
-        test_i = preproc_out
-        if test_i.startswith("$."):
-            test_i = test_root + test_i[1:]
-
-        for i in range(len(preproc)):
-            if preproc[i].startswith("$."):
-                preproc[i] = test_root + preproc[i][1:]
-
-        cmdline_base = cc + preproc
-        for exp, macro in [(2008, "_POSIX_C_SOURCE=200809L"),
-                           (2001, "_POSIX_C_SOURCE=200112L"),
-                           (1995, "_POSIX_C_SOURCE=199506L"),
-                           (1993, "_POSIX_C_SOURCE=199309L"),
-                           (2   , "_POSIX_C_SOURCE=2"),
-                           (0   , "")
-                         ]:
-            cmdline = cmdline_base[:]
-            if macro != "":
-                cmdline.append(define + macro)
-            cmdline.append(test_c)
-
-            (rc, msg) = invoke(cmdline)
-            if rc != 0:
-                for line in msg:
-                    if notfound_re.search(line):
-                        # No unistd.h means no POSIX.
-                        return ("p0", "")
-                # Any other failure indicates a bug.
-                for line in msg: sys.stderr.write("| " + line.strip() + "\n")
-                raise SystemExit("Trial preprocessor invocation failed.")
-
-            result = universal_readlines(test_i)
-            result.reverse()
-            pver = 0
-            for line in result:
-                m = result_re.match(line)
-                if m:
-                    pver = known_posix_versions.get(m.group(1), 0)
-                    break
-            if exp == pver or exp == 0:
-                if macro == "":
-                    return ("p"+str(pver), "")
-                else:
-                    return ("p"+str(pver), define + macro)
-        assert not "reached"
-    finally:
-        if test_c is not None: delete_if_exists(test_c)
-        if test_i is not None: delete_if_exists(test_i)
-
-def probe_max_xopen_version(data, compiler, cc):
-    known_xopen_versions = {
-        "700" : 7,
-        "600" : 6,
-        "500" : 5,
-        "4  " : 4,
-    }
-    result_re = re.compile(r"^@@ ([0-9]+|_XOPEN_VERSION\b)[ulUL]*$")
-    notfound_re = re.compile(data.get(compiler, "notfound_re"), re.VERBOSE)
-
-    define = data.get(compiler, "define")
-    preproc = data.get(compiler, "preproc").split()
-    preproc_out = data.get(compiler, "preproc_out")
-
-    test_i = None
-    test_c = None
-    try:
-        test_c = named_tmpfile(prefix="cci", suffix="c")
-        (test_root, _) = os.path.splitext(test_c)
-
-        f = open(test_c, "w")
-        f.write("#include <unistd.h>\n"
-                "@@ _XOPEN_VERSION\n")
-        f.close()
-
-        test_i = preproc_out
-        if test_i.startswith("$."):
-            test_i = test_root + test_i[1:]
-
-        for i in range(len(preproc)):
-            if preproc[i].startswith("$."):
-                preproc[i] = test_root + preproc[i][1:]
-
-        cmdline_base = cc + preproc
-        for exp, macro in [(7, "_XOPEN_SOURCE=700"),
-                           (6, "_XOPEN_SOURCE=600"),
-                           (5, "_XOPEN_SOURCE=500"),
-                           (0   , "")
-                         ]:
-            cmdline = cmdline_base[:]
-            if macro != "":
-                cmdline.append(define + macro)
-            cmdline.append(test_c)
-
-            (rc, msg) = invoke(cmdline)
-            if rc != 0:
-                for line in msg:
-                    if notfound_re.search(line):
-                        # No unistd.h means no X/Open.
-                        return ("x0", "")
-                # Any other failure indicates a bug.
-                for line in msg: sys.stderr.write("| " + line.strip() + "\n")
-                raise SystemExit("Trial preprocessor invocation failed.")
-
-            result = universal_readlines(test_i)
-            result.reverse()
-            xver = 0
-            for line in result:
-                m = result_re.match(line)
-                if m:
-                    xver = known_xopen_versions.get(m.group(1), 0)
-                    break
-            if exp == xver or exp == 0:
-                if macro == "":
-                    return ("x"+str(xver), "")
-                else:
-                    return ("x"+str(xver), define + macro)
-        assert not "reached"
-    finally:
-        if test_c is not None: delete_if_exists(test_c)
-        if test_i is not None: delete_if_exists(test_i)
 
 if __name__ == '__main__':
     cc = sys.argv[1:]
@@ -618,11 +519,9 @@ if __name__ == '__main__':
 
     (compiler, label) = new_compiler_id(data, cc)
     print "new:", label
-    (cver, copt, cc) = probe_max_c_version(data, compiler, cc)
+    (cver, copt) = probe_max_c_version(data, compiler, cc)
     print "C:  ", cver, copt
+    cc.extend(copt)
 
     (pver, popt) = probe_max_posix_version(data, compiler, cc)
     print "P:  ", pver, popt
-
-    (xver, xopt) = probe_max_xopen_version(data, compiler, cc)
-    print "X:  ", xver, xopt
