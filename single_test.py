@@ -1082,15 +1082,16 @@ class Header:
         buf = StringIO.StringIO()
         for h in others:
             buf.seek(0)
-            h.gen_includes(buf, 1, 0)
-            self.gen_includes(buf, 1, 0)
+            h.gen_includes(buf, conform, thread)
+            self.gen_includes(buf, conform, thread)
             buf.write("int avoid_empty_translation_unit;\n")
             buf.truncate()
 
-            (rc, _) = cc.test_compile(buf.getvalue(),
-                                      conform=conform, thread=thread)
+            (rc, msg) = cc.test_compile(buf.getvalue(),
+                                        conform=conform, thread=thread)
             if rc != 0:
                 conflicts.append(h)
+
         return conflicts
 
     def test_conflict(self, cc):
@@ -1121,9 +1122,9 @@ class Header:
         # set; otherwise we have to go row by row.
         buf = StringIO.StringIO()
         for h in others:
-            h.gen_includes(buf, 1, 0)
-        self.gen_includes(buf, 1, 0)
-        self.gen_includes(buf, 1, 0)
+            h.gen_includes(buf, conform, thread)
+        self.gen_includes(buf, conform, thread)
+        self.gen_includes(buf, conform, thread)
         buf.write("int avoid_empty_translation_unit;\n")
         (rc, msg) = cc.test_compile(buf.getvalue(),
                                     conform=conform, thread=thread)
