@@ -31,8 +31,10 @@ def delete_if_exists(fname):
     """Delete FNAME; do not raise an exception if FNAME already
        doesn't exist.  Used to clean up files that may or may not
        have been created by a compile invocation."""
-    if fname is None: return
-    try: os.remove(fname)
+    if fname is None:
+        return
+    try:
+        os.remove(fname)
     except EnvironmentError, e:
         if e.errno != errno.ENOENT:
             raise
@@ -50,21 +52,14 @@ def universal_readlines(fname):
 # Create a scratch file, with a unique name, in the current directory.
 # 2.0 `tempfile` does not have NamedTemporaryFile, and doesn't have
 # anything useful for defining it, either.  This is kinda sorta like
-# the code implementing 2.7's NamedTemporaryFile.
-_named_tmpfile_cwd = None
-_named_tmpfile_letters = "abcdefghijklmnopqrstuvwxyz012345" # 32 characters
+# the code implementing 2.7's NamedTemporaryFile.  Caller is
+# responsible for cleaning up.
 def named_tmpfile(prefix="tmp", suffix="txt"):
-    global _named_tmpfile_cwd
-    global _named_tmpfile_letters
-    if _named_tmpfile_cwd is None:
-        _named_tmpfile_cwd = os.getcwd()
-
+    symbols = "abcdefghijklmnopqrstuvwxyz01234567890"
     tries = 0
     while 1:
-        candidate = "".join([random.choice(_named_tmpfile_letters)
-                             for _ in (1,2,3,4,5)])
-        path = os.path.join(_named_tmpfile_cwd,
-                            prefix + candidate + "." + suffix)
+        candidate = "".join([random.choice(symbols) for _ in (1,2,3,4,5)])
+        path = prefix + candidate + "." + suffix
         try:
             os.close(os.open(path, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0600))
             return path
@@ -201,32 +196,32 @@ def invoke(argv):
     msg = []
     result = None
     try:
-        result = named_tmpfile(prefix="out", suffix="txt")
-        cmdline = ">" + result + " 2>&1 " + list2shell(argv)
-        msg.append(cmdline)
-        rc = os.system(cmdline)
-        if rc != 0:
-            if sys.platform == 'win32':
-                msg.append("[exit %08x]" % rc)
-            elif os.WIFEXITED(rc):
-                msg.append("[exit %d]" % os.WEXITSTATUS(rc))
-            elif os.WIFSIGNALED(rc):
-                msg.append("[signal %d]" % os.WTERMSIG(rc))
-                # special check for ^C and ^\ (SIGINT, SIGQUIT:
-                # respectively signal numbers 2 and 3, everywhere)
-                if os.WTERMSIG(rc) == 2 or os.WTERMSIG(rc) == 3:
-                    raise KeyboardInterrupt
+        try:
+            result = named_tmpfile(prefix="out", suffix="txt")
+            cmdline = ">" + result + " 2>&1 " + list2shell(argv)
+            msg.append(cmdline)
+            rc = os.system(cmdline)
+            if rc != 0:
+                if sys.platform == 'win32':
+                    msg.append("[exit %08x]" % rc)
+                elif os.WIFEXITED(rc):
+                    msg.append("[exit %d]" % os.WEXITSTATUS(rc))
+                elif os.WIFSIGNALED(rc):
+                    msg.append("[signal %d]" % os.WTERMSIG(rc))
+                    # special check for ^C and ^\ (SIGINT, SIGQUIT:
+                    # respectively signal numbers 2 and 3, everywhere)
+                    if os.WTERMSIG(rc) == 2 or os.WTERMSIG(rc) == 3:
+                        raise KeyboardInterrupt
+                else:
+                    msg.append("[status %08x]" % rc)
+            msg.extend(universal_readlines(result))
+        except EnvironmentError, e:
+            if e.filename:
+                msg.append("%s: %s" % (e.filename, e.strerror))
             else:
-                msg.append("[status %08x]" % rc)
-        msg.extend(universal_readlines(result))
-    except EnvironmentError, e:
-        if e.filename:
-            msg.append("%s: %s" % (e.filename, e.strerror))
-        else:
-            msg.append("%s: %s" % (argv[0], e.strerror))
+                msg.append("%s: %s" % (argv[0], e.strerror))
     finally:
-        if result is not None:
-            delete_if_exists(result)
+        delete_if_exists(result)
 
     return (rc, msg)
 
@@ -289,239 +284,370 @@ def old_compiler_id(cc):
             return ccid
     return "unidentified"
 
-def new_compiler_id_1(msg, compilers):
-    # This is a separate routine just so we can use "return" to break out
-    # of two loops at once.
-    for line in msg:
-        if line.find("error") != -1:
-            for (imitated, macro, name) in compilers:
-                if re.search(r'\b' + name + r'\b', line):
-                    return name
-            if re.search(r'\bUNKNOWN\b', line):
-                return "UNKNOWN"
-    return "FAIL"
+class Compiler:
+    """A Compiler instance knows how to invoke a particular compiler
+       on provided source code.  Instantiated from a command + arguments,
+       it will identify the compiler and set up to use it.
 
-def new_compiler_id(data, cc):
+       Uses a config file (defaulting to 'compilers.ini') to track the
+       idiosyncracies of various compilers."""
 
-    # Construct a source file that will fail to compile with exactly one
-    # #error directive, identifying the compiler in use.
-    compilers = []
-    for sect in data.sections():
-        # Some compilers are imitated - their identifying macros are
-        # also defined by other compilers.  Sort these to the end.
-        imitated = data.has_option(sect, "imitated")
-        compilers.append((imitated, data.get(sect, "id_macro"), sect))
-    compilers.sort()
+    def __init__(self, base_cmd, cfgf="compilers.ini"):
+        self.base_cmd = base_cmd
 
-    test1 = None
-    test2 = None
-    test2_o = None
-    try:
-        test1 = named_tmpfile(prefix="cci", suffix="c")
-        f = open(test1, "w")
-        f.write("#if 0\n")
-        for (imitated, macro, name) in compilers:
-            f.write("#elif defined %s\n#error %s\n" % (macro, name))
-        f.write("#else\n#error UNKNOWN\n#endif")
-        f.close()
+        cfg = ConfigParser.ConfigParser()
+        cfg.read(cfgf)
 
-        (rc, msg) = invoke(cc + [test1])
-        compiler = new_compiler_id_1(msg, compilers)
+        (compiler, label) = self.identify(cfg, cfgf)
+        self.compiler = compiler
+        self.label = label
 
-        if compiler == "FAIL":
-            for line in msg: sys.stderr.write("| " + line.strip() + "\n")
-            raise SystemExit("Unable to parse compiler output.")
-        if compiler == "UNKNOWN":
-            raise SystemExit("Unable to identify compiler.")
+        self.notfound_re = re.compile(cfg.get(compiler, "notfound_re"),
+                                      re.VERBOSE)
 
-        # Confirm the identification.
-        version_argv = data.get(compiler, "version").split()
-        version_out = data.get(compiler, "version_out")
+        self.preproc_cmd = cfg.get(compiler, "preproc").split()
+        self.preproc_out = cfg.get(compiler, "preproc_out")
+        self.compile_cmd = cfg.get(compiler, "compile").split()
+        self.compile_out = cfg.get(compiler, "compile_out")
 
-        for i in range(len(version_argv)):
-            if version_argv[i].startswith("$."):
-                test2 = named_tmpfile(prefix="cci", suffix=version_argv[i][2:])
-                f = open(test2, "w")
-                f.write("int dummy;")
-                f.close()
-                version_argv[i] = test2
-                break
+        self.define_opt  = cfg.get(compiler, "define")
+        self.conform_opt = cfg.get(compiler, "conform").split()
+        self.thread_opt = cfg.get(self.compiler, "threads").split()
+        self.test_with_thread_opt = 0
 
-        if version_out != "":
-            if version_out.startswith("$."):
-                (root, ext) = os.path.splitext(test2)
-                version_out = root + version_out[1:]
-            test2_o = version_out
+        self.smoke_test(cfg, cfgf)
+        self.conformance_test(cfg, cfgf)
 
-        (rc, msg) = invoke(cc + version_argv)
-        if rc != 0:
-            for line in msg: sys.stderr.write("| " + line.strip() + "\n")
-            raise SystemExit("Detailed version request failed.")
-        mm = "\n".join(msg[1:]) # throw away the command line
-        version_re = re.compile(data.get(compiler, "id_regexp"),
-                                re.VERBOSE|re.DOTALL)
-        match = version_re.search(mm)
-        if not match:
-            for line in msg: sys.stderr.write("| " + line.strip() + "\n")
-            raise SystemExit("Version information for " + compiler +
-                             " not in expected format")
-
-        try:
-            version = match.group("version")
-        except IndexError:
-            versio1 = match.group("version1")
-            versio2 = match.group("version2")
-            if group_matched(versio1): version = versio1
-            elif group_matched(versio2): version = versio2
+    def subst_filename(self, fname, opts):
+        """If any of OPTS is of the form '$.extension', replace the
+           dollar sign with FNAME's base name.  Returns the modified
+           string or list."""
+        (base, _) = os.path.splitext(fname)
+        if type(opts) == type(""):
+            if opts.startswith("$."):
+                return base + opts[1:]
             else:
-                for line in msg: sys.stderr.write("| " + line.strip() + "\n")
-                raise SystemExit("No version number found.")
-
-        details = -1
-        try:
-            details = match.group("details")
-        except IndexError:
-            try:
-                detail1 = match.group("details1")
-                if group_matched(detail1) and detail1.lower() != compiler:
-                    details = detail1
-                else:
-                    detail2 = match.group("details2")
-                    if group_matched(detail2) and detail2.lower() != compiler:
-                        details = detail2
-            except IndexError:
-                pass
-
-        if details != -1:
-            return (compiler, "%s %s (%s)" % (compiler, version, details))
+                return opts
         else:
-            return (compiler, "%s %s" % (compiler, version))
+            nopts = []
+            for opt in opts:
+                if opt.startswith("$."):
+                    nopts.append(base + opt[1:])
+                else:
+                    nopts.append(opt)
+            return nopts
 
-    finally:
-        if test1   is not None: delete_if_exists(test1)
-        if test2   is not None: delete_if_exists(test2)
-        if test2_o is not None: delete_if_exists(test2_o)
+    def fatal(self, msg, output):
+        sys.stderr.write("Fatal error: %s\n" % msg)
+        for line in output:
+            sys.stderr.write("| %s\n" % line)
+        raise SystemExit(1)
 
-def probe_max_version(data, compiler, cc, probes, testcode):
-    conform = data.get(compiler, "conform").split()
-    preproc = data.get(compiler, "preproc").split()
-    preproc_out = data.get(compiler, "preproc_out")
-    define = data.get(compiler, "define")
+    def failure_due_to_nonexistence(self, msg, header):
+        for m in msg:
+            if self.notfound_re.search(m) and m.find(header) != -1:
+                return 1
+        return 0
 
-    test_i = None
-    test_c = None
-    try:
-        test_c = named_tmpfile(prefix="cci", suffix="c")
-        (test_root, _) = os.path.splitext(test_c)
+    def test_invoke(self, code, suffix, action, outname,
+                    conform=0, thread=0, opts=[], defines=[]):
+        cmd = self.base_cmd[:]
+        if conform:
+            cmd.extend(self.conform_opt)
+        if thread:
+            cmd.extend(self.thread_opt)
+        cmd.extend(opts)
+        if len(defines) > 0:
+            for d in defines:
+                cmd.append(self.define_opt + d)
 
-        f = open(test_c, "w")
-        f.write(testcode)
-        f.write("\n")
-        f.close()
+        test_c = None
+        test_s = None
+        try:
+            test_c = named_tmpfile(prefix="cct", suffix=suffix)
+            test_s = self.subst_filename(test_c, outname)
+            cmd.extend(self.subst_filename(test_c, action))
+            cmd.append(test_c)
 
-        test_i = data.get(compiler, "preproc_out")
-        if test_i.startswith("$."):
-            test_i = test_root + test_i[1:]
+            f = open(test_c, "w")
+            f.write(code)
+            f.write("\n")
+            f.close()
 
-        for i in range(len(preproc)):
-            if preproc[i].startswith("$."):
-                preproc[i] = test_root + preproc[i][1:]
+            (rc, msg) = invoke(cmd)
+            if rc != 0:
+                msg.append("failed program was:")
+                msg.extend(["| %s" % l for l in code.split("\n")])
+            return (rc, msg)
+        finally:
+            delete_if_exists(test_c)
+            delete_if_exists(test_s)
 
-        cc_conform = cc + conform + preproc
+    def test_compile(self, code, conform=0, thread=0, opts=[], defines=[]):
+        return self.test_invoke(code, "c",
+                                self.compile_cmd,
+                                self.compile_out,
+                                conform, thread, opts, defines)
+
+    def test_preproc(self, code, conform=0, thread=0, opts=[], defines=[]):
+        return self.test_invoke(code, "c",
+                                self.preproc_cmd,
+                                self.preproc_out,
+                                conform, thread, opts, defines)
+
+    def identify(self, cfg, cfgf):
+        """Identify the compiler in use."""
+
+        def parse_output(msg, compilers):
+            # This is a nested routine so we can use "return" to break
+            # out of two loops at once.
+            for line in msg:
+                if line.find("error") != -1:
+                    for (imitated, macro, name) in compilers:
+                        if re.search(r'\b' + name + r'\b', line):
+                            return name
+                    if re.search(r'\bUNKNOWN\b', line):
+                        return "UNKNOWN"
+            return "FAIL"
+
+        # Construct a source file that will fail to compile with
+        # exactly one #error directive, identifying the compiler in
+        # use.  We do it this way because at this point we have no
+        # control over compilation mode or output; an #error will
+        # reliably produce an error message that invoke() knows how
+        # to capture, and no output file.
+        compilers = []
+        for sect in cfg.sections():
+            # Some compilers are imitated - their identifying macros are
+            # also defined by other compilers.  Sort these to the end.
+            imitated = cfg.has_option(sect, "imitated")
+            compilers.append((imitated, cfg.get(sect, "id_macro"), sect))
+        compilers.sort()
+
+        test1 = None
+        test2 = None
+        test2_o = None
+        try:
+            test1 = named_tmpfile(prefix="cci", suffix="c")
+            f = open(test1, "w")
+            f.write("#if 0\n")
+            for (imitated, macro, name) in compilers:
+                f.write("#elif defined %s\n#error %s\n" % (macro, name))
+            f.write("#else\n#error UNKNOWN\n#endif")
+            f.close()
+
+            (rc, msg) = invoke(self.base_cmd + [test1])
+            compiler = parse_output(msg, compilers)
+
+            if compiler == "FAIL":
+                self.fatal("unable to parse compiler output.", msg)
+            if compiler == "UNKNOWN":
+                self.fatal("no configuration available for this "
+                           "compiler.  Please add appropriate settings "
+                           "to " + repr(cfgf) + ".", [])
+
+            # Confirm the identification.
+            version_argv = cfg.get(compiler, "version").split()
+            version_out = cfg.get(compiler, "version_out")
+
+            for arg in version_argv:
+                if arg.startswith("$."):
+                    test2 = named_tmpfile(prefix="cci", suffix=arg[2:])
+                    f = open(test2, "w")
+                    f.write("int dummy;")
+                    f.close()
+                    test2_o  = self.subst_filename(test2, version_out)
+                    version_argv = self.subst_filename(test2, version_argv)
+                    break
+
+            (rc, msg) = invoke(self.base_cmd + version_argv)
+            if rc != 0:
+                self.fatal("detailed version request failed", msg)
+            mm = "\n".join(msg[1:]) # throw away the command line
+            version_re = re.compile(cfg.get(compiler, "id_regexp"),
+                                    re.VERBOSE|re.DOTALL)
+            match = version_re.search(mm)
+            if not match:
+                self.fatal("version information not as expected: "
+                           "is this really " + compiler + "?", msg)
+
+            try:
+                version = match.group("version")
+            except IndexError:
+                versio1 = match.group("version1")
+                versio2 = match.group("version2")
+                if group_matched(versio1): version = versio1
+                elif group_matched(versio2): version = versio2
+                else:
+                    self.fatal("version number not found", msg)
+
+            details = -1
+            try:
+                details = match.group("details")
+            except IndexError:
+                try:
+                    detail1 = match.group("details1")
+                    if group_matched(detail1) and detail1.lower() != compiler:
+                        details = detail1
+                    else:
+                        detail2 = match.group("details2")
+                        if group_matched(detail2) and \
+                                detail2.lower() != compiler:
+                            details = detail2
+                except IndexError:
+                    pass
+
+            if details != -1:
+                return (compiler, "%s %s (%s)" % (compiler, version, details))
+            else:
+                return (compiler, "%s %s" % (compiler, version))
+
+        finally:
+            if test1   is not None: delete_if_exists(test1)
+            if test2   is not None: delete_if_exists(test2)
+            if test2_o is not None: delete_if_exists(test2_o)
+
+
+    def smoke_test(self, cfg, cfgf):
+        """Tests which, if they fail, indicate something horribly
+           wrong with the compiler and/or our usage of it.
+           Either returns successfully, or issues a fatal error."""
+
+        test_modes = [
+            (self.test_preproc, 0, "preprocess"),
+            (self.test_preproc, 1, "preprocess (conformance mode)"),
+            (self.test_compile, 0, "compile"),
+            (self.test_compile, 1, "compile (conformance mode)")
+        ]
+
+        # This code should compile without complaint.
+        for (action, conform, tag) in test_modes:
+            (rc, msg) = self.test_compile("#include <stdarg.h>\nint dummy;",
+                                          conform)
+            if rc != 0:
+                self.fatal("failed to %s simple test program. "
+                           "Check configuration for %s in %s."
+                           % (tag, self.compiler, cfgf), msg)
+
+        # This code should _not_ compile, in any mode, nor should it
+        # preprocess.
+        for (action, conform, tag) in test_modes:
+            (rc, msg) = action("#include <nonexistent.h>\nint dummy;", conform)
+            if rc == 0 or not self.failure_due_to_nonexistence(msg,
+                                                               "nonexistent.h"):
+                self.fatal("failed to detect nonexistence of <nonexistent.h>"
+                           " (%s). Check configuration for %s in %s."
+                           % (tag, self.compiler, cfgf), msg)
+
+    def probe_max_std(self, label, probes, testcode):
+        """Subroutine of conformance_test.
+           PROBES is a list of tuples: (compiler options, macros to
+           define, expected value). For the first such tuple that
+           makes TESTCODE preprocess successfully, return a slightly
+           munged version of the options+defines."""
 
         failures = []
-        for (opts, defines, expected, tag) in probes:
+        for (opts, defines, expected) in probes:
+            if opts == "no":
+                continue
             if opts == "":
                 opts = []
             else:
                 opts = opts.split()
-            if defines == "":
-                defines = []
-            else:
-                defines = [define + d for d in defines.split()]
+            if defines != "":
+                opts.extend([self.define_opt + d for d in defines.split()])
 
-            (rc, msg) = invoke(cc_conform + opts + defines +
-                               [define + "EXPECTED=" + expected, test_c])
+            (rc, msg) = self.test_preproc(testcode, conform=1, opts=opts,
+                                          defines=["EXPECTED="+expected])
             if rc == 0:
-                return (tag, opts + defines)
+                return opts
 
             failures.append("")
             failures.extend(msg)
 
-        for l in failures: sys.stderr.write("| %s\n" % l)
-        raise SystemExit("Version-probe failure.")
+        self.fatal("all %s version tests failed." % label, msg)
 
-    finally:
-        delete_if_exists(test_i)
-        delete_if_exists(test_c)
+    def conformance_test(self, cfg, cfgf):
+        """Determine the levels of the C, POSIX, and XSI standards to
+           which this compiler + target OS claim to conform; adjust
+           'conform_opt' accordingly.  Also figure out whether
+           threaded code must be compiled in a special mode."""
 
-def probe_max_c_version(data, compiler, cc):
-    all_versions = [
-        (data.get(compiler, "c2011"), "", "201112L", "c2011"),
-        (data.get(compiler, "c1999"), "", "199901L", "c1999"),
-
-        # There are two possible values of __STDC_VERSION__ for C1989.
-        (data.get(compiler, "c1989"), "EXPECTED2=1", "199409L", "c1989"),
-    ]
-    versions = []
-    for v in all_versions:
-        if v[0] != "no":
-            versions.append(v)
-
-    return probe_max_version(data, compiler, cc, versions, r"""
+        # First find and activate the newest supported C standard.
+        self.conform_opt.extend(self.probe_max_std("C", [
+                (cfg.get(self.compiler, "c2011"), "", "201112L"),
+                (cfg.get(self.compiler, "c1999"), "", "199901L"),
+                # There are two possible values of __STDC_VERSION__ for C1989.
+                (cfg.get(self.compiler, "c1989"), "EXPECTED2=1", "199401L")
+                ], r"""
 #if __STDC_VERSION__ != EXPECTED && \
     (!defined EXPECTED2 || __STDC_VERSION__ != EXPECTED2)
 #error "wrong version"
-#endif""")
+#endif"""))
 
-def probe_max_posix_version(data, compiler, cc):
-    # If _XOPEN_SOURCE works, we want to use it instead of _POSIX_C_SOURCE,
-    # as it may enable more stuff.
-    #
-    # Some systems (e.g. NetBSD) support _XOPEN_SOURCE as input to
-    # feature selection but don't bother defining _XOPEN_VERSION in
-    # response.  They _do_, however, respond with the appropriate
-    # _POSIX_VERSION definition.
-    #
-    # So for each _POSIX_VERSION level we are interested in, try
-    # selecting it first with _XOPEN_SOURCE and then, if that didn't
-    # work, with _POSIX_C_SOURCE.
-    #
-    # There were meaningful values of _XOPEN_SOURCE and _POSIX_C_SOURCE
-    # prior to 500 / 199506L, but they are so old that probing for them
-    # is not worth the trouble.
-    #
-    # The very last trial doesn't even include unistd.h, in case the
-    # failures are because it doesn't exist.
-    return probe_max_version(data, compiler, cc, [
-            ("", "_XOPEN_SOURCE=700",       "200809L", "p2008"),
-            ("", "_POSIX_C_SOURCE=200809L", "200809L", "p2008"),
-            ("", "_XOPEN_SOURCE=600",       "200112L", "p2001"),
-            ("", "_POSIX_C_SOURCE=200112L", "200112L", "p2001"),
-            ("", "_XOPEN_SOURCE=500",       "199506L", "p1995"),
-            ("", "_POSIX_C_SOURCE=199506L", "199506L", "p1995"),
-            ("", "",                        "0",       "p0"),
-        ], r"""
+        # If we have unistd.h, also find and activate the newest supported
+        # POSIX standard.
+        (rc, msg) = self.test_preproc("#include <unistd.h>\nint dummy;\n")
+        if rc != 0 and not self.failure_due_to_nonexistence(msg, "unistd.h"):
+            self.fatal("failed to determine presence of <unistd.h>. "
+                       "Check configuration for %s in %s."
+                       % (self.compiler, cfgf), msg)
+        if rc == 0:
+            # If _XOPEN_SOURCE works, we want to use it instead of
+            # _POSIX_C_SOURCE, as it may enable more stuff.
+            #
+            # Some systems (e.g. NetBSD) support _XOPEN_SOURCE as input to
+            # feature selection but don't bother defining _XOPEN_VERSION in
+            # response.  They _do_, however, respond with the appropriate
+            # _POSIX_VERSION definition.
+            #
+            # So for each _POSIX_VERSION level we are interested in, try
+            # selecting it first with _XOPEN_SOURCE and then, if that didn't
+            # work, with _POSIX_C_SOURCE.
+            #
+            # There were meaningful values of _XOPEN_SOURCE and _POSIX_C_SOURCE
+            # prior to 500 / 199506L, but they are so old that probing for them
+            # is not worth the trouble.
+            #
+            # The very last trial doesn't even include unistd.h, in case the
+            # failures are because it doesn't exist.
+            self.conform_opt.extend(self.probe_max_std("POSIX", [
+                    ("", "_XOPEN_SOURCE=700",       "200809L"),
+                    ("", "_POSIX_C_SOURCE=200809L", "200809L"),
+                    ("", "_XOPEN_SOURCE=600",       "200112L"),
+                    ("", "_POSIX_C_SOURCE=200112L", "200112L"),
+                    ("", "_XOPEN_SOURCE=500",       "199506L"),
+                    ("", "_POSIX_C_SOURCE=199506L", "199506L"),
+                    ("", "",                        "0"),
+                ], r"""
 #if EXPECTED != 0
 #include <unistd.h>
 #if _POSIX_VERSION != EXPECTED
 #error "wrong version"
 #endif
-#endif""")
+#endif"""))
 
+        # Find out whether code that includes <pthread.h> must be
+        # compiled in a special mode.  If so, enabling this mode may
+        # change prerequisite sets, so we have to test both ways.
+        (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;\n")
+        if rc != 0 and not self.failure_due_to_nonexistence(msg, "pthread.h"):
+            (rc, msg2) = self.test_compile("#include <pthread.h>\nint dummy;",
+                                           thread=1)
+            if rc == 0:
+                self.test_with_thread_opt = 1
+            else:
+                self.fatal("pthread.h exists but cannot be compiled? "
+                           "Check configuration for %s in %s."
+                           % (self.compiler, cfgf),
+                           msg + msg2)
+
+    def report(self, outf):
+        outf.write("old: %s\n" % old_compiler_id(self.base_cmd))
+        outf.write("new: %s\n" % self.label)
+        outf.write("conformance options: %s\n" % " ".join(self.conform_opt))
+        outf.write("repeat tests with threads: %d\n"
+                   % self.test_with_thread_opt)
 
 if __name__ == '__main__':
-    cc = sys.argv[1:]
-    print "old:", old_compiler_id(cc)
-
-    data = ConfigParser.ConfigParser()
-    data.read("compilers.ini")
-
-    (compiler, label) = new_compiler_id(data, cc)
-    print "new:", label
-    (cver, copt) = probe_max_c_version(data, compiler, cc)
-    print "C:  ", cver, copt
-    cc.extend(copt)
-
-    (pver, popt) = probe_max_posix_version(data, compiler, cc)
-    print "P:  ", pver, popt
+    Compiler(sys.argv[1:]).report(sys.stdout)
