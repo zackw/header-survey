@@ -12,6 +12,7 @@
 # scansys for prototyping.
 
 import ConfigParser
+import StringIO
 import errno
 import locale
 import os
@@ -19,6 +20,39 @@ import random
 import re
 import string
 import sys
+
+# It may be necessary to monkey-patch ConfigParser to accept / in an option
+# name and/or : in a section name.  Also test empty values (not to be confused
+# with the absence of a value, i.e. no : or = at all).
+def maybe_fix_ConfigParser():
+    p = ConfigParser.ConfigParser()
+    test = StringIO.StringIO("[x:y/z.w]\na.b/c.d=\n")
+    try:
+        p.readfp(test)
+    except ConfigParser.ParsingError:
+        if (not getattr(ConfigParser.ConfigParser, 'SECTCRE')
+            or not getattr(ConfigParser.ConfigParser, 'OPTCRE')):
+            raise # we don't know what to do
+        # this is taken verbatim from 2.7
+        ConfigParser.ConfigParser.SECTCRE = re.compile(
+            r'\['                        # [
+            r'(?P<header>[^]]+)'         # very permissive!
+            r'\]'                        # ]
+            )
+        # this is slightly modified from 2.7 to work around different
+        # behavior in 2.0's regular expression engine
+        ConfigParser.ConfigParser.OPTCRE = re.compile(
+            r'(?P<option>[^:=\s]+)'      # very permissive!
+            r'\s*(?P<vi>[:=])\s*'        # any number of space/tab,
+                                         # followed by separator
+                                         # (either : or =), followed
+                                         # by any # space/tab
+            r'(?P<value>.*)$'            # everything up to eol
+            )
+        p = ConfigParser.ConfigParser()
+        test.seek(0)
+        p.readfp(test)
+maybe_fix_ConfigParser()
 
 # At some point in the 2.x series, match.group(N) changed from returning
 # -1 to returning None if the group was part of an unmatched alternative.
@@ -649,5 +683,189 @@ class Compiler:
         outf.write("repeat tests with threads: %d\n"
                    % self.test_with_thread_opt)
 
+class KnownError:
+    """One potential failure mode for a header file."""
+    def __init__(self, tag, header, regexp, desc):
+        self.tag = tag
+        self.header = header
+        self.regexp = re.compile(regexp, re.VERBOSE)
+        self.desc = desc
+
+    def search(self, msg):
+        return self.regexp.search(msg)
+
+    def output(self, outf):
+        outf.write("$E %s\n" % self.tag)
+
+class Dataset:
+    """A Dataset instance represents the totality of information known
+       about header files on this platform.  It is primarily a dictionary
+       of { filename : Header instance } mappings, but also stores shared
+       configuration data and some utility methods."""
+
+    def __init__(self):
+        self.prereqs_fname = "prereqs.ini"
+        self.errors_fname = "errors.ini"
+        self.load_prereqs(self.prereqs_fname)
+        self.load_errors(self.errors_fname)
+        self.headers = {}
+
+    def load_prereqs(self, fname):
+        cfg = ConfigParser.ConfigParser()
+        cfg.read(fname)
+        prereqs = {}
+        for h in cfg.options("prerequisites"):
+            prereqs[h] = cfg.get("prerequisites", h).split()
+
+        for h in cfg.options("special"):
+            if prereqs.has_key(h):
+                raise RuntimeError("%s: %s appears in both [prerequisites] "
+                                   "and [special]" % (fname, h))
+            prereqs[h] = ["SPECIAL", cfg.get("special", h)]
+
+        self.prereqs = prereqs
+
+    def load_errors(self, fname):
+        cfg = ConfigParser.ConfigParser()
+        cfg.read(fname)
+
+        errors_by_tag = {}
+        errors_by_header = {}
+        for tag in cfg.sections():
+            err = KnownError(tag,
+                             cfg.get(tag, "header"),
+                             cfg.get(tag, "regexp"),
+                             cfg.get(tag, "desc"))
+            errors_by_tag[tag] = err
+            if errors_by_header.has_key(err.header):
+                errors_by_header[err.header].append(err)
+            else:
+                errors_by_header[err.header] = [err]
+        self.errors_by_tag = errors_by_tag
+        self.errors_by_header = errors_by_header
+
+    def is_known_error(self, msg, header):
+        for line in msg:
+            for err in self.errors_by_header[header]:
+                if err.search(line):
+                    return err
+        return None
+
+class Header:
+    """A Header instance represents everything that is currently known
+       about a single header file, and knows how to carry out a sequence
+       of tests of the header:
+
+         - whether it exists at all
+         - whether it can be preprocessed successfully, in isolation
+         - whether it can be compiled successfully, in isolation:
+           - in the default compilation mode
+           - in the strict conformance mode
+           - (optionally) with thread support enabled, in both the above modes
+         - if it can't be compiled successfully in isolation in any
+           of the above modes, whether this can be fixed by including
+           other headers first
+
+       Information about other headers to try including first is stored
+       in the configuration file 'prereqs.ini', q.v."""
+
+    # State codes:
+    UNKNOWN    = '?'
+    ABSENT     = '-'
+    PRESENT    = ''
+    BUGGY      = '!'
+    DEPENDENT  = '%'
+    CORRECT    = '+'
+    INCOMPLETE = '*'
+    CORR_DEP   = '@'
+    INCO_DEP   = '&'
+
+    TAGS = (UNKNOWN, ABSENT, BUGGY, DEPENDENT, CORRECT, INCOMPLETE,
+            CORR_DEP, INCO_DEP)
+
+    TAGINV = { UNKNOWN    : "UNKNOWN",
+               PRESENT    : "PRESENT",
+               ABSENT     : "ABSENT",
+               BUGGY      : "BUGGY",
+               DEPENDENT  : "DEPENDENT",
+               CORRECT    : "CORRECT",
+               INCOMPLETE : "INCOMPLETE",
+               CORR_DEP   : "CORRECT (DEPENDENT)",
+               INCO_DEP   : "INCOMPLETE (DEPENDENT)"
+             }
+
+    def __init__(self, name, dataset):
+        self.name = name
+        self.dataset = dataset
+        self.dataset.headers[name] = self
+        self.state = self.UNKNOWN
+        self.annotations  = []
+
+    def output(self, outf):
+        outf.write("%s%s\n" % (self.state, self.name))
+        for ann in self.annotations:
+            ann.output(outf)
+
+    def test(self, compiler):
+        if not self.test_presence(compiler): return
+        if not self.test_default_compilation(compiler): return
+
+    def test_presence(self, compiler):
+        (rc, msg) = compiler.test_preproc("#include <%s>" % self.name)
+        if rc == 0:
+            self.state = self.PRESENT
+            return 1
+        if compiler.failure_due_to_nonexistence(msg, self.name):
+            self.state = self.ABSENT
+            return 0
+
+        error = self.dataset.is_known_error(msg, self.name)
+        if error is not None:
+            self.state = self.BUGGY
+            self.annotations.append(error)
+            return 0
+
+        compiler.fatal("unrecognized failure mode for <%s>. "
+                       "Please investigate and add an entry to %s."
+                       % (self.name, self.dataset.errors_fname), msg)
+
+    def test_default_compilation(self, compiler):
+        (rc, msg) = compiler.test_compile("#include <%s>" % self.name)
+        if rc != 0:
+            compiler.fatal("stub 1", msg)
+
+        (rc, msg) = compiler.test_compile("#include <%s>" % self.name, conform=1)
+        if rc != 0:
+            compiler.fatal("stub 2", msg)
+
+        if compiler.test_with_thread_opt:
+            (rc, msg) = compiler.test_compile("#include <%s>" % self.name,
+                                              thread=1)
+            if rc != 0:
+                compiler.fatal("stub 3", msg)
+
+            (rc, msg) = compiler.test_compile("#include <%s>" % self.name,
+                                              conform=1, thread=1)
+            if rc != 0:
+                compiler.fatal("stub 4", msg)
+
+
 if __name__ == '__main__':
-    Compiler(sys.argv[1:]).report(sys.stdout)
+    def main(argv, stdout):
+        if len(argv) < 2:
+            raise SystemExit("usage: %s (compiler_id|header.h) [cc [ccargs...]]"
+                             % argv[0])
+        if len(argv) == 2:
+            cc = Compiler(["cc"])
+        else:
+            cc = Compiler(argv[2:])
+
+        if argv[1] == "compiler_id":
+            cc.report(stdout)
+        else:
+            dataset = Dataset()
+            header = Header(argv[1], dataset)
+            header.test(cc)
+            header.output(stdout)
+
+    main(sys.argv, sys.stdout)
