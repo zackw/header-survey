@@ -942,12 +942,13 @@ class Header:
 
         output_1(outf, self.prereqs[0][0])
 
-        # output other dependency lists only if they are different from [0][0]
+        # output other dependency lists only if they are different
         if self.prereqs[1][0] != self.prereqs[0][0]:
             output_1(outf, self.prereqs[1][0], "conform")
         if self.prereqs[0][1] != self.prereqs[0][0]:
             output_1(outf, self.prereqs[1][0], "thread")
-        if self.prereqs[1][1] != self.prereqs[0][0]:
+        if (self.prereqs[1][1] != self.prereqs[0][0] and
+            self.prereqs[1][1] != self.prereqs[1][0]):
             output_1(outf, self.prereqs[1][1], "conform,thread")
 
     def gen_includes(self, outf, conform, thread):
@@ -1073,11 +1074,10 @@ class Header:
             # There is no mode without problems.
             self.presence = self.BUGGY
 
-    def test_pairwise_conflict(self, cc, others):
+    def test_conflict_pairwise(self, cc, conform, thread, others):
         # Test every pair of headers in 'others' for a conflict with
         # this header.  FUTURE: This is O(N) compiler invocations,
         # which can get quite slow; maybe do a binary chop instead.
-        (conform, thread) = self.pref_mode
         conflicts = []
         buf = StringIO.StringIO()
         for h in others:
@@ -1094,16 +1094,14 @@ class Header:
 
         return conflicts
 
-    def test_conflict(self, cc):
-        if self.conflict is not None: return
-        if self.presence != self.PRESENT: return
-
-        (conform, thread) = self.pref_mode
+    def test_conflict_mode(self, cc, conform, thread):
+        if self.caution[conform][thread]:
+            return
 
         # Compute a list of every other known header whose dependencies
-        # have been calculated and which is compatible with this header's
-        # preferred compilation mode.  Distinguish between headers that
-        # don't have any conflicts already, and those that do.
+        # have been calculated and which is compatible with this
+        # compilation mode.  Distinguish between headers that don't
+        # have any conflicts already, and those that do.
         others = []
         conflicted = []
         conflicts = []
@@ -1129,18 +1127,18 @@ class Header:
         (rc, msg) = cc.test_compile(buf.getvalue(),
                                     conform=conform, thread=thread)
         if rc != 0:
-            conflicts.extend(self.test_pairwise_conflict(cc, [self]))
-            conflicts.extend(self.test_pairwise_conflict(cc, others))
+            conflicted.append(self)
+            conflicted.extend(others)
 
-        # Headers that have some conflict already can't be tested in a
-        # big lump.
-        conflicts.extend(self.test_pairwise_conflict(cc, conflicted))
+        conflicts.extend(self.test_conflict_pairwise(cc, conform, thread,
+                                                     conflicted))
 
         if len(conflicts) == 0:
             if rc != 0:
                 cc.fatal("No pairwise conflict detected for %s" % self.name,
                          msg)
-            self.conflict = 0
+            if self.conflict is None:
+                self.conflict = 0
             return
 
         self.conflict = 1
@@ -1157,6 +1155,16 @@ class Header:
                     break
             if not found:
                 h.annotations.append(ConflictAnn([self]))
+
+    def test_conflict(self, cc):
+        if self.conflict is not None: return
+        if self.presence != self.PRESENT: return
+
+        self.test_conflict_mode(cc, conform=0, thread=0)
+        self.test_conflict_mode(cc, conform=1, thread=0)
+        if cc.test_with_thread_opt:
+            self.test_conflict_mode(cc, conform=0, thread=0)
+            self.test_conflict_mode(cc, conform=0, thread=0)
 
     def test_contents(self, cc):
         if self.presence != self.PRESENT: return
