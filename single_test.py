@@ -261,6 +261,30 @@ def invoke(argv):
 
 # end of old-Python compatibility workarounds
 
+def hsortkey(h):
+    """Sort key generator for sorthdr."""
+    segs = h.lower().replace("\\", "/").split("/")
+    key = []
+    for s in segs:
+        key.extend((1, s))
+    key[-2] = 0
+    return tuple(key)
+
+def sorthdr(hs):
+    """Sort a list of pathnames, ASCII case-insensitively.
+       All one-component pathnames are sorted ahead of all longer
+       pathnames; within a group of multicomponent pathnames with the
+       same leading component, all two-component pathnames are sorted
+       ahead of all longer pathnames; and so on, recursively."""
+    try:
+        return sorted(hs, key=hsortkey)
+    except NameError:
+        # key= and sorted() were both added in 2.4
+        # implement the Schwartzian Transform by hand
+        khs = [(hsortkey(h), h) for h in hs]
+        khs.sort()
+        return [x[1] for x in khs]
+
 def prereq_combs_r(lo, hi, elts, work, rv):
     """Recursive worker subroutine of prereq_combs (see below)."""
     if lo < hi:
@@ -717,11 +741,12 @@ class Compiler:
 
 class KnownError:
     """One potential failure mode for a header file."""
-    def __init__(self, tag, header, regexp, desc):
+    def __init__(self, tag, headers, regexp, desc, caution):
         self.tag = tag
-        self.header = header
+        self.headers = headers
         self.regexp = re.compile(regexp, re.VERBOSE)
         self.desc = desc
+        self.caution = caution
 
     def search(self, msg):
         return self.regexp.search(msg)
@@ -788,15 +813,15 @@ class Header:
     INCO_DEP   = '&'
     CORR_DEP   = '@'
 
-    PRES_CON   = '~'
-    INCO_CON   = '^'
-    CORR_CON   = '='
+    PRES_CAU   = '~'
+    INCO_CAU   = '^'
+    CORR_CAU   = '='
 
     # Complete list of valid state codes, for validation on reread.
     STATES = (UNKNOWN,  ABSENT,     BUGGY,
               PRESENT,  INCOMPLETE, CORRECT,
               PRES_DEP, INCO_DEP,   CORR_DEP,
-              PRES_CON, INCO_CON,   CORR_CON)
+              PRES_CAU, INCO_CAU,   CORR_CAU)
 
     # Human readable labels for the states.
     STATE_LABELS = {
@@ -809,9 +834,9 @@ class Header:
         PRES_DEP   : "PRESENT (DEPENDENT)",
         INCO_DEP   : "INCOMPLETE (DEPENDENT)",
         CORR_DEP   : "CORRECT (DEPENDENT)",
-        PRES_CON   : "PRESENT (CONFLICT)",
-        INCO_CON   : "INCOMPLETE (CONFLICT)",
-        CORR_CON   : "CORRECT (CONFLICT)",
+        PRES_CAU   : "PRESENT (CAUTION)",
+        INCO_CAU   : "INCOMPLETE (CAUTION)",
+        CORR_CAU   : "CORRECT (CAUTION)",
     }
 
     def __init__(self, name, dataset):
@@ -825,8 +850,12 @@ class Header:
         self.prereqs = [ [ [], [] ],
                          [ [], [] ] ]
 
-        # In-memory state is "exploded" into four flags so that test()
-        # can be idempotent.
+        # caution likewise
+        self.caution = [ [ 0, 0 ],
+                         [ 0, 0 ] ]
+
+        self.pref_mode = None # will be set to a 2-tuple by test_depends
+
         self.presence = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
         self.contents = self.UNKNOWN # can be PRESENT, INCOMPLETE, CORRECT
         self.depends  = None # None=unknown, 0=no, 1=yes
@@ -835,27 +864,59 @@ class Header:
     def __cmp__(self, other):
         return cmp(self.name, other.name)
 
+    def debug_dump(self, outf):
+        outf.write("%s = %s\n" % (self.name, self.state_label()))
+        outf.write("   presence: " + self.STATE_LABELS[self.presence] + "\n")
+        outf.write("   contents: " + self.STATE_LABELS[self.contents] + "\n")
+        outf.write("    depends: " + repr(self.depends) + "\n")
+        outf.write("   conflict: " + repr(self.conflict) + "\n")
+        outf.write("  pref_mode: " + repr(self.pref_mode) + "\n")
+        outf.write("    caution: [..]=%d [c.]=%d [.t]=%d [ct]=%d\n"
+                   % (self.caution[0][0],
+                      self.caution[1][0],
+                      self.caution[0][1],
+                      self.caution[1][1]))
+        outf.write("   deplists:\n")
+        outf.write("     [..] = %s\n"
+                   % " ".join([h.name for h in self.prereqs[0][0]]))
+        outf.write("     [c.] = %s\n"
+                   % " ".join([h.name for h in self.prereqs[1][0]]))
+        outf.write("     [.t] = %s\n"
+                   % " ".join([h.name for h in self.prereqs[0][1]]))
+        outf.write("     [ct] = %s\n"
+                   % " ".join([h.name for h in self.prereqs[1][1]]))
+        outf.write("  annotations:\n")
+        for a in self.annotations:
+            outf.write("  ")
+            a.output(outf)
+        outf.write("\n")
+
     def state_code(self):
-       if self.presence != self.PRESENT:
+        if self.presence != self.PRESENT:
             # unknown/absent/buggy exclude all other indicators.
             return self.presence
-       else:
+        else:
+            # Confirm we have done all the tests.
             assert self.depends is not None
             assert self.conflict is not None
 
+            caution = (self.conflict or
+                       self.caution[0][0] or self.caution[0][1] or
+                       self.caution[1][0] or self.caution[1][1])
+
             if self.contents == self.PRESENT:
-                if   self.conflict: return self.PRES_CON
-                elif self.depends:  return self.PRES_DEP
-                else:               return self.PRESENT
+                if        caution: return self.PRES_CAU
+                elif self.depends: return self.PRES_DEP
+                else:              return self.PRESENT
             elif self.contents == self.INCOMPLETE:
-                if   self.conflict: return self.INCO_CON
-                elif self.depends:  return self.INCO_DEP
-                else:               return self.INCOMPLETE
+                if        caution: return self.INCO_CAU
+                elif self.depends: return self.INCO_DEP
+                else:              return self.INCOMPLETE
             else:
                 assert self.contents == self.CORRECT
-                if   self.conflict: return self.CORR_CON
-                elif self.depends:  return self.CORR_DEP
-                else:               return self.CORRECT
+                if        caution: return self.CORR_CAU
+                elif self.depends: return self.CORR_DEP
+                else:              return self.CORRECT
 
     def state_label(self):
         return self.STATE_LABELS[self.state_code()]
@@ -917,10 +978,11 @@ class Header:
             self.presence = self.ABSENT
             return
 
-        error = self.dataset.is_known_error(msg, self.name)
-        if error is not None:
+        errs = self.dataset.is_known_error(msg, self.name)
+        if errs is not None:
+            # caution vs error is ignored at this point; any problem is fatal.
             self.presence = self.BUGGY
-            self.annotations.append(error)
+            self.annotations.extend(errs)
             return
 
         cc.fatal("unrecognized failure mode for <%s>. "
@@ -944,7 +1006,7 @@ class Header:
                                         thread=thread)
             if rc == 0:
                 self.prereqs[conform][thread] = candidate_set
-                return
+                return 1
 
             if len(failures) > 0: failures.append("")
             failures.extend(msg)
@@ -953,11 +1015,15 @@ class Header:
         # Look for a known bug in the last set of messages, which will be
         # the maximal prerequisite set and therefore the least likely to have
         # problems.
-        error = self.dataset.is_known_error(msg, self.name)
-        if error is not None:
-            self.state = self.BUGGY
-            self.annotations.append(error)
-            return
+        errs = self.dataset.is_known_error(msg, self.name)
+        if errs is not None:
+            self.annotations.extend(errs)
+            for e in errs:
+                if e.caution:
+                    self.caution[conform][thread] = 1
+                else:
+                    self.presence = self.BUGGY
+            return 0
 
         cc.fatal("unrecognized failure mode for <%s>. "
                  "Please investigate and add an entry to %s."
@@ -973,8 +1039,6 @@ class Header:
             if h.presence == h.PRESENT:
                 possible_prereqs.append(h)
 
-        #XXX Figure out which headers require threads mode and tag them.
-
         self.test_depends_1(cc, possible_prereqs, 0, 0)
         if self.presence == self.BUGGY: return
         self.test_depends_1(cc, possible_prereqs, 1, 0)
@@ -986,56 +1050,112 @@ class Header:
             if self.presence == self.BUGGY: return
         else:
             self.prereqs[0][1] = self.prereqs[0][0][:]
-            self.prereqs[1][1] = self.prereqs[0][0][:]
+            self.prereqs[1][1] = self.prereqs[1][0][:]
+
+            self.caution[0][1] = self.caution[0][0]
+            self.caution[1][1] = self.caution[1][0]
 
         self.depends = (len(self.prereqs[0][0]) > 0 or
                         len(self.prereqs[0][1]) > 0 or
                         len(self.prereqs[1][0]) > 0 or
                         len(self.prereqs[1][1]) > 0)
 
-    def test_conflict(self, cc):
-        if self.conflict is not None: return
-        if self.presence != self.PRESENT: return
+        # Find a mode in which this header can be processed without errors.
+        if not self.caution[1][0]: # conform, no threads
+            self.pref_mode = (1, 0)
+        elif not self.caution[1][1]: # conform, threads
+            self.pref_mode = (1, 1)
+        elif not self.caution[0][0]: # no conform, no threads
+            self.pref_mode = (0, 0)
+        elif not self.caution[0][1]: # no conform, threads
+            self.pref_mode = (0, 1)
+        else:
+            # There is no mode without problems.
+            self.presence = self.BUGGY
 
-        # First test whether this header can be included, twice, after
-        # every other known-present, dependencies-calculated header
-        # has been included.  If this works, we can safely assume
-        # there are no pairwise conflicts.  Conflict tests are always
-        # done in conformance mode.
-        buf = StringIO.StringIO()
-        for h in self.dataset.headers.values():
-            if h != self and h.presence == h.PRESENT and h.depends is not None:
-                h.gen_includes(buf, 1, 0)
-        self.gen_includes(buf, 1, 0)
-        self.gen_includes(buf, 1, 0)
-        buf.write("int avoid_empty_translation_unit;\n")
-        (rc, msg) = cc.test_compile(buf.getvalue(), conform=1, thread=0)
-        if rc == 0:
-            self.conflict = 0
-            return
-
-        # Test every pair of headers.  FUTURE: This is O(N) compiler
-        # invocations, which can get quite slow; maybe do a binary
-        # chop instead.
+    def test_pairwise_conflict(self, cc, others):
+        # Test every pair of headers in 'others' for a conflict with
+        # this header.  FUTURE: This is O(N) compiler invocations,
+        # which can get quite slow; maybe do a binary chop instead.
+        (conform, thread) = self.pref_mode
         conflicts = []
-        for h in self.dataset.headers.values():
-            if h.presence != h.PRESENT or h.depends is None: continue
-
+        buf = StringIO.StringIO()
+        for h in others:
             buf.seek(0)
             h.gen_includes(buf, 1, 0)
             self.gen_includes(buf, 1, 0)
             buf.write("int avoid_empty_translation_unit;\n")
+            buf.truncate()
 
-            (rc, _) = cc.test_compile(buf.getvalue(), conform=1, thread=0)
+            (rc, _) = cc.test_compile(buf.getvalue(),
+                                      conform=conform, thread=thread)
             if rc != 0:
                 conflicts.append(h)
+        return conflicts
+
+    def test_conflict(self, cc):
+        if self.conflict is not None: return
+        if self.presence != self.PRESENT: return
+
+        (conform, thread) = self.pref_mode
+
+        # Compute a list of every other known header whose dependencies
+        # have been calculated and which is compatible with this header's
+        # preferred compilation mode.  Distinguish between headers that
+        # don't have any conflicts already, and those that do.
+        others = []
+        conflicted = []
+        conflicts = []
+        for h in self.dataset.headers.values():
+            if   (h != self and h.presence == h.PRESENT and
+                  h.depends is not None and
+                  not h.caution[conform][thread]):
+                if not h.conflict:
+                    others.append(h)
+                else:
+                    conflicted.append(h)
+
+        # As an optimization, test whether this header can be
+        # included, twice, after all the 'others'. If this works, we
+        # can safely assume there are no pairwise conflicts with that
+        # set; otherwise we have to go row by row.
+        buf = StringIO.StringIO()
+        for h in others:
+            h.gen_includes(buf, 1, 0)
+        self.gen_includes(buf, 1, 0)
+        self.gen_includes(buf, 1, 0)
+        buf.write("int avoid_empty_translation_unit;\n")
+        (rc, msg) = cc.test_compile(buf.getvalue(),
+                                    conform=conform, thread=thread)
+        if rc != 0:
+            conflicts.extend(self.test_pairwise_conflict(cc, [self]))
+            conflicts.extend(self.test_pairwise_conflict(cc, others))
+
+        # Headers that have some conflict already can't be tested in a
+        # big lump.
+        conflicts.extend(self.test_pairwise_conflict(cc, conflicted))
 
         if len(conflicts) == 0:
-            cc.fatal("No pairwise conflict detected for %s" % self.name,
-                     msg)
+            if rc != 0:
+                cc.fatal("No pairwise conflict detected for %s" % self.name,
+                         msg)
+            self.conflict = 0
+            return
 
         self.conflict = 1
         self.annotations.append(ConflictAnn(conflicts))
+
+        # Conflicts are mutual; annotate the other headers as well.
+        for h in conflicts:
+            h.conflict = 1
+            found = 0
+            for a in h.annotations:
+                if isinstance(a, ConflictAnn):
+                    a.conflicts.append(self)
+                    found = 1
+                    break
+            if not found:
+                h.annotations.append(ConflictAnn([self]))
 
     def test_contents(self, cc):
         if self.presence != self.PRESENT: return
@@ -1077,23 +1197,39 @@ class Dataset:
         errors_by_tag = {}
         errors_by_header = {}
         for tag in cfg.sections():
-            err = KnownError(tag,
-                             cfg.get(tag, "header"),
-                             cfg.get(tag, "regexp"),
-                             cfg.get(tag, "desc"))
-            errors_by_tag[tag] = err
-            if errors_by_header.has_key(err.header):
-                errors_by_header[err.header].append(err)
+            if cfg.has_option(tag, "header"):
+                headers = cfg.get(tag, "header").split()
             else:
-                errors_by_header[err.header] = [err]
+                headers = ["*"]
+            if cfg.has_option(tag, "caution"):
+                caution = int(cfg.get(tag, "caution"))
+            else:
+                caution = 0
+            err = KnownError(tag, headers,
+                             cfg.get(tag, "regexp"),
+                             cfg.get(tag, "desc"),
+                             caution)
+            errors_by_tag[tag] = err
+            for h in headers:
+                if errors_by_header.has_key(h):
+                    errors_by_header[h].append(err)
+                else:
+                    errors_by_header[h] = [err]
         self.errors_by_tag = errors_by_tag
         self.errors_by_header = errors_by_header
 
     def is_known_error(self, msg, header):
+        errs = {}
+        candidates = (self.errors_by_header.get(header, []) +
+                      self.errors_by_header.get("*", []))
         for line in msg:
-            for err in self.errors_by_header.get(header, []):
+            for err in candidates:
                 if err.search(line):
-                    return err
+                    if not errs.has_key(err.tag):
+                        errs[err.tag] = err
+
+        if len(errs) > 0:
+            return errs.values()
         return None
 
 if __name__ == '__main__':
@@ -1104,6 +1240,8 @@ if __name__ == '__main__':
 
     def main(argv, stdout):
         if len(argv) < 2: usage()
+
+        prepare_environment({})
 
         if argv[1] == "compiler_id":
             if len(argv) == 2:
@@ -1128,8 +1266,19 @@ if __name__ == '__main__':
 
             dataset = Dataset()
             for h in headers:
-                Header(h, dataset).test(cc)
-            for h in dataset.headers.values():
+                sys.stderr.write("# %s\n" % h)
+                hh = Header(h, dataset)
+                hh.test(cc)
+                hh.debug_dump(sys.stderr)
+
+            kk = dataset.headers.items()
+            try:
+                kk.sort(key=lambda k: hsortkey(k[0]))
+            except (NameError, TypeError):
+                kk = [(hsortkey(k[0]), k[0], k[1]) for k in kk]
+                kk.sort()
+                kk = [(k[1], k[2]) for k in kk]
+            for _, h in kk:
                 if h.presence != h.UNKNOWN:
                     h.output(stdout)
 
