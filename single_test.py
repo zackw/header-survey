@@ -259,6 +259,38 @@ def invoke(argv):
 
     return (rc, msg)
 
+# end of old-Python compatibility workarounds
+
+def prereq_combs_r(lo, hi, elts, work, rv):
+    """Recursive worker subroutine of prereq_combs (see below)."""
+    if lo < hi:
+        if lo == 0:
+            nlo = 0
+        else:
+            nlo = work[lo-1] + 1
+        for i in xrange(nlo, len(elts)):
+            work[lo] = i
+            prereq_combs_r(lo+1, hi, elts, work, rv)
+    else:
+        rv.append([elts[work[i]] for i in xrange(hi)])
+
+def prereq_combs(prereqs):
+    """Given an ordered list of header files, PREREQS, that may be
+       necessary prior to inclusion of some other header, produce a
+       list of all possible subsets of that list, maintaining order.
+       (This is not a generator because generators did not exist in
+       2.0.  We expect we can get away with generating a list of 2^N
+       lists, as len(prereqs) is 4 in the worst case currently known.)
+       The list is in "banker's" order as defined in
+       http://applied-math.org/subset.pdf -- all 1-element subsets, then
+       all 2-element subsets, and so on.  The algorithm is also taken
+       from that paper."""
+    rv = []
+    l = len(prereqs)
+    work = [None]*l
+    for i in xrange(l+1):
+        prereq_combs_r(0, i, prereqs, work, rv)
+    return rv
 
 def old_compiler_id(cc):
     stop_re = re.compile(
@@ -697,6 +729,318 @@ class KnownError:
     def output(self, outf):
         outf.write("$E %s\n" % self.tag)
 
+class ConflictAnn:
+    """Conflict annotation for a header file."""
+    def __init__(self, conflicts):
+        self.conflicts = conflicts
+
+    def output(self, outf):
+        outf.write("$C %s\n" % " ".join([h.name for h in self.conflicts]))
+
+class SpecialDependency:
+    """Used to represent [special] dependencies from prereqs.ini.
+       Stubs some Header methods and properties so it can be treated
+       like one when convenient."""
+
+    PRESENT = ''
+
+    def __init__(self, header, text):
+        self.name = header
+        self.text = text
+        self.presence = self.PRESENT
+
+    def gen_includes(self, outf, conform, thread):
+        outf.write(self.text)
+        outf.write("\n")
+
+    def test(self, cc):
+        pass
+
+class Header:
+    """A Header instance represents everything that is currently known
+       about a single header file, and knows how to carry out a sequence
+       of tests of the header:
+
+         - whether it exists at all
+         - whether it can be preprocessed successfully, in isolation
+         - whether it can be compiled successfully, in isolation:
+           - in the default compilation mode
+           - in the strict conformance mode
+           - (optionally) with thread support enabled, in both the above modes
+         - if it can't be compiled successfully in isolation in any
+           of the above modes, whether this can be fixed by including
+           other headers first
+
+       Information about other headers to try including first is stored
+       in the configuration file 'prereqs.ini', q.v."""
+
+    # State codes as written to the file.  Some of these are also used
+    # for internal flags.
+    UNKNOWN    = '?'
+    ABSENT     = '-'
+    BUGGY      = '!'
+
+    PRESENT    = ''
+    INCOMPLETE = '*'
+    CORRECT    = '+'
+
+    PRES_DEP   = '%'
+    INCO_DEP   = '&'
+    CORR_DEP   = '@'
+
+    PRES_CON   = '~'
+    INCO_CON   = '^'
+    CORR_CON   = '='
+
+    # Complete list of valid state codes, for validation on reread.
+    STATES = (UNKNOWN,  ABSENT,     BUGGY,
+              PRESENT,  INCOMPLETE, CORRECT,
+              PRES_DEP, INCO_DEP,   CORR_DEP,
+              PRES_CON, INCO_CON,   CORR_CON)
+
+    # Human readable labels for the states.
+    STATE_LABELS = {
+        UNKNOWN    : "UNKNOWN",
+        ABSENT     : "ABSENT",
+        BUGGY      : "BUGGY",
+        PRESENT    : "PRESENT",
+        INCOMPLETE : "INCOMPLETE",
+        CORRECT    : "CORRECT",
+        PRES_DEP   : "PRESENT (DEPENDENT)",
+        INCO_DEP   : "INCOMPLETE (DEPENDENT)",
+        CORR_DEP   : "CORRECT (DEPENDENT)",
+        PRES_CON   : "PRESENT (CONFLICT)",
+        INCO_CON   : "INCOMPLETE (CONFLICT)",
+        CORR_CON   : "CORRECT (CONFLICT)",
+    }
+
+    def __init__(self, name, dataset):
+        self.name = name
+        self.dataset = dataset
+        self.dataset.headers[name] = self
+        self.annotations  = []
+
+        # prereqs lists form a 2x2 matrix indexed by [conform][thread].
+        # initially all are empty.
+        self.prereqs = [ [ [], [] ],
+                         [ [], [] ] ]
+
+        # In-memory state is "exploded" into four flags so that test()
+        # can be idempotent.
+        self.presence = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
+        self.contents = self.UNKNOWN # can be PRESENT, INCOMPLETE, CORRECT
+        self.depends  = None # None=unknown, 0=no, 1=yes
+        self.conflict = None # None=unknown, 0=no, 1=yes
+
+    def __cmp__(self, other):
+        return cmp(self.name, other.name)
+
+    def state_code(self):
+       if self.presence != self.PRESENT:
+            # unknown/absent/buggy exclude all other indicators.
+            return self.presence
+       else:
+            assert self.depends is not None
+            assert self.conflict is not None
+
+            if self.contents == self.PRESENT:
+                if   self.conflict: return self.PRES_CON
+                elif self.depends:  return self.PRES_DEP
+                else:               return self.PRESENT
+            elif self.contents == self.INCOMPLETE:
+                if   self.conflict: return self.INCO_CON
+                elif self.depends:  return self.INCO_DEP
+                else:               return self.INCOMPLETE
+            else:
+                assert self.contents == self.CORRECT
+                if   self.conflict: return self.CORR_CON
+                elif self.depends:  return self.CORR_DEP
+                else:               return self.CORRECT
+
+    def state_label(self):
+        return self.STATE_LABELS[self.state_code()]
+
+    def output(self, outf):
+        outf.write("%s%s\n" % (self.state_code(), self.name))
+        self.output_depends(outf)
+        for ann in self.annotations:
+            ann.output(outf)
+
+    def output_depends(self, outf):
+        if not self.depends: return
+
+        def output_1(outf, lst, tag=""):
+            if tag != "":
+                tag = " [%s]" % tag
+            if len(lst) == 0: return
+            if isinstance(lst[0], SpecialDependency):
+                assert len(lst) == 1
+                outf.write("$S%s %s\n" % (tag, lst[0].name))
+            else:
+                outf.write("$P%s %s\n" % (tag, " ".join([h.name for h in lst])))
+
+        output_1(outf, self.prereqs[0][0])
+
+        # output other dependency lists only if they are different from [0][0]
+        if self.prereqs[1][0] != self.prereqs[0][0]:
+            output_1(outf, self.prereqs[1][0], "conform")
+        if self.prereqs[0][1] != self.prereqs[0][0]:
+            output_1(outf, self.prereqs[1][0], "thread")
+        if self.prereqs[1][1] != self.prereqs[0][0]:
+            output_1(outf, self.prereqs[1][1], "conform,thread")
+
+    def gen_includes(self, outf, conform, thread):
+        if self.presence != self.PRESENT: return
+        for h in self.prereqs[conform][thread]:
+            h.gen_includes(outf, conform, thread)
+        outf.write("#include <%s>\n" % self.name)
+
+    def test(self, cc):
+        """Perform all checks on this header.  This blindly calls
+           itself on other header objects, and so must be idempotent
+           (which is handled in each subroutine, so *they* are all
+           idempotent as well)"""
+
+        self.test_presence(cc)
+        self.test_depends(cc)
+        self.test_conflict(cc)
+        self.test_contents(cc)
+
+    def test_presence(self, cc):
+        if self.presence != self.UNKNOWN: return
+
+        (rc, msg) = cc.test_preproc("#include <%s>" % self.name)
+        if rc == 0:
+            self.presence = self.PRESENT
+            return
+        if cc.failure_due_to_nonexistence(msg, self.name):
+            self.presence = self.ABSENT
+            return
+
+        error = self.dataset.is_known_error(msg, self.name)
+        if error is not None:
+            self.presence = self.BUGGY
+            self.annotations.append(error)
+            return
+
+        cc.fatal("unrecognized failure mode for <%s>. "
+                 "Please investigate and add an entry to %s."
+                 % (self.name, self.dataset.errors_fname), msg)
+
+    def test_depends_1(self, cc, possible_prereqs, conform, thread):
+        failures = []
+
+        # prereq_combs is guaranteed to produce an empty set as the first
+        # item in its returned list, and the complete set as the last item.
+        for candidate_set in prereq_combs(possible_prereqs):
+            buf = StringIO.StringIO()
+            for h in candidate_set:
+                h.gen_includes(buf, conform, thread)
+            buf.write("#include <%s>\n" % self.name)
+            buf.write("int avoid_empty_translation_unit;\n")
+
+            (rc, msg) = cc.test_compile(buf.getvalue(),
+                                        conform=conform,
+                                        thread=thread)
+            if rc == 0:
+                self.prereqs[conform][thread] = candidate_set
+                return
+
+            if len(failures) > 0: failures.append("")
+            failures.extend(msg)
+
+        # If we get here, there is a serious problem.
+        # Look for a known bug in the last set of messages, which will be
+        # the maximal prerequisite set and therefore the least likely to have
+        # problems.
+        error = self.dataset.is_known_error(msg, self.name)
+        if error is not None:
+            self.state = self.BUGGY
+            self.annotations.append(error)
+            return
+
+        cc.fatal("unrecognized failure mode for <%s>. "
+                 "Please investigate and add an entry to %s."
+                 % (self.name, self.dataset.errors_fname), msg)
+
+    def test_depends(self, cc):
+        if self.depends is not None: return
+        if self.presence != self.PRESENT: return
+
+        possible_prereqs = []
+        for h in self.dataset.prereqs.get(self.name, []):
+            h.test(cc)
+            if h.presence == h.PRESENT:
+                possible_prereqs.append(h)
+
+        #XXX Figure out which headers require threads mode and tag them.
+
+        self.test_depends_1(cc, possible_prereqs, 0, 0)
+        if self.presence == self.BUGGY: return
+        self.test_depends_1(cc, possible_prereqs, 1, 0)
+        if self.presence == self.BUGGY: return
+        if cc.test_with_thread_opt:
+            self.test_depends_1(cc, possible_prereqs, 0, 1)
+            if self.presence == self.BUGGY: return
+            self.test_depends_1(cc, possible_prereqs, 1, 1)
+            if self.presence == self.BUGGY: return
+        else:
+            self.prereqs[0][1] = self.prereqs[0][0][:]
+            self.prereqs[1][1] = self.prereqs[0][0][:]
+
+        self.depends = (len(self.prereqs[0][0]) > 0 or
+                        len(self.prereqs[0][1]) > 0 or
+                        len(self.prereqs[1][0]) > 0 or
+                        len(self.prereqs[1][1]) > 0)
+
+    def test_conflict(self, cc):
+        if self.conflict is not None: return
+        if self.presence != self.PRESENT: return
+
+        # First test whether this header can be included, twice, after
+        # every other known-present, dependencies-calculated header
+        # has been included.  If this works, we can safely assume
+        # there are no pairwise conflicts.  Conflict tests are always
+        # done in conformance mode.
+        buf = StringIO.StringIO()
+        for h in self.dataset.headers.values():
+            if h != self and h.presence == h.PRESENT and h.depends is not None:
+                h.gen_includes(buf, 1, 0)
+        self.gen_includes(buf, 1, 0)
+        self.gen_includes(buf, 1, 0)
+        buf.write("int avoid_empty_translation_unit;\n")
+        (rc, msg) = cc.test_compile(buf.getvalue(), conform=1, thread=0)
+        if rc == 0:
+            self.conflict = 0
+            return
+
+        # Test every pair of headers.  FUTURE: This is O(N) compiler
+        # invocations, which can get quite slow; maybe do a binary
+        # chop instead.
+        conflicts = []
+        for h in self.dataset.headers.values():
+            if h.presence != h.PRESENT or h.depends is None: continue
+
+            buf.seek(0)
+            h.gen_includes(buf, 1, 0)
+            self.gen_includes(buf, 1, 0)
+            buf.write("int avoid_empty_translation_unit;\n")
+
+            (rc, _) = cc.test_compile(buf.getvalue(), conform=1, thread=0)
+            if rc != 0:
+                conflicts.append(h)
+
+        if len(conflicts) == 0:
+            cc.fatal("No pairwise conflict detected for %s" % self.name,
+                     msg)
+
+        self.conflict = 1
+        self.annotations.append(ConflictAnn(conflicts))
+
+    def test_contents(self, cc):
+        if self.presence != self.PRESENT: return
+        self.contents = self.PRESENT
+
 class Dataset:
     """A Dataset instance represents the totality of information known
        about header files on this platform.  It is primarily a dictionary
@@ -704,24 +1048,25 @@ class Dataset:
        configuration data and some utility methods."""
 
     def __init__(self):
+        self.headers = {}
         self.prereqs_fname = "prereqs.ini"
         self.errors_fname = "errors.ini"
         self.load_prereqs(self.prereqs_fname)
         self.load_errors(self.errors_fname)
-        self.headers = {}
 
     def load_prereqs(self, fname):
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
         prereqs = {}
         for h in cfg.options("prerequisites"):
-            prereqs[h] = cfg.get("prerequisites", h).split()
+            prereqs[h] = [Header(p, self)
+                          for p in cfg.get("prerequisites", h).split()]
 
         for h in cfg.options("special"):
             if prereqs.has_key(h):
                 raise RuntimeError("%s: %s appears in both [prerequisites] "
                                    "and [special]" % (fname, h))
-            prereqs[h] = ["SPECIAL", cfg.get("special", h)]
+            prereqs[h] = [SpecialDependency(h, cfg.get("special", h))]
 
         self.prereqs = prereqs
 
@@ -746,126 +1091,46 @@ class Dataset:
 
     def is_known_error(self, msg, header):
         for line in msg:
-            for err in self.errors_by_header[header]:
+            for err in self.errors_by_header.get(header, []):
                 if err.search(line):
                     return err
         return None
 
-class Header:
-    """A Header instance represents everything that is currently known
-       about a single header file, and knows how to carry out a sequence
-       of tests of the header:
-
-         - whether it exists at all
-         - whether it can be preprocessed successfully, in isolation
-         - whether it can be compiled successfully, in isolation:
-           - in the default compilation mode
-           - in the strict conformance mode
-           - (optionally) with thread support enabled, in both the above modes
-         - if it can't be compiled successfully in isolation in any
-           of the above modes, whether this can be fixed by including
-           other headers first
-
-       Information about other headers to try including first is stored
-       in the configuration file 'prereqs.ini', q.v."""
-
-    # State codes:
-    UNKNOWN    = '?'
-    ABSENT     = '-'
-    PRESENT    = ''
-    BUGGY      = '!'
-    DEPENDENT  = '%'
-    CORRECT    = '+'
-    INCOMPLETE = '*'
-    CORR_DEP   = '@'
-    INCO_DEP   = '&'
-
-    TAGS = (UNKNOWN, ABSENT, BUGGY, DEPENDENT, CORRECT, INCOMPLETE,
-            CORR_DEP, INCO_DEP)
-
-    TAGINV = { UNKNOWN    : "UNKNOWN",
-               PRESENT    : "PRESENT",
-               ABSENT     : "ABSENT",
-               BUGGY      : "BUGGY",
-               DEPENDENT  : "DEPENDENT",
-               CORRECT    : "CORRECT",
-               INCOMPLETE : "INCOMPLETE",
-               CORR_DEP   : "CORRECT (DEPENDENT)",
-               INCO_DEP   : "INCOMPLETE (DEPENDENT)"
-             }
-
-    def __init__(self, name, dataset):
-        self.name = name
-        self.dataset = dataset
-        self.dataset.headers[name] = self
-        self.state = self.UNKNOWN
-        self.annotations  = []
-
-    def output(self, outf):
-        outf.write("%s%s\n" % (self.state, self.name))
-        for ann in self.annotations:
-            ann.output(outf)
-
-    def test(self, compiler):
-        if not self.test_presence(compiler): return
-        if not self.test_default_compilation(compiler): return
-
-    def test_presence(self, compiler):
-        (rc, msg) = compiler.test_preproc("#include <%s>" % self.name)
-        if rc == 0:
-            self.state = self.PRESENT
-            return 1
-        if compiler.failure_due_to_nonexistence(msg, self.name):
-            self.state = self.ABSENT
-            return 0
-
-        error = self.dataset.is_known_error(msg, self.name)
-        if error is not None:
-            self.state = self.BUGGY
-            self.annotations.append(error)
-            return 0
-
-        compiler.fatal("unrecognized failure mode for <%s>. "
-                       "Please investigate and add an entry to %s."
-                       % (self.name, self.dataset.errors_fname), msg)
-
-    def test_default_compilation(self, compiler):
-        (rc, msg) = compiler.test_compile("#include <%s>" % self.name)
-        if rc != 0:
-            compiler.fatal("stub 1", msg)
-
-        (rc, msg) = compiler.test_compile("#include <%s>" % self.name, conform=1)
-        if rc != 0:
-            compiler.fatal("stub 2", msg)
-
-        if compiler.test_with_thread_opt:
-            (rc, msg) = compiler.test_compile("#include <%s>" % self.name,
-                                              thread=1)
-            if rc != 0:
-                compiler.fatal("stub 3", msg)
-
-            (rc, msg) = compiler.test_compile("#include <%s>" % self.name,
-                                              conform=1, thread=1)
-            if rc != 0:
-                compiler.fatal("stub 4", msg)
-
-
 if __name__ == '__main__':
+    def usage(argv):
+        raise SystemExit("usage: %s (compiler_id|header.h...) "
+                         "[-- cc [ccargs...]]"
+                         % argv[0])
+
     def main(argv, stdout):
-        if len(argv) < 2:
-            raise SystemExit("usage: %s (compiler_id|header.h) [cc [ccargs...]]"
-                             % argv[0])
-        if len(argv) == 2:
-            cc = Compiler(["cc"])
-        else:
-            cc = Compiler(argv[2:])
+        if len(argv) < 2: usage()
 
         if argv[1] == "compiler_id":
+            if len(argv) == 2:
+                cc = Compiler(["cc"])
+            elif argv[2] == "--":
+                cc = Compiler(argv[3:])
+            else:
+                cc = Compiler(argv[2:])
             cc.report(stdout)
         else:
+            headers = None
+            for i in range(len(argv)):
+                if argv[i] == "--":
+                    if i == 1 or i == len(argv)-1:
+                        usage()
+                    headers = argv[1:i]
+                    cc = Compiler(argv[i+1:])
+                    break
+            if headers == None:
+                headers = argv[1:]
+                cc = Compiler(["cc"])
+
             dataset = Dataset()
-            header = Header(argv[1], dataset)
-            header.test(cc)
-            header.output(stdout)
+            for h in headers:
+                Header(h, dataset).test(cc)
+            for h in dataset.headers.values():
+                if h.presence != h.UNKNOWN:
+                    h.output(stdout)
 
     main(sys.argv, sys.stdout)
