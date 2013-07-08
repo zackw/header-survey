@@ -21,6 +21,16 @@ import re
 import string
 import sys
 
+# "True" division only became available in Python 2.2.  Therefore, it
+# is a style violation to use bare / or // anywhere in this program
+# other than via these wrappers.  Note that "from __future__ import division"
+# cannot be written inside a try block.
+try:
+    def floordiv(n,d): return n // d
+except SyntaxError:
+    def floordiv(n,d): return n / d
+def truediv(n,d): return float(n) / float(d)
+
 # It may be necessary to monkey-patch ConfigParser to accept / in an option
 # name and/or : in a section name.  Also test empty values (not to be confused
 # with the absence of a value, i.e. no : or = at all).
@@ -285,8 +295,8 @@ def sorthdr(hs):
         khs.sort()
         return [x[1] for x in khs]
 
-def prereq_combs_r(lo, hi, elts, work, rv):
-    """Recursive worker subroutine of prereq_combs (see below)."""
+def dependency_combs_r(lo, hi, elts, work, rv):
+    """Recursive worker subroutine of dependency_combs (see below)."""
     if lo < hi:
         if lo == 0:
             nlo = 0
@@ -294,26 +304,26 @@ def prereq_combs_r(lo, hi, elts, work, rv):
             nlo = work[lo-1] + 1
         for i in xrange(nlo, len(elts)):
             work[lo] = i
-            prereq_combs_r(lo+1, hi, elts, work, rv)
+            dependency_combs_r(lo+1, hi, elts, work, rv)
     else:
         rv.append([elts[work[i]] for i in xrange(hi)])
 
-def prereq_combs(prereqs):
-    """Given an ordered list of header files, PREREQS, that may be
+def dependency_combs(deps):
+    """Given an ordered list of header files, DEPS, that may be
        necessary prior to inclusion of some other header, produce a
        list of all possible subsets of that list, maintaining order.
        (This is not a generator because generators did not exist in
        2.0.  We expect we can get away with generating a list of 2^N
-       lists, as len(prereqs) is 4 in the worst case currently known.)
+       lists, as len(deps) is 4 in the worst case currently known.)
        The list is in "banker's" order as defined in
-       http://applied-math.org/subset.pdf -- all 1-element subsets, then
-       all 2-element subsets, and so on.  The algorithm is also taken
-       from that paper."""
+       http://applied-math.org/subset.pdf -- all 1-element subsets,
+       then all 2-element subsets, and so on.  The algorithm is also
+       taken from that paper."""
     rv = []
-    l = len(prereqs)
+    l = len(deps)
     work = [None]*l
     for i in xrange(l+1):
-        prereq_combs_r(0, i, prereqs, work, rv)
+        dependency_combs_r(0, i, deps, work, rv)
     return rv
 
 def old_compiler_id(cc):
@@ -719,7 +729,7 @@ class Compiler:
 
         # Find out whether code that includes <pthread.h> must be
         # compiled in a special mode.  If so, enabling this mode may
-        # change prerequisite sets, so we have to test both ways.
+        # change dependency sets, so we have to test both ways.
         (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;\n")
         if rc != 0 and not self.failure_due_to_nonexistence(msg, "pthread.h"):
             (rc, msg2) = self.test_compile("#include <pthread.h>\nint dummy;",
@@ -753,14 +763,6 @@ class KnownError:
 
     def output(self, outf):
         outf.write("$E %s\n" % self.tag)
-
-class ConflictAnn:
-    """Conflict annotation for a header file."""
-    def __init__(self, conflicts):
-        self.conflicts = conflicts
-
-    def output(self, outf):
-        outf.write("$C %s\n" % " ".join([h.name for h in self.conflicts]))
 
 class SpecialDependency:
     """Used to represent [special] dependencies from prereqs.ini.
@@ -842,24 +844,28 @@ class Header:
     def __init__(self, name, dataset):
         self.name = name
         self.dataset = dataset
-        self.dataset.headers[name] = self
         self.annotations  = []
 
-        # prereqs lists form a 2x2 matrix indexed by [conform][thread].
-        # initially all are empty.
-        self.prereqs = [ [ [], [] ],
-                         [ [], [] ] ]
-
-        # caution likewise
-        self.caution = [ [ 0, 0 ],
-                         [ 0, 0 ] ]
-
+        self.presence  = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
+        self.contents  = self.UNKNOWN # can be PRESENT, INCOMPLETE, CORRECT
+        self.depends   = None # None=unknown, 0=no, 1=yes
+        self.conflict  = None # None=unknown, 0=no, 1=yes
         self.pref_mode = None # will be set to a 2-tuple by test_depends
 
-        self.presence = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
-        self.contents = self.UNKNOWN # can be PRESENT, INCOMPLETE, CORRECT
-        self.depends  = None # None=unknown, 0=no, 1=yes
-        self.conflict = None # None=unknown, 0=no, 1=yes
+        # dependency lists form a 2x2 matrix indexed by [conform][thread].
+        # initially all are empty.  The Nones are so output_* can tell the
+        # difference between "empty set" and "we never scanned this because
+        # cc.test_with_thread_opt=0." (this is only an issue for conflicts).
+        self.deplist = [ [ [], [] ],
+                         [ [], [] ] ]
+
+        # conflict lists likewise
+        self.conflist = [ [ [], None ],
+                          [ [], None ] ]
+
+        # caution is also a 2x2 matrix, but of booleans.
+        self.caution = [ [ 0, 0 ],
+                         [ 0, 0 ] ]
 
     def __cmp__(self, other):
         return cmp(self.name, other.name)
@@ -878,18 +884,28 @@ class Header:
                       self.caution[1][1]))
         outf.write("   deplists:\n")
         outf.write("     [..] = %s\n"
-                   % " ".join([h.name for h in self.prereqs[0][0]]))
+                   % " ".join([h.name for h in self.deplist[0][0]]))
         outf.write("     [c.] = %s\n"
-                   % " ".join([h.name for h in self.prereqs[1][0]]))
+                   % " ".join([h.name for h in self.deplist[1][0]]))
         outf.write("     [.t] = %s\n"
-                   % " ".join([h.name for h in self.prereqs[0][1]]))
+                   % " ".join([h.name for h in self.deplist[0][1]]))
         outf.write("     [ct] = %s\n"
-                   % " ".join([h.name for h in self.prereqs[1][1]]))
+                   % " ".join([h.name for h in self.deplist[1][1]]))
+        outf.write("   conflists:\n")
+        outf.write("     [..] = %s\n"
+                   % " ".join([h.name for h in self.conflist[0][0]]))
+        outf.write("     [c.] = %s\n"
+                   % " ".join([h.name for h in self.conflist[1][0]]))
+        if self.conflist[0][1] is not None:
+            outf.write("     [.t] = %s\n"
+                       % " ".join([h.name for h in self.conflist[0][1]]))
+        if self.conflist[1][1] is not None:
+            outf.write("     [ct] = %s\n"
+                       % " ".join([h.name for h in self.conflist[1][1]]))
         outf.write("  annotations:\n")
         for a in self.annotations:
             outf.write("  ")
             a.output(outf)
-        outf.write("\n")
 
     def state_code(self):
         if self.presence != self.PRESENT:
@@ -924,6 +940,7 @@ class Header:
     def output(self, outf):
         outf.write("%s%s\n" % (self.state_code(), self.name))
         self.output_depends(outf)
+        self.output_conflicts(outf)
         for ann in self.annotations:
             ann.output(outf)
 
@@ -940,20 +957,45 @@ class Header:
             else:
                 outf.write("$P%s %s\n" % (tag, " ".join([h.name for h in lst])))
 
-        output_1(outf, self.prereqs[0][0])
+        output_1(outf, self.deplist[0][0])
 
         # output other dependency lists only if they are different
-        if self.prereqs[1][0] != self.prereqs[0][0]:
-            output_1(outf, self.prereqs[1][0], "conform")
-        if self.prereqs[0][1] != self.prereqs[0][0]:
-            output_1(outf, self.prereqs[1][0], "thread")
-        if (self.prereqs[1][1] != self.prereqs[0][0] and
-            self.prereqs[1][1] != self.prereqs[1][0]):
-            output_1(outf, self.prereqs[1][1], "conform,thread")
+        if self.deplist[1][0] != self.deplist[0][0]:
+            output_1(outf, self.deplist[1][0], "conform")
+
+        if (self.deplist[0][1] is not None and
+            self.deplist[0][1] != self.deplist[0][0]):
+            output_1(outf, self.deplist[0][1], "thread")
+
+        if (self.deplist[1][1] is not None and
+            self.deplist[1][1] != self.deplist[0][0] and
+            self.deplist[1][1] != self.deplist[1][0]):
+            output_1(outf, self.deplist[1][1], "conform,thread")
+
+    def output_conflicts(self, outf):
+        def output_1(outf, lst, tag=""):
+            if tag != "":
+                tag = " [%s]" % tag
+            if len(lst) == 0: return
+            outf.write("$C%s %s\n" % (tag, " ".join([h.name for h in lst])))
+
+        output_1(outf, self.conflist[0][0])
+
+        if self.conflist[1][0] != self.conflist[0][0]:
+            output_1(outf, self.conflist[1][0], "conform")
+
+        if (self.conflist[0][1] is not None and
+            self.conflist[0][1] != self.conflist[0][0]):
+            output_1(outf, self.conflist[0][1], "thread")
+
+        if (self.conflist[1][1] is not None and
+            self.conflist[1][1] != self.conflist[0][0] and
+            self.conflist[1][1] != self.conflist[1][0]):
+            output_1(outf, self.conflist[1][1], "conform,thread")
 
     def gen_includes(self, outf, conform, thread):
         if self.presence != self.PRESENT: return
-        for h in self.prereqs[conform][thread]:
+        for h in self.deplist[conform][thread]:
             h.gen_includes(outf, conform, thread)
         outf.write("#include <%s>\n" % self.name)
 
@@ -963,39 +1005,44 @@ class Header:
            (which is handled in each subroutine, so *they* are all
            idempotent as well)"""
 
-        self.test_presence(cc)
-        self.test_depends(cc)
-        self.test_conflict(cc)
-        self.test_contents(cc)
+        sys.stderr.write("#+ %s\n" % self.name)
+        x = 0
+        x |= self.test_presence(cc)
+        x |= self.test_depends(cc)
+        x |= self.test_conflict(cc)
+        x |= self.test_contents(cc)
+        if x:
+            self.debug_dump(sys.stderr)
+        sys.stderr.write("#- %s\n\n" % self.name)
 
     def test_presence(self, cc):
-        if self.presence != self.UNKNOWN: return
+        if self.presence != self.UNKNOWN: return 0
 
         (rc, msg) = cc.test_preproc("#include <%s>" % self.name)
         if rc == 0:
             self.presence = self.PRESENT
-            return
+            return 1
         if cc.failure_due_to_nonexistence(msg, self.name):
             self.presence = self.ABSENT
-            return
+            return 1
 
         errs = self.dataset.is_known_error(msg, self.name)
         if errs is not None:
             # caution vs error is ignored at this point; any problem is fatal.
             self.presence = self.BUGGY
             self.annotations.extend(errs)
-            return
+            return 1
 
         cc.fatal("unrecognized failure mode for <%s>. "
                  "Please investigate and add an entry to %s."
                  % (self.name, self.dataset.errors_fname), msg)
 
-    def test_depends_1(self, cc, possible_prereqs, conform, thread):
+    def test_depends_1(self, cc, possible_deps, conform, thread):
         failures = []
 
-        # prereq_combs is guaranteed to produce an empty set as the first
+        # dependency_combs is guaranteed to produce an empty set as the first
         # item in its returned list, and the complete set as the last item.
-        for candidate_set in prereq_combs(possible_prereqs):
+        for candidate_set in dependency_combs(possible_deps):
             buf = StringIO.StringIO()
             for h in candidate_set:
                 h.gen_includes(buf, conform, thread)
@@ -1006,7 +1053,7 @@ class Header:
                                         conform=conform,
                                         thread=thread)
             if rc == 0:
-                self.prereqs[conform][thread] = candidate_set
+                self.deplist[conform][thread] = candidate_set
                 return 1
 
             if len(failures) > 0: failures.append("")
@@ -1014,7 +1061,7 @@ class Header:
 
         # If we get here, there is a serious problem.
         # Look for a known bug in the last set of messages, which will be
-        # the maximal prerequisite set and therefore the least likely to have
+        # the maximal dependency set and therefore the least likely to have
         # problems.
         errs = self.dataset.is_known_error(msg, self.name)
         if errs is not None:
@@ -1031,35 +1078,35 @@ class Header:
                  % (self.name, self.dataset.errors_fname), msg)
 
     def test_depends(self, cc):
-        if self.depends is not None: return
-        if self.presence != self.PRESENT: return
+        if self.depends is not None: return 0
+        if self.presence != self.PRESENT: return 0
 
-        possible_prereqs = []
-        for h in self.dataset.prereqs.get(self.name, []):
+        possible_deps = []
+        for h in self.dataset.deps.get(self.name, []):
             h.test(cc)
             if h.presence == h.PRESENT:
-                possible_prereqs.append(h)
+                possible_deps.append(h)
 
-        self.test_depends_1(cc, possible_prereqs, 0, 0)
-        if self.presence == self.BUGGY: return
-        self.test_depends_1(cc, possible_prereqs, 1, 0)
-        if self.presence == self.BUGGY: return
+        self.test_depends_1(cc, possible_deps, 0, 0)
+        if self.presence == self.BUGGY: return 1
+        self.test_depends_1(cc, possible_deps, 1, 0)
+        if self.presence == self.BUGGY: return 1
         if cc.test_with_thread_opt:
-            self.test_depends_1(cc, possible_prereqs, 0, 1)
-            if self.presence == self.BUGGY: return
-            self.test_depends_1(cc, possible_prereqs, 1, 1)
-            if self.presence == self.BUGGY: return
+            self.test_depends_1(cc, possible_deps, 0, 1)
+            if self.presence == self.BUGGY: return 1
+            self.test_depends_1(cc, possible_deps, 1, 1)
+            if self.presence == self.BUGGY: return 1
         else:
-            self.prereqs[0][1] = self.prereqs[0][0][:]
-            self.prereqs[1][1] = self.prereqs[1][0][:]
+            self.deplist[0][1] = self.deplist[0][0][:]
+            self.deplist[1][1] = self.deplist[1][0][:]
 
             self.caution[0][1] = self.caution[0][0]
             self.caution[1][1] = self.caution[1][0]
 
-        self.depends = (len(self.prereqs[0][0]) > 0 or
-                        len(self.prereqs[0][1]) > 0 or
-                        len(self.prereqs[1][0]) > 0 or
-                        len(self.prereqs[1][1]) > 0)
+        self.depends = (len(self.deplist[0][0]) > 0 or
+                        len(self.deplist[0][1]) > 0 or
+                        len(self.deplist[1][0]) > 0 or
+                        len(self.deplist[1][1]) > 0)
 
         # Find a mode in which this header can be processed without errors.
         if not self.caution[1][0]: # conform, no threads
@@ -1073,26 +1120,54 @@ class Header:
         else:
             # There is no mode without problems.
             self.presence = self.BUGGY
+        return 1
 
-    def test_conflict_pairwise(self, cc, conform, thread, others):
-        # Test every pair of headers in 'others' for a conflict with
-        # this header.  FUTURE: This is O(N) compiler invocations,
-        # which can get quite slow; maybe do a binary chop instead.
-        conflicts = []
+    # Conflict testing is quite algorithmically sophisticated, because
+    # the wall-clock performance of this script is dominated by
+    # compiler invocations, and a naive conflict tester is O(N^2) in
+    # the number of header files in the survey.
+    #
+    # The algorithm below clusters headers into maximal groups that
+    # can be tested together; even in the presence of known conflicts,
+    # only two clusters are typically needed, so headers without
+    # conflicts of their own can be disposed of in at most two
+    # compilations per mode.  When a new conflict must be diagnosed,
+    # we use binary divide-and-conquer to find the problem in O(lg N)
+    # compilations.
+
+    def test_conflict_r(self, cc, conform, thread, others):
+        """Divide-and-conquer recursive worker for conflict testing.
+           Returns a list of headers found to conflict with self."""
+
+        # Degenerate case: if the list is empty, there is nothing to
+        # do.  (This can happen for instance when there are no
+        # 'conflicted' headers.)
+        if len(others) == 0: return others
+
+        # Can we compile a source file that includes all of OTHERS,
+        # and then this source file?
         buf = StringIO.StringIO()
         for h in others:
-            buf.seek(0)
             h.gen_includes(buf, conform, thread)
-            self.gen_includes(buf, conform, thread)
-            buf.write("int avoid_empty_translation_unit;\n")
-            buf.truncate()
+        self.gen_includes(buf, conform, thread)
+        buf.write("int avoid_empty_translation_unit;\n")
+        (rc, msg) = cc.test_compile(buf.getvalue(),
+                                    conform=conform, thread=thread)
 
-            (rc, msg) = cc.test_compile(buf.getvalue(),
-                                        conform=conform, thread=thread)
-            if rc != 0:
-                conflicts.append(h)
+        # Success case: no conflicts among OTHERS.
+        if rc == 0:
+            return []
 
-        return conflicts
+        # Terminating case: if OTHERS has only a single element, we have
+        # identified a pairwise conflict with self.
+        if len(others) == 1:
+            return others[:]
+
+        # Split OTHERS into two halves and recurse.
+        mid = floordiv(len(others), 2)
+        cf = self.test_conflict_r(cc, conform, thread, others[:mid])
+        cf.extend(self.test_conflict_r(cc, conform, thread, others[mid:]))
+        return cf
 
     def test_conflict_mode(self, cc, conform, thread):
         if self.caution[conform][thread]:
@@ -1100,75 +1175,76 @@ class Header:
 
         # Compute a list of every other known header whose dependencies
         # have been calculated and which is compatible with this
-        # compilation mode.  Distinguish between headers that don't
-        # have any conflicts already, and those that do.
-        others = []
-        conflicted = []
-        conflicts = []
+        # compilation mode.  Include self explicitly in this list
+        # (we want to know if a header fails when included twice).
+        others = [self]
         for h in self.dataset.headers.values():
             if   (h != self and h.presence == h.PRESENT and
                   h.depends is not None and
                   not h.caution[conform][thread]):
-                if not h.conflict:
-                    others.append(h)
+                others.append(h)
+
+        # Greedily partition 'others' into maximal clusters containing
+        # no internal conflicts; test each such cluster for conflicts
+        # with self, by divide-and-conquer.
+        conflicts = []
+        while len(others) > 0:
+            p_cur = [others.pop()]
+            p_later = []
+            reject = { p_cur[0].name : 1 }
+
+            for h in others:
+                rejected = 0
+                for c in h.conflist[conform][thread]:
+                    if reject.has_key(c.name):
+                        rejected = 1
+                        break
+                if rejected:
+                    p_later.append(h)
                 else:
-                    conflicted.append(h)
+                    p_cur.append(h)
+                    reject[h.name] = 1
 
-        # As an optimization, test whether this header can be
-        # included, twice, after all the 'others'. If this works, we
-        # can safely assume there are no pairwise conflicts with that
-        # set; otherwise we have to go row by row.
-        buf = StringIO.StringIO()
-        for h in others:
-            h.gen_includes(buf, conform, thread)
-        self.gen_includes(buf, conform, thread)
-        self.gen_includes(buf, conform, thread)
-        buf.write("int avoid_empty_translation_unit;\n")
-        (rc, msg) = cc.test_compile(buf.getvalue(),
-                                    conform=conform, thread=thread)
-        if rc != 0:
-            conflicted.append(self)
-            conflicted.extend(others)
-
-        conflicts.extend(self.test_conflict_pairwise(cc, conform, thread,
-                                                     conflicted))
+            conflicts.extend(self.test_conflict_r(cc, conform, thread, p_cur))
+            others = p_later
 
         if len(conflicts) == 0:
-            if rc != 0:
-                cc.fatal("No pairwise conflict detected for %s" % self.name,
-                         msg)
             if self.conflict is None:
                 self.conflict = 0
             return
 
         self.conflict = 1
-        self.annotations.append(ConflictAnn(conflicts))
+        assert len(self.conflist[conform][thread]) == 0
+        self.conflist[conform][thread] = conflicts
 
         # Conflicts are mutual; annotate the other headers as well.
         for h in conflicts:
             h.conflict = 1
             found = 0
-            for a in h.annotations:
-                if isinstance(a, ConflictAnn):
-                    a.conflicts.append(self)
+            for hh in h.conflist[conform][thread]:
+                if hh is self:
                     found = 1
                     break
             if not found:
-                h.annotations.append(ConflictAnn([self]))
+                h.conflist[conform][thread].append(self)
 
     def test_conflict(self, cc):
-        if self.conflict is not None: return
-        if self.presence != self.PRESENT: return
+        if self.presence != self.PRESENT: return 0
+        if self.conflict is not None: return 0
 
         self.test_conflict_mode(cc, conform=0, thread=0)
         self.test_conflict_mode(cc, conform=1, thread=0)
         if cc.test_with_thread_opt:
-            self.test_conflict_mode(cc, conform=0, thread=0)
-            self.test_conflict_mode(cc, conform=0, thread=0)
+            self.test_conflict_mode(cc, conform=0, thread=1)
+            self.test_conflict_mode(cc, conform=1, thread=1)
+
+        return 1
 
     def test_contents(self, cc):
-        if self.presence != self.PRESENT: return
+        if self.presence != self.PRESENT: return 0
+        if self.contents != self.UNKNOWN: return 0
         self.contents = self.PRESENT
+        return 1
 
 class Dataset:
     """A Dataset instance represents the totality of information known
@@ -1178,26 +1254,33 @@ class Dataset:
 
     def __init__(self):
         self.headers = {}
-        self.prereqs_fname = "prereqs.ini"
+        self.deplist_fname = "prereqs.ini"
         self.errors_fname = "errors.ini"
-        self.load_prereqs(self.prereqs_fname)
+        self.load_deplist(self.deplist_fname)
         self.load_errors(self.errors_fname)
 
-    def load_prereqs(self, fname):
+    def get_header(self, name):
+        if self.headers.has_key(name):
+            return self.headers[name]
+        h = Header(name, self)
+        self.headers[name] = h
+        return h
+
+    def load_deplist(self, fname):
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
-        prereqs = {}
+        deps = {}
         for h in cfg.options("prerequisites"):
-            prereqs[h] = [Header(p, self)
-                          for p in cfg.get("prerequisites", h).split()]
+            deps[h] = [self.get_header(p)
+                       for p in cfg.get("prerequisites", h).split()]
 
         for h in cfg.options("special"):
-            if prereqs.has_key(h):
+            if deps.has_key(h):
                 raise RuntimeError("%s: %s appears in both [prerequisites] "
                                    "and [special]" % (fname, h))
-            prereqs[h] = [SpecialDependency(h, cfg.get("special", h))]
+            deps[h] = [SpecialDependency(h, cfg.get("special", h))]
 
-        self.prereqs = prereqs
+        self.deps = deps
 
     def load_errors(self, fname):
         cfg = ConfigParser.ConfigParser()
@@ -1275,10 +1358,8 @@ if __name__ == '__main__':
 
             dataset = Dataset()
             for h in headers:
-                sys.stderr.write("# %s\n" % h)
-                hh = Header(h, dataset)
+                hh = dataset.get_header(h)
                 hh.test(cc)
-                hh.debug_dump(sys.stderr)
 
             kk = dataset.headers.items()
             try:
