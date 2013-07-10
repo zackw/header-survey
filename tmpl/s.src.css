@@ -134,27 +134,33 @@ td { font-size: 9px; line-height: 9px; }
   text-align: left;
   white-space: nowrap;
 }
-.key-outer {
+#key-outer {
   display: block;
   position: relative;
 }
-.key-inner {
+#key-inner {
   display: block;
   position: absolute;
-  top: -10px;
-  left: 10px;
+  top: -5px;
+  left: 15px;
   white-space: nowrap;
   font-size: 12px;
   line-height: 15px;
   font-weight: normal;
 }
-.key-columns {
-  column-count: 2; -moz-column-count: 2; -webkit-column-count: 2;
+#key-col1, #key-col2 {
+  float: left;
   padding-left: 22px;
 }
-.key-columns > p {
+#key-col2 { margin-left: 20px }
+#key-col1 > p, #key-col2 > p {
   text-indent: -22px;
   margin: 0;
+}
+#key-below {
+  clear: left;
+  margin: 0;
+  padding-top: 0.7em;
 }
 .key-x, .key-a, .key-b, .key-p, .key-i, .key-c, .key-d, .key-w, .key-cc {
   text-indent: -9999em;

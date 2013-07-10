@@ -47,23 +47,25 @@ with a workaround.</p>
   <thead class="sticky">
     <tr>
       <th class="keyholder" colspan="2">
-        <div class="key-outer">
-          <div class="key-inner">
-            <div class="key-columns">
+        <div id="key-outer">
+          <div id="key-inner">
+            <div id="key-col1">
               <p><span class="key-a">A</span>: absent</p>
               <p><span class="key-b">B</span>: broken</p>
               <p><span class="key-p">P</span>: present</p>
               <p><span class="key-i">I</span>: incomplete</p>
               <p><span class="key-c">C</span>: complete</p>
+            </div><div id="key-col2">
               <p><span class="key-w">W</span>: minor bugs</p>
-              <p><span class="key-d">D</span>: dependent (must do<br/>
-                                            something before including)</p>
+              <p><span class="key-d">D</span>: depends on something<br/>
+                                               (prior to inclusion)</p>
               <p><span class="key-cc">CC</span>: varies with compiler</p>
               <p><span class="key-x">X</span>: no data</p>
             </div>
-            <p>Click any symbol (except <span class="key-a">A</span>,
-            <span class="key-p">P</span>, <span class="key-c">C</span>,
-            or <span class="key-x">X</span>)<br/> for more details.</p>
+            <p id="key-below">Click any symbol
+            (except <span class="key-a">A</span>, <span class="key-p">P</span>,
+            <span class="key-c">C</span>, or <span class="key-x">X</span>)<br/>
+            for more details.</p>
           </div>
         </div>
       </th>
