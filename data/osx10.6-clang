@@ -1268,7 +1268,7 @@ $ Lacks timer support (optional in POSIX.1-2001).
 -trace.h
 -uchar.h
 !ucontext.h
-$E deprec_ucontext
+$E ucontext_deprecated
 ## In file included from htest.c:1:
 ## /usr/include/ucontext.h:42:2: error: ucontext routines are deprecated, and require _XOPEN_SOURCE to be defined
 ## #error ucontext routines are deprecated, and require _XOPEN_SOURCE to be defined
@@ -1354,7 +1354,7 @@ utime.h
 utmp.h
 +utmpx.h
 !varargs.h
-$E unimpl_varargs
+$E varargs_unimpl
 ## In file included from htest.c:1:
 ## /opt/local/libexec/llvm-3.1/bin/../lib/clang/3.1/include/varargs.h:25:4: error: "Please use <stdarg.h> instead of <varargs.h>"
 ##   #error "Please use <stdarg.h> instead of <varargs.h>"

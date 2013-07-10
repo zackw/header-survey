@@ -94,14 +94,14 @@ time.h
 -trace.h
 -uchar.h
 !ucontext.h
-$E deprec_ucontext
+$E ucontext_deprecated
 ulimit.h
 unistd.h
 utime.h
 utmp.h
 utmpx.h
 !varargs.h
-$E unimpl_varargs
+$E varargs_unimpl
 wchar.h
 wctype.h
 wordexp.h

@@ -448,7 +448,7 @@ $ Lacks timer support (optional in POSIX.1-2001).
 -trace.h
 -uchar.h
 !ucontext.h
-$E deprec_ucontext
+$E ucontext_deprecated
 ## In file included from htest.c:1:
 ## /usr/include/ucontext.h:42:2: error: #error ucontext routines are deprecated, and require _XOPEN_SOURCE to be defined
 ulimit.h
@@ -493,7 +493,7 @@ utime.h
 utmp.h
 +utmpx.h
 !varargs.h
-$E unimpl_varargs
+$E varargs_unimpl
 ## In file included from htest.c:1:
 ## /usr/lib/gcc/i686-apple-darwin10/4.2.1/include/varargs.h:4:2: error: #error "GCC no longer implements <varargs.h>."
 ## /usr/lib/gcc/i686-apple-darwin10/4.2.1/include/varargs.h:5:2: error: #error "Revise your code to use <stdarg.h>."

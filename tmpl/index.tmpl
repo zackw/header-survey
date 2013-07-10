@@ -49,15 +49,21 @@ with a workaround.</p>
       <th class="keyholder" colspan="2">
         <div class="key-outer">
           <div class="key-inner">
-            <span class="key-a">A</span>: absent<br/>
-            <span class="key-b">B</span>: present but unusable<br/>
-            <span class="key-p">P</span>: present<br/>
-            <span class="key-i">I</span>: incomplete<br/>
-            <span class="key-c">C</span>: complete<br/>
-            <span class="key-d">D</span>: not usable in isolation<br/>
-            <span class="key-cc">CC</span>: compiler dependent<br/>
-            <span class="key-x">X</span>: no data<br/>
-            Click any symbol for more details, if available.
+            <div class="key-columns">
+              <p><span class="key-a">A</span>: absent</p>
+              <p><span class="key-b">B</span>: broken</p>
+              <p><span class="key-p">P</span>: present</p>
+              <p><span class="key-i">I</span>: incomplete</p>
+              <p><span class="key-c">C</span>: complete</p>
+              <p><span class="key-w">W</span>: minor bugs</p>
+              <p><span class="key-d">D</span>: dependent (must do<br/>
+                                            something before including)</p>
+              <p><span class="key-cc">CC</span>: varies with compiler</p>
+              <p><span class="key-x">X</span>: no data</p>
+            </div>
+            <p>Click any symbol (except <span class="key-a">A</span>,
+            <span class="key-p">P</span>, <span class="key-c">C</span>,
+            or <span class="key-x">X</span>)<br/> for more details.</p>
           </div>
         </div>
       </th>

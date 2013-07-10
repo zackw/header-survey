@@ -105,7 +105,7 @@ utime.h
 $P sys/types.h
 utmpx.h
 !varargs.h
-$E unimpl_varargs
+$E varargs_unimpl
 wchar.h
 wctype.h
 wordexp.h

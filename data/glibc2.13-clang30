@@ -192,7 +192,7 @@ utime.h
 utmp.h
 +utmpx.h
 !varargs.h
-$E unimpl_varargs
+$E varargs_unimpl
 *wchar.h
 $ Lacks <code>wcpcpy</code> and <code>wcpncpy</code> (POSIX.1-2008).
 ## In file included from htest.c:2:

@@ -148,7 +148,15 @@ td { font-size: 9px; line-height: 9px; }
   line-height: 15px;
   font-weight: normal;
 }
-.key-x, .key-a, .key-b, .key-p, .key-i, .key-c, .key-d, .key-cc {
+.key-columns {
+  column-count: 2; -moz-column-count: 2; -webkit-column-count: 2;
+  padding-left: 22px;
+}
+.key-columns > p {
+  text-indent: -22px;
+  margin: 0;
+}
+.key-x, .key-a, .key-b, .key-p, .key-i, .key-c, .key-d, .key-w, .key-cc {
   text-indent: -9999em;
   display: inline-block;
   vertical-align: middle;
@@ -156,30 +164,34 @@ td { font-size: 9px; line-height: 9px; }
   height: 12px;
   padding-right: 2px;
   background-image: url("spritesheet.png");
-  background-size: 264px 24px;
+  background-size: 120px 72px;
   background-clip: content-box;
   overflow: hidden;
 }
 
-.key-x  { background-position:   -3px -5px; background-size: 220px 20px; }
-.key-a  { background-position:  -30px -6px; }
-.key-b  { background-position:  -54px -6px; }
-.key-p  { background-position:  -78px -6px; }
-.key-i  { background-position: -126px -6px; }
-.key-c  { background-position: -174px -6px; }
-.key-d  { background-position: -228px -3px; }
-.key-cc { background-position: -183px -3.5px; background-size: 198px 18px; }
+.key-x  { background-position:    -4px  -4px; background-size: 100px 60px; }
+.key-a  { background-position:    -6px -26px; }
+.key-b  { background-position:    -6px -54px; }
+.key-p  { background-position:   -30px  -6px; }
+.key-i  { background-position:   -54px  -6px; }
+.key-c  { background-position:   -78px  -6px; }
+.key-d  { background-position:  -108px -26px; }
+.key-w  { background-position:  -108px -48px; }
+.key-cc { background-position:   -75px  -3px; background-size: 90px 54px; }
 
-.x      { background-position:    0px 0px; }
-.a      { background-position:  -30px 0px; }
-.b      { background-position:  -60px 0px; }
-.p      { background-position:  -90px 0px; }
-.pd     { background-position: -120px 0px; }
-.i      { background-position: -150px 0px; }
-.id     { background-position: -180px 0px; }
-.c      { background-position: -210px 0px; }
-.cd     { background-position: -240px 0px; }
-.cc     { background-position: -300px 0px; }
+.x      { background-position:    0px   0px; }
+.a      { background-position:    0px -30px; }
+.b      { background-position:    0px -60px; }
+.p      { background-position:  -30px   0px; }
+.pd     { background-position:  -30px -30px; }
+.pw     { background-position:  -30px -60px; }
+.i      { background-position:  -60px   0px; }
+.id     { background-position:  -60px -30px; }
+.iw     { background-position:  -60px -60px; }
+.c      { background-position:  -90px   0px; }
+.cd     { background-position:  -90px -30px; }
+.cw     { background-position:  -90px -60px; }
+.cc     { background-position: -120px   0px; }
 
 details {
   display: block;

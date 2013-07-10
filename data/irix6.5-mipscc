@@ -165,7 +165,7 @@ rpc/types.h
 $P rpc/rpc.h
 -rpcsvc/bootparam_prot.h
 !rpcsvc/mount.h
-$E irix_fhandle_t
+$E rpcsvc_mount_fhandle_t
 -rpcsvc/nfs_prot.h
 -rpcsvc/nis.h
 -rpcsvc/nislib.h

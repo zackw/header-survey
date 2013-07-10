@@ -180,7 +180,7 @@ utime.h
 utmp.h
 +utmpx.h
 !varargs.h
-$E unimpl_varargs
+$E varargs_unimpl
 ## In file included from htest.c:1:
 ## /usr/include/clang/3.2/include/varargs.h:25:4: error: "Please use <stdarg.h> instead of <varargs.h>"
 ##   #error "Please use <stdarg.h> instead of <varargs.h>"

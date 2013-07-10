@@ -46,7 +46,7 @@ limits.h
 link.h
 locale.h
 !malloc.h
-$E unimpl_malloc
+$E malloc_unimpl
 math.h
 memory.h
 -mntent.h
@@ -104,7 +104,7 @@ utime.h
 -utmp.h
 utmpx.h
 !varargs.h
-$E unimpl_varargs
+$E varargs_unimpl
 wchar.h
 wctype.h
 wordexp.h

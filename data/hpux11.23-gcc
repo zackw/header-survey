@@ -160,7 +160,7 @@ sys/shm.h
 sys/signal.h
 sys/socket.h
 !sys/socketvar.h
-$E hpux_sotimeq_hash
+$E sys_socketvar_sotimeq_hash
 sys/stat.h
 sys/statvfs.h
 sys/syscall.h
