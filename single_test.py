@@ -98,7 +98,8 @@ def universal_readlines(fname):
 # 2.0 `tempfile` does not have NamedTemporaryFile, and doesn't have
 # anything useful for defining it, either.  This is kinda sorta like
 # the code implementing 2.7's NamedTemporaryFile.  Caller is
-# responsible for cleaning up.
+# responsible for cleaning up.  8.3 compliant if caller provides no
+# more than three-character prefixes and suffixes.
 def named_tmpfile(prefix="tmp", suffix="txt"):
     symbols = "abcdefghijklmnopqrstuvwxyz01234567890"
     tries = 0
@@ -111,7 +112,9 @@ def named_tmpfile(prefix="tmp", suffix="txt"):
         except EnvironmentError, e:
             if e.errno != errno.EEXIST:
                 raise
-            # give up after ten thousand iterations
+            # The code above can generate 60,466,176 different names,
+            # but give up after ten thousand iterations; we don't want
+            # to spend hours looping if something is genuinely wrong.
             if tries == 10000:
                 raise
             # otherwise loop
