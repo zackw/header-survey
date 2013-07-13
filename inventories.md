@@ -1,14 +1,16 @@
 # Inventory File Format
 
-Header inventories (the files in `data/`) are in an ad-hoc format
-which started out straightforward but has grown progressively more
-cryptic as additional tests were added to `scansys.py`.
+Header inventories (the files in [`data/`](data)) are in an ad-hoc
+format which started out straightforward but has grown progressively
+more cryptic as additional tests were added to
+[`scansys.py`](scansys.py).
 
 If you are submitting an inventory, you need to understand the file
 format well enough to check it over for problems. It is especially
 important that you check the initial block of metadata, which cannot
 be wholly machine-generated. Errors elsewhere in the file indicate
-bugs in `scansys.py`, which you should also be on the lookout for.
+bugs in [`scansys.py`](scansys.py), which you should also be on the
+lookout for.
 
 ## Overall File Structure
 
@@ -16,17 +18,19 @@ Inventory files are line-oriented ASCII text. There are four kinds of
 lines, distinguished by the first non-whitespace character on the line:
 
 * Comments begin with a `#` and extend to the end of the line.
-  `scansys.py` writes comments to inventories sometimes, and you are
-  free to add your own. Comments are completely ignored by
-  `tblgen.py` and by `scansys.py` in `--recheck` mode.
+  [`scansys.py`](scansys.py) writes comments to inventories sometimes,
+  and you are free to add your own. Comments are completely ignored by
+  [`tblgen.py`](tblgen.py) and by [`scansys.py`](scansys.py) in
+  `--recheck` mode.
 
   Comments can only be lines of their own; `#` has no special
   significance if it appears anywhere other than as the first
   non-whitespace character on a line.
 
 * Metadata tags record information about the system on which the
-  inventory was taken. They are meaningful to both `tblgen.py` and
-  `scansys.py` in `--recheck` mode.
+  inventory was taken. They are meaningful to both
+  [`tblgen.py`](tblgen.py) and [`scansys.py`](scansys.py) in
+  `--recheck` mode.
 
   Metadata lines begin with a `:`, immediately followed by a keyword
   (composed exclusively of lowercase ASCII letters) and one or more
@@ -48,9 +52,9 @@ lines, distinguished by the first non-whitespace character on the line:
   They begin with any character other than `#`, `:`, or `$`. If this
   first character is ASCII punctuation it is a state code (see below);
   otherwise the state code is taken to be `' '`. The remainder of the
-  line is the name of the header. `scansys.py` does not put a space
-  between the state code and the name of the header (unlike with
-  metadata and annotations).
+  line is the name of the header. [`scansys.py`](scansys.py) does not
+  put a space between the state code and the name of the header
+  (unlike with metadata and annotations).
 
 ## Inventory Metadata
 
@@ -63,18 +67,18 @@ the file. It’s very important that you make sure these are accurate.
   not provide what one would think of as a “complete” computing
   environment, prepend the word “embedded” to the category. (For
   instance, Android and iOS should both be categorized “embedded
-  Unix.”)  `scansys.py` does not attempt to guess the category. You
-  can either set it on the command line with `-c <category>`, or edit
-  the file after it’s generated.
+  Unix.”)  [`scansys.py`](scansys.py) does not attempt to guess the
+  category. You can either set it on the command line with `-c
+  <category>`, or edit the file after it’s generated.
 
 * `:label` is the common name of the OS being scanned. You can set it
   on the command line with `-l <label>`; if you don’t, it defaults to
-  to `uname -s` for the host where `scansys.py` ran, which is usually
-  a recognizable name for the OS *kernel*. For OSes with more than
-  one C library in wide use (e.g. Linux, Windows), it may be
-  appropriate to name the C library instead or in addition. If you
-  have inventoried a cross compiler, you need to correct the `:label`
-  line to identify the *target*.
+  to `uname -s` for the host where [`scansys.py`](scansys.py) ran,
+  which is usually a recognizable name for the OS *kernel*. For OSes
+  with more than one C library in wide use (e.g. Linux, Windows), it
+  may be appropriate to name the C library instead or in addition. If
+  you have inventoried a cross compiler, you need to correct the
+  `:label` line to identify the *target*.
 
 * `:version` should be the version number of the *C API*. It can be
   set on the command line with `-v <ver>`. It defaults to `uname -r`,
@@ -88,8 +92,8 @@ the file. It’s very important that you make sure these are accurate.
   compiler, which is often too generic.
 
 * `:gen` (short for “generation”) is a version number for the
-  inventory format itself. `scansys.py` sets it automatically.
-  Do not change this line.
+  inventory format itself. [`scansys.py`](scansys.py) sets it
+  automatically.  Do not change this line.
 
 In inventories that have been edited by a human, you may also see
 
@@ -98,11 +102,11 @@ In inventories that have been edited by a human, you may also see
 
 ## Trailing Metadata
 
-`scansys.py` writes a few more metadata tags at the *end* of the
-file. These are required to make `--recheck` mode work reliably. They
-should only be modified if you notice that they contain pathnames
-which are specific to your computer (not just to your operating
-system).
+[`scansys.py`](scansys.py) writes a few more metadata tags at the
+*end* of the file. These are required to make `--recheck` mode work
+reliably. They should only be modified if you notice that they contain
+pathnames which are specific to your computer (not just to your
+operating system).
 
 ## Inventory Lines
 
@@ -203,7 +207,8 @@ conformance mode it also requires `sys/socket.h`.
   include all of the listed headers.  (P is for “prerequisite.”)
 
   The listed headers may themselves require other headers to be
-  included.  `tblgen.py` computes the transitive closure for display.
+  included.  [`tblgen.py`](tblgen.py) computes the transitive closure
+  for display.
 
   This annotation should only appear on a header whose state code
   indicates DEPENDENT, CAUTION, or BUGGY.
@@ -213,7 +218,8 @@ conformance mode it also requires `sys/socket.h`.
   Indicates that in order to include this header, one must first do
   something special.  (S is for “special prerequisite.”)  A
   human-readable explanation of what is required will be found in
-  `prereqs.ini` under the `[special]` entry for *header-name*.
+  [`prereqs.ini`](prereqs.ini) under the `[special]` entry for
+  *header-name*.
 
   This annotation should only appear on a header whose state code
   indicates DEPENDENT, CAUTION, or BUGGY.
@@ -229,10 +235,10 @@ conformance mode it also requires `sys/socket.h`.
 * `$E` `[`<i>mode</i>`]` *codeword*
 
   Indicates that including this header provokes some sort of compiler
-  error, possibly only in a particular mode.  (E is for “error.”)
-  A human-readable explanation of the problem will be found in
-  `errors.ini` under the section heading corresponding to the
-  *codeword*.
+  error, possibly only in a particular mode.  (E is for “error.”)  A
+  human-readable explanation of the problem will be found in
+  [`errors.ini`](errors.ini) under the section heading corresponding
+  to the *codeword*.
 
   This annotation should only appear on a header whose state code
   indicates either CAUTION or BUGGY.
@@ -247,7 +253,7 @@ conformance mode it also requires `sys/socket.h`.
   multiple `$M` lines.  If there is nothing after the category tag,
   that means *none* of the symbols belonging to that category were
   declared.  Category tags are defined and given human-readable names
-  in `decltests/CATEGORIES.ini`.
+  in [`decltests/CATEGORIES.ini`](decltests/CATEGORIES.ini).
 
   This annotation should only appear on a header whose state code
   indicates either INCOMPLETE or BUGGY.
