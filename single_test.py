@@ -1511,8 +1511,8 @@ class Compiler:
 
 class KnownError:
     """One potential failure mode for a header file."""
-    def __init__(self, tag, headers, regexp, desc, caution):
-        self.tag = tag
+    def __init__(self, name, headers, regexp, desc, caution):
+        self.name = name
         self.headers = headers
         self.regexp = re.compile(regexp, re.VERBOSE)
         self.desc = desc
@@ -1522,7 +1522,7 @@ class KnownError:
         return self.regexp.search(msg)
 
     def output(self, outf):
-        outf.write("$E %s\n" % self.tag)
+        outf.write("  $E %s\n" % self.name)
 
 class MissingSymbols:
     """A set of symbols missing from a source file."""
@@ -1530,14 +1530,14 @@ class MissingSymbols:
         self.syms = syms
 
     def output(self, outf):
-        outf.write("$M %s\n" % " ".join(self.syms))
+        outf.write("  $M %s\n" % " ".join(self.syms))
 
 class SpecialDependency:
     """Used to represent [special] dependencies from prereqs.ini.
        Stubs some Header methods and properties so it can be treated
        like one when convenient."""
 
-    PRESENT = ''
+    PRESENT = ' '
 
     def __init__(self, header, text):
         self.name = header
@@ -1575,7 +1575,7 @@ class Header:
     ABSENT     = '-'
     BUGGY      = '!'
 
-    PRESENT    = ''
+    PRESENT    = ' '
     INCOMPLETE = '*'
     CORRECT    = '+'
 
@@ -1621,15 +1621,20 @@ class Header:
         self.pref_mode = None # will be set to a 2-tuple by test_depends
 
         # dependency lists form a 2x2 matrix indexed by [conform][thread].
-        # initially all are empty.  The Nones are so output_* can tell the
-        # difference between "empty set" and "we never scanned this because
-        # cc.test_with_thread_opt=0." (this is only an issue for conflicts).
+        # initially all are empty.
         self.deplist = [ [ [], [] ],
                          [ [], [] ] ]
 
-        # conflict lists likewise
+        # conflict lists likewise. The Nones are so output_* can tell the
+        # difference between "empty set" and "we never scanned this because
+        # cc.test_with_thread_opt=0."
         self.conflist = [ [ [], None ],
                           [ [], None ] ]
+
+        # and error lists likewise, except we may not even get to doing
+        # conformance tests.
+        self.errlist = [ [ [],   None ],
+                         [ None, None ] ]
 
         # caution is also a 2x2 matrix, but of booleans.
         self.caution = [ [ 0, 0 ],
@@ -1650,6 +1655,7 @@ class Header:
                       self.caution[1][0],
                       self.caution[0][1],
                       self.caution[1][1]))
+
         outf.write("   deplists:\n")
         outf.write("     [..] = %s\n"
                    % " ".join([h.name for h in self.deplist[0][0]]))
@@ -1659,6 +1665,7 @@ class Header:
                    % " ".join([h.name for h in self.deplist[0][1]]))
         outf.write("     [ct] = %s\n"
                    % " ".join([h.name for h in self.deplist[1][1]]))
+
         outf.write("   conflists:\n")
         outf.write("     [..] = %s\n"
                    % " ".join([h.name for h in self.conflist[0][0]]))
@@ -1670,6 +1677,20 @@ class Header:
         if self.conflist[1][1] is not None:
             outf.write("     [ct] = %s\n"
                        % " ".join([h.name for h in self.conflist[1][1]]))
+
+        outf.write("   errlists:\n")
+        outf.write("     [..] = %s\n"
+                   % " ".join([h.name for h in self.errlist[0][0]]))
+        if self.errlist[1][0] is not None:
+            outf.write("     [c.] = %s\n"
+                       % " ".join([h.name for h in self.errlist[1][0]]))
+        if self.errlist[0][1] is not None:
+            outf.write("     [.t] = %s\n"
+                       % " ".join([h.name for h in self.errlist[0][1]]))
+        if self.errlist[1][1] is not None:
+            outf.write("     [ct] = %s\n"
+                       % " ".join([h.name for h in self.errlist[1][1]]))
+
         outf.write("  annotations:\n")
         for a in self.annotations:
             outf.write("  ")
@@ -1712,6 +1733,7 @@ class Header:
         outf.write("%s%s\n" % (self.state_code(), self.name))
         self.output_depends(outf)
         self.output_conflicts(outf)
+        self.output_errors(outf)
         for ann in self.annotations:
             ann.output(outf)
 
@@ -1724,9 +1746,10 @@ class Header:
             if len(lst) == 0: return
             if isinstance(lst[0], SpecialDependency):
                 assert len(lst) == 1
-                outf.write("$S%s %s\n" % (tag, lst[0].name))
+                outf.write("  $S%s %s\n" % (tag, lst[0].name))
             else:
-                outf.write("$P%s %s\n" % (tag, " ".join([h.name for h in lst])))
+                outf.write("  $P%s %s\n" %
+                           (tag, " ".join([h.name for h in lst])))
 
         output_1(outf, self.deplist[0][0])
 
@@ -1748,7 +1771,7 @@ class Header:
             if tag != "":
                 tag = " [%s]" % tag
             if len(lst) == 0: return
-            outf.write("$C%s %s\n" % (tag, " ".join([h.name for h in lst])))
+            outf.write("  $C%s %s\n" % (tag, " ".join([h.name for h in lst])))
 
         output_1(outf, self.conflist[0][0])
 
@@ -1763,6 +1786,28 @@ class Header:
             self.conflist[1][1] != self.conflist[0][0] and
             self.conflist[1][1] != self.conflist[1][0]):
             output_1(outf, self.conflist[1][1], "conform,thread")
+
+    def output_errors(self, outf):
+        def output_1(outf, lst, tag=""):
+            if tag != "":
+                tag = " [%s]" % tag
+            if len(lst) == 0: return
+            outf.write("  $E%s %s\n" % (tag, " ".join([h.name for h in lst])))
+
+        output_1(outf, self.errlist[0][0])
+
+        if (self.errlist[1][0] is not None and
+            self.errlist[1][0] != self.errlist[0][0]):
+            output_1(outf, self.errlist[1][0], "conform")
+
+        if (self.errlist[0][1] is not None and
+            self.errlist[0][1] != self.errlist[0][0]):
+            output_1(outf, self.errlist[0][1], "thread")
+
+        if (self.errlist[1][1] is not None and
+            self.errlist[1][1] != self.errlist[0][0] and
+            self.errlist[1][1] != self.errlist[1][0]):
+            output_1(outf, self.errlist[1][1], "conform,thread")
 
     def gen_includes(self, outf, conform, thread):
         if self.presence != self.PRESENT: return
@@ -1805,10 +1850,10 @@ class Header:
         errs = self.dataset.is_known_error(msg, self.name)
         if errs is not None:
             cc.log("*** errors detected: %s\n"
-                   % " ".join([err.tag for err in errs]))
+                   % " ".join([err.name for err in errs]))
             # caution vs error is ignored at this point; any problem is fatal.
             self.presence = self.BUGGY
-            self.annotations.extend(errs)
+            self.errlist[0][0].extend(errs)
             return
 
         cc.fatal("unrecognized failure mode for <%s>. "
@@ -1847,13 +1892,21 @@ class Header:
         errs = self.dataset.is_known_error(msg, self.name)
         if errs is not None:
             cc.log("*** errors detected: %s\n"
-                   % " ".join([err.tag for err in errs]))
-            self.annotations.extend(errs)
+                   % " ".join([err.name for err in errs]))
             for e in errs:
                 if e.caution:
                     self.caution[conform][thread] = 1
+                    if self.errlist[conform][thread] is None:
+                        self.errlist[conform][thread] = []
+                    self.errlist[conform][thread].append(e)
                 else:
+                    # Errors that are not "cautions" are put on the
+                    # "default" error list regardless of what mode we
+                    # detected them in (the idea is that this problem
+                    # is a problem regardless of mode, even if the
+                    # compiler only catches it with warnings on).
                     self.presence = self.BUGGY
+                    self.errlist[0][0].append(e)
             return 0
 
         cc.fatal("unrecognized failure mode for <%s>. "
@@ -2179,8 +2232,8 @@ class Dataset:
         for line in msg:
             for err in candidates:
                 if err.search(line):
-                    if not errs.has_key(err.tag):
-                        errs[err.tag] = err
+                    if not errs.has_key(err.name):
+                        errs[err.name] = err
 
         if len(errs) > 0:
             return errs.values()
