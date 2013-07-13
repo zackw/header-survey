@@ -113,73 +113,58 @@ There is nothing else on an inventory line.
 
 There are presently twelve state codes:
 
-<div>
-  <style scoped>
-  table { border-collapse: separate; border-spacing: 0.5em 1.33em; }
-  th, td { vertical-align: top }
-  kbd { background-color: #f7f7f7;
-        border: 1px solid #ccc;
-        border-radius: 3px;
-        color: #333;
-        font-family: monospace;
-        font-size: 100%;
-        display: inline-block;
-        margin: 0 0.1em;
-        padding: 0.1em 0.6em; }
-  </style>
-  <table>
-  <tr><th><kbd>?</kbd></th>
-  <td>UNKNOWN: No data for this header. (This code is used internally
-      but should never appear in an inventory on disk.)</td></tr>
-  <tr><th><kbd>-</kbd></th>
-  <td>ABSENT: This header is not available on the inventoried system.</td></tr>
-  <tr><th><kbd>!</kbd></th>
-  <td>BUGGY: This header exists, but has something so severely wrong
-      with it that it cannot be used at all, such as provoking a
-      compiler error on inclusion, or declaring <i>none</i> of the
-      things it is supposed to declare.</td></tr>
-  <tr><th><kbd>&nbsp;</kbd></th>
-  <td>PRESENT: This header exists and has nothing obviously wrong with
-      it, but we have not audited its contents in detail (because no
-      one has written a test for its contents).</td></tr>
-  <tr><th><kbd>%</kbd></th>
-  <td>PRESENT (DEPENDENT): This header exists.  We have not audited
-      its contents.  It requires the programmer to include some other
-      header(s) first, but there is nothing else wrong with it.</td></tr>
-  <tr><th><kbd>~</kbd></th>
-  <td>PRESENT (CAUTION): This header exists.  We have not audited its
-      contents in detail, but there is something wrong with it which
-      renders it unusable in some (but not all) circumstances.  It may
-      also require the programmer to include some other header(s)
-      first.</td></tr>
-  <tr><th><kbd>*</kbd></th>
-  <td>INCOMPLETE: This header has no serious problems, but some of the
-      things it is supposed to declare are missing.</td></tr>
-  <tr><th><kbd>&</kbd></th>
-  <td>INCOMPLETE (DEPENDENT): This header requires the programmer to
-      include some other header(s) first, and does not declare
-      everything it is supposed to.</td></tr>
-  <tr><th><kbd>^</kbd></th>
-  <td>INCOMPLETE (CAUTION): This header has something wrong with it
-      which renders it unusable in some (but not all) circumstances.
-      It also fails to declare everything it is supposed to, and it
-      may require the programmer to include some other header(s)
-      first.</td></tr>
-  <tr><th><kbd>+</kbd></th>
-  <td>CORRECT: This header exists, has no problems we can detect, and
-      declares everything that it is supposed to declare according to
-      the most recent applicable standards (normally C and POSIX).</td></tr>
-  <tr><th><kbd>@</kbd></th>
-  <td>CORRECT (DEPENDENT): This header requires the programmer to
-      include some other header(s) first, but it declares everything
-      it is supposed to.</td></tr>
-  <tr><th><kbd>=</kbd></th>
-  <td>CORRECT (CAUTION): This header has something wrong with it
-      which renders it unusable in some (but not all) circumstances,
-      and it may require the programmer to include some other header(s)
-      first.  However, it does declare everything it’s supposed to.</td></tr>
-  </table>
-</div>
+<table>
+<tr><th><kbd>?</kbd></th>
+<td><b>UNKNOWN</b>: No data for this header. (This code is used internally
+    but should never appear in an inventory on disk.)</td></tr>
+<tr><th><kbd>-</kbd></th>
+<td>ABSENT: This header is not available on the inventoried system.</td></tr>
+<tr><th><kbd>!</kbd></th>
+<td>BUGGY: This header exists, but has something so severely wrong
+    with it that it cannot be used at all, such as provoking a
+    compiler error on inclusion, or declaring <i>none</i> of the
+    things it is supposed to declare.</td></tr>
+<tr><th><kbd>&nbsp;</kbd></th>
+<td>PRESENT: This header exists and has nothing obviously wrong with
+    it, but we have not audited its contents in detail (because no
+    one has written a test for its contents).</td></tr>
+<tr><th><kbd>%</kbd></th>
+<td>PRESENT (DEPENDENT): This header exists.  We have not audited
+    its contents.  It requires the programmer to include some other
+    header(s) first, but there is nothing else wrong with it.</td></tr>
+<tr><th><kbd>~</kbd></th>
+<td>PRESENT (CAUTION): This header exists.  We have not audited its
+    contents in detail, but there is something wrong with it which
+    renders it unusable in some (but not all) circumstances.  It may
+    also require the programmer to include some other header(s)
+    first.</td></tr>
+<tr><th><kbd>*</kbd></th>
+<td>INCOMPLETE: This header has no serious problems, but some of the
+    things it is supposed to declare are missing.</td></tr>
+<tr><th><kbd>&</kbd></th>
+<td>INCOMPLETE (DEPENDENT): This header requires the programmer to
+    include some other header(s) first, and does not declare
+    everything it is supposed to.</td></tr>
+<tr><th><kbd>^</kbd></th>
+<td>INCOMPLETE (CAUTION): This header has something wrong with it
+    which renders it unusable in some (but not all) circumstances.
+    It also fails to declare everything it is supposed to, and it
+    may require the programmer to include some other header(s)
+    first.</td></tr>
+<tr><th><kbd>+</kbd></th>
+<td>CORRECT: This header exists, has no problems we can detect, and
+    declares everything that it is supposed to declare according to
+    the most recent applicable standards (normally C and POSIX).</td></tr>
+<tr><th><kbd>@</kbd></th>
+<td>CORRECT (DEPENDENT): This header requires the programmer to
+    include some other header(s) first, but it declares everything
+    it is supposed to.</td></tr>
+<tr><th><kbd>=</kbd></th>
+<td>CORRECT (CAUTION): This header has something wrong with it
+    which renders it unusable in some (but not all) circumstances,
+    and it may require the programmer to include some other header(s)
+    first.  However, it does declare everything it’s supposed to.</td></tr>
+</table>
 
 ## Annotations
 
@@ -188,7 +173,7 @@ ABSENT, PRESENT, or CORRECT.  They give details about the problems
 encountered with that header.
 
 There are presently six types of annotation.  All annotations have an
-optional `[`*mode*`]` tag, which appears before any other information,
+optional `[` *mode* `]` tag, which appears before any other information,
 and indicates that the annotation only applies to a particular
 compilation mode.  For instance,
 
@@ -200,7 +185,7 @@ indicates that `netinet/ip.h` always requires the programmer to
 include `sys/types.h` first, and when the compiler is in strict
 conformance mode it also requires `sys/socket.h`.
 
-* `$P` `[`*mode*`]` *space-separated list of header names*
+* `$P` `[` *mode* `]` *space-separated list of header names*
 
   Indicates that in order to include this header, one must first
   include all of the listed headers.  (P is for “prerequisite.”)
@@ -211,7 +196,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates DEPENDENT, CAUTION, or BUGGY.
 
-* `$S` `[`*mode*`]` *header-name*
+* `$S` `[` *mode* `]` *header-name*
 
   Indicates that in order to include this header, one must first do
   something special.  (S is for “special prerequisite.”)  A
@@ -221,7 +206,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates DEPENDENT, CAUTION, or BUGGY.
 
-* `$C` `[`*mode*`]` *space-separated list of header names*
+* `$C` `[` *mode* `]` *space-separated list of header names*
 
   Indicates that this header cannot be included in the same source
   file as any of the listed headers.  (C is for “conflict.”)
@@ -229,7 +214,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates either CAUTION or BUGGY.
 
-* `$E` `[`*mode*`]` *codeword*
+* `$E` `[` *mode* `]` *codeword*
 
   Indicates that including this header provokes some sort of compiler
   error, possibly only in a particular mode.  (E is for “error.”)
@@ -240,7 +225,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates either CAUTION or BUGGY.
 
-* `$M` `[`*mode*`]` `:`*category*`:` *space-separated list of symbols*
+* `$M` `[` *mode* `]` `:` *category* `:` *space-separated list of symbols*
 
   Indicates that this header fails to declare the symbols in the list.
   (M is for “missing.”)
@@ -255,7 +240,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates either INCOMPLETE or BUGGY.
 
-* `$W` `[`*mode*`]` `:`*category*`:` *space-separated list of symbols*
+* `$W` `[` *mode* `]` `:` *category* `:` *space-separated list of symbols*
 
   Indicates that this header does declare the symbols in the list, but
   incorrectly. (W is for “wrong.”)  Category tags work the same way as
