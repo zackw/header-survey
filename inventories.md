@@ -115,55 +115,67 @@ There are presently twelve state codes:
 
 <table>
 <tr><th><kbd>?</kbd></th>
-<td><b>UNKNOWN</b>: No data for this header. (This code is used internally
-    but should never appear in an inventory on disk.)</td></tr>
+<td><b>UNKNOWN</b>: No data for this header. (This code is used
+    internally, but should never appear in an inventory on
+    disk.)</td></tr>
 <tr><th><kbd>-</kbd></th>
-<td>ABSENT: This header is not available on the inventoried system.</td></tr>
+<td><b>ABSENT</b>: This header is not available on the inventoried
+    system.</td></tr>
 <tr><th><kbd>!</kbd></th>
-<td>BUGGY: This header exists, but has something so severely wrong
-    with it that it cannot be used at all, such as provoking a
+<td><b>BUGGY</b>: This header exists, but has something so severely
+    wrong with it that it cannot be used at all, such as provoking a
     compiler error on inclusion, or declaring <i>none</i> of the
     things it is supposed to declare.</td></tr>
 <tr><th><kbd>&nbsp;</kbd></th>
-<td>PRESENT: This header exists and has nothing obviously wrong with
-    it, but we have not audited its contents in detail (because no
-    one has written a test for its contents).</td></tr>
+<td><b>PRESENT</b>: This header exists and has nothing obviously wrong
+    with it, but we have not audited its contents in detail (because
+    no one has written a test for its contents).</td></tr>
 <tr><th><kbd>%</kbd></th>
-<td>PRESENT (DEPENDENT): This header exists.  We have not audited
-    its contents.  It requires the programmer to include some other
-    header(s) first, but there is nothing else wrong with it.</td></tr>
+<td><b>PRESENT (DEPENDENT)</b>: This header exists.  We have not
+    audited its contents in detail.  It requires the programmer to
+    include some other header(s) first, but there is nothing else
+    wrong with it.</td></tr>
 <tr><th><kbd>~</kbd></th>
-<td>PRESENT (CAUTION): This header exists.  We have not audited its
-    contents in detail, but there is something wrong with it which
+<td><b>PRESENT (CAUTION)</b>: This header exists.  We have not audited
+    its contents in detail, but there is something wrong with it which
     renders it unusable in some (but not all) circumstances.  It may
     also require the programmer to include some other header(s)
     first.</td></tr>
 <tr><th><kbd>*</kbd></th>
-<td>INCOMPLETE: This header has no serious problems, but some of the
-    things it is supposed to declare are missing.</td></tr>
+<td><b>INCOMPLETE</b>: This header has no serious problems, but some
+    of the things it is supposed to declare are missing or incorrectly
+    declared. (Most contents tests make a distinction between
+    <i>required</i> and <i>optional</i> declarations. If a required
+    declaration is missing or incorrect, the header will be marked
+    <b>INCOMPLETE (CAUTION)</b> instead of just <b>INCOMPLETE</b>; if
+    <i>all</i> the required declarations are missing or incorrect, the
+    header will be marked <b>BUGGY</b>, even if some optional
+    declarations were found.)</td></tr>
 <tr><th><kbd>&</kbd></th>
-<td>INCOMPLETE (DEPENDENT): This header requires the programmer to
-    include some other header(s) first, and does not declare
+<td><b>INCOMPLETE (DEPENDENT)</b>: This header requires the programmer
+    to include some other header(s) first, and does not declare
     everything it is supposed to.</td></tr>
 <tr><th><kbd>^</kbd></th>
-<td>INCOMPLETE (CAUTION): This header has something wrong with it
-    which renders it unusable in some (but not all) circumstances.
-    It also fails to declare everything it is supposed to, and it
-    may require the programmer to include some other header(s)
+<td><b>INCOMPLETE (CAUTION)</b>: This header has something wrong with
+    it which renders it unusable in some (but not all) circumstances.
+    It also fails to declare everything it is supposed to, and it may
+    require the programmer to include some other header(s)
     first.</td></tr>
 <tr><th><kbd>+</kbd></th>
-<td>CORRECT: This header exists, has no problems we can detect, and
-    declares everything that it is supposed to declare according to
-    the most recent applicable standards (normally C and POSIX).</td></tr>
+<td><b>CORRECT</b>: This header exists, has no problems we can detect,
+    and declares everything that it is supposed to declare according
+    to the most recent applicable standards (normally C and
+    POSIX).</td></tr>
 <tr><th><kbd>@</kbd></th>
-<td>CORRECT (DEPENDENT): This header requires the programmer to
-    include some other header(s) first, but it declares everything
-    it is supposed to.</td></tr>
+<td><b>CORRECT (DEPENDENT)</b>: This header requires the programmer to
+    include some other header(s) first, but it declares everything it
+    is supposed to.</td></tr>
 <tr><th><kbd>=</kbd></th>
-<td>CORRECT (CAUTION): This header has something wrong with it
-    which renders it unusable in some (but not all) circumstances,
-    and it may require the programmer to include some other header(s)
-    first.  However, it does declare everything it’s supposed to.</td></tr>
+<td><b>CORRECT (CAUTION)</b>: This header has something wrong with it
+    which renders it unusable in some (but not all) circumstances, and
+    it may require the programmer to include some other header(s)
+    first.  However, it does declare everything it’s supposed
+    to.</td></tr>
 </table>
 
 ## Annotations
@@ -173,7 +185,7 @@ ABSENT, PRESENT, or CORRECT.  They give details about the problems
 encountered with that header.
 
 There are presently six types of annotation.  All annotations have an
-optional `[` *mode* `]` tag, which appears before any other information,
+optional `[`<i>mode</i>`]` tag, which appears before any other information,
 and indicates that the annotation only applies to a particular
 compilation mode.  For instance,
 
@@ -185,7 +197,7 @@ indicates that `netinet/ip.h` always requires the programmer to
 include `sys/types.h` first, and when the compiler is in strict
 conformance mode it also requires `sys/socket.h`.
 
-* `$P` `[` *mode* `]` *space-separated list of header names*
+* `$P` `[`<i>mode</i>`]` *space-separated list of header names*
 
   Indicates that in order to include this header, one must first
   include all of the listed headers.  (P is for “prerequisite.”)
@@ -196,7 +208,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates DEPENDENT, CAUTION, or BUGGY.
 
-* `$S` `[` *mode* `]` *header-name*
+* `$S` `[`<i>mode</i>`]` *header-name*
 
   Indicates that in order to include this header, one must first do
   something special.  (S is for “special prerequisite.”)  A
@@ -206,7 +218,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates DEPENDENT, CAUTION, or BUGGY.
 
-* `$C` `[` *mode* `]` *space-separated list of header names*
+* `$C` `[`<i>mode</i>`]` *space-separated list of header names*
 
   Indicates that this header cannot be included in the same source
   file as any of the listed headers.  (C is for “conflict.”)
@@ -214,7 +226,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates either CAUTION or BUGGY.
 
-* `$E` `[` *mode* `]` *codeword*
+* `$E` `[`<i>mode</i>`]` *codeword*
 
   Indicates that including this header provokes some sort of compiler
   error, possibly only in a particular mode.  (E is for “error.”)
@@ -225,7 +237,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates either CAUTION or BUGGY.
 
-* `$M` `[` *mode* `]` `:` *category* `:` *space-separated list of symbols*
+* `$M` `[`<i>mode</i>`]` `:`<i>category</i>`:` *space-separated list of symbols*
 
   Indicates that this header fails to declare the symbols in the list.
   (M is for “missing.”)
@@ -240,7 +252,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates either INCOMPLETE or BUGGY.
 
-* `$W` `[` *mode* `]` `:` *category* `:` *space-separated list of symbols*
+* `$W` `[`<i>mode</i>`]` `:`<i>category</i>`:` *space-separated list of symbols*
 
   Indicates that this header does declare the symbols in the list, but
   incorrectly. (W is for “wrong.”)  Category tags work the same way as
