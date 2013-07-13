@@ -205,77 +205,20 @@ def list2shell(seq):
     # Square brackets here required for pre-Python 2.4 compatibility.
     return " ".join([shellquote1(s) for s in seq])
 
-def prepare_environment(ccenv):
-    """Prepare the environment for compiler invocation."""
-    for k, v in ccenv.items():
-        os.environ[k] = v
-
-    # Force the locale to "C" both for this process and all subsequently
-    # invoked subprocesses.
-    for k in os.environ.keys():
-        if k[:3] == "LC_" or k[:4] == "LANG":
-            del os.environ[k]
-    os.environ["LANG"] = "C"
-    os.environ["LANGUAGE"] = "C"
-    os.environ["LC_ALL"] = "C"
-
-    locale.setlocale(locale.LC_ALL, "C")
-
-    # Redirect standard input from /dev/null in subprocesses.
-    try:
-        devnull = os.devnull
-    except AttributeError:
-        if os.platform == 'nt':
-            devnull = "nul:"
-        else:
-            devnull = "/dev/null"
-    fd = os.open(os.devnull, os.O_RDONLY)
-    os.dup2(fd, 0)
-    os.close(fd)
-
-def invoke(argv):
-    """Invoke the command in 'argv' and capture its output."""
-    # For a wonder, the incantation to redirect both stdout and
-    # stderr to a file is exactly the same on Windows as on Unix!
-    # We put the redirections first on the command line because
-    # CMD.EXE may include a trailing space in the string it passes
-    # to CreateProcess() if they're last.  Yeeeeeah.
-    rc = -1
-    msg = []
-    result = None
-    try:
-        try:
-            result = named_tmpfile(prefix="out", suffix="txt")
-            cmdline = ">" + result + " 2>&1 " + list2shell(argv)
-            msg.append(cmdline)
-            rc = os.system(cmdline)
-            if rc != 0:
-                if sys.platform == 'win32':
-                    msg.append("[exit %08x]" % rc)
-                elif os.WIFEXITED(rc):
-                    msg.append("[exit %d]" % os.WEXITSTATUS(rc))
-                elif os.WIFSIGNALED(rc):
-                    msg.append("[signal %d]" % os.WTERMSIG(rc))
-                    # special check for ^C and ^\ (SIGINT, SIGQUIT:
-                    # respectively signal numbers 2 and 3, everywhere)
-                    if os.WTERMSIG(rc) == 2 or os.WTERMSIG(rc) == 3:
-                        raise KeyboardInterrupt
-                else:
-                    msg.append("[status %08x]" % rc)
-            msg.extend(universal_readlines(result))
-        except EnvironmentError, e:
-            if e.filename:
-                msg.append("%s: %s" % (e.filename, e.strerror))
-            else:
-                msg.append("%s: %s" % (argv[0], e.strerror))
-    finally:
-        delete_if_exists(result)
-
-    return (rc, msg)
-
 #
 # utility routines that aren't workarounds for old Python
 #
+
+def plural(n):
+    if n == 1: return ""
+    return "s"
+
+def ct(conform, thread):
+    c = "."
+    t = "."
+    if conform: c = "c"
+    if thread: t = "t"
+    return "["+c+t+"]"
 
 def splitto(string, sep, fields):
     """Split STRING at instances of SEP into exactly FIELDS fields."""
@@ -938,6 +881,7 @@ class TestProgram:
         item = self.line_index[line]
         assert item.lineno == line
         item.enabled = 0
+        return item.tag
 
     def enable_line(self, line):
         self.line_index[line].enabled = 1
@@ -996,69 +940,6 @@ class TestProgram:
         outf.write("\n")
 
 #
-# This is only here till snakebite comes back up and I can test some
-# more wonky vendor compilers.
-#
-
-def old_compiler_id(cc):
-    stop_re = re.compile(
-        r'unrecognized option|must have argument|not found|warning|error|usage|'
-        r'must have argument|copyright|informational note 404|no input files',
-        re.IGNORECASE)
-
-    # gcc, clang: --version
-    # sun cc, compaq cc, HP CC: -V (possibly with a dummy compilation)
-    # mipspro cc: -version
-    # xlc: -qversion
-    # cl: prints its version number (among other things) upon
-    #     encountering any unrecognized invocation
-    # -qversion is first because xlc's behavior upon receiving an
-    # unrecognized option is to dump out its _entire manpage!_
-    for opt in ("-qversion", "--version", "-V", "-version",
-                "-V -c dummy.i"):
-        # some versions of HP cc won't print their version info unless you
-        # give them something to compile, le sigh
-        if opt.endswith("dummy.i"):
-            made_dummy_i = 1
-            f = open("dummy.i", "w")
-            f.write("int foo;\n")
-            f.close()
-        else:
-            made_dummy_i = 0
-
-        cmd = cc + opt.split()
-        (rc, msg) = invoke(cmd)
-
-        if made_dummy_i:
-            delete_if_exists("dummy.i")
-            delete_if_exists("dummy.o")
-
-        results = []
-        for l in msg[1:]:
-            l = l.strip()
-            if l == "" or l.find("[exit") == 0: continue
-            if stop_re.search(l):
-                # Special case: GCC's --version message might look like
-                # cc (distro x.y.z-w) x.y.z
-                # Copyright (C) yyyy Free Software Foundation, Inc.
-                # [etc]
-                # with the word "GCC" not appearing anywhere.  So if "GCC"
-                # doesn't (case insensitively) appear in the text so far,
-                # but we just hit the FSF copyright notice, annotate the
-                # previous line accordingly.
-                if (l.find("Free Software Foundation") != -1
-                    and results[-1].find("GCC") == -1
-                    and results[-1].find("gcc") == -1):
-                    results[-1] = results[-1] + " (GCC)"
-                break
-            results.append(l)
-
-        ccid = " | ".join(results)
-        if len(ccid) > 0:
-            return ccid
-    return "unidentified"
-
-#
 # Compilation
 #
 
@@ -1067,16 +948,56 @@ class Compiler:
        on provided source code.  Instantiated from a command + arguments,
        it will identify the compiler and set up to use it.
 
+       Because we are limited to os.system for subprocess invocation,
+       and because some compilers require particular environment
+       variable settings, it does not work to have more than one
+       Compiler instance per process.  Thus, Compiler is also
+       responsible for logging and progress reports.
+
        Uses a config file (defaulting to 'compilers.ini') to track the
        idiosyncracies of various compilers."""
 
-    def __init__(self, base_cmd, cfgf="compilers.ini"):
+    #@staticmethod
+    def prepare_environment(self, ccenv):
+        """Prepare the environment for compiler invocation."""
+        for k, v in ccenv.items():
+            os.environ[k] = v
+
+        # Force the locale to "C" both for this process and all subsequently
+        # invoked subprocesses.
+        for k in os.environ.keys():
+            if k[:3] == "LC_" or k[:4] == "LANG":
+                del os.environ[k]
+        os.environ["LANG"] = "C"
+        os.environ["LANGUAGE"] = "C"
+        os.environ["LC_ALL"] = "C"
+
+        locale.setlocale(locale.LC_ALL, "C")
+
+        # Redirect standard input from /dev/null in subprocesses.
+        try:
+            devnull = os.devnull
+        except AttributeError:
+            if os.platform == 'nt':
+                devnull = "nul:"
+            else:
+                devnull = "/dev/null"
+        fd = os.open(os.devnull, os.O_RDONLY)
+        os.dup2(fd, 0)
+        os.close(fd)
+
+    def __init__(self, base_cmd, logf, ccenv={}, cfg_fname="compilers.ini"):
         self.base_cmd = base_cmd
+        self.logf = logf
+        self.error_occurred = 0
+        self.need_cr = 0
+
+        self.prepare_environment(ccenv)
 
         cfg = ConfigParser.ConfigParser()
-        cfg.read(cfgf)
+        cfg.read(cfg_fname)
 
-        (compiler, label) = self.identify(cfg, cfgf)
+        (compiler, label) = self.identify(cfg, cfg_fname)
         self.compiler = compiler
         self.label = label
 
@@ -1095,8 +1016,8 @@ class Compiler:
         self.thread_opt = cfg.get(self.compiler, "threads").split()
         self.test_with_thread_opt = 0
 
-        self.smoke_test(cfg, cfgf)
-        self.conformance_test(cfg, cfgf)
+        self.smoke_test(cfg, cfg_fname)
+        self.conformance_test(cfg, cfg_fname)
 
     def subst_filename(self, fname, opts):
         """If any of OPTS is of the form '$.extension', replace the
@@ -1117,11 +1038,152 @@ class Compiler:
                     nopts.append(opt)
             return nopts
 
-    def fatal(self, msg, output):
-        sys.stderr.write("Fatal error: %s\n" % msg)
+    def log(self, msg, output=[]):
+        self.logf.write(msg)
         for line in output:
-            sys.stderr.write("| %s\n" % line)
+            self.logf.write("| %s\n" % line)
+        self.logf.flush()
+
+    def begin_test(self, msg):
+        self.log("Begin test: %s\n" % msg)
+        sys.stderr.write(msg)
+        sys.stderr.write("...")
+        sys.stderr.flush()
+        self.need_cr = 1
+
+    def progress_tick(self):
+        sys.stderr.write(".")
+        sys.stderr.flush()
+        self.need_cr = 1
+
+    def end_test(self, msg):
+        self.log("Test complete: %s\n" % msg)
+        sys.stderr.write(" ")
+        sys.stderr.write(msg)
+        sys.stderr.write("\n")
+        sys.stderr.flush()
+        self.need_cr = 0
+
+    def error(self, msg):
+        msg = "Error: %s\n" % msg
+        self.log(msg)
+        if self.need_cr:
+            sys.stderr.write("\n")
+        sys.stderr.write(msg)
+        self.need_cr = 0
+        self.error_occurred = 1
+
+    def fatal(self, msg):
+        msg = "Fatal error: %s\n" % msg
+        self.log(msg)
+        if self.need_cr:
+            sys.stderr.write("\n")
+        sys.stderr.write(msg)
         raise SystemExit(1)
+
+    def invoke(self, argv):
+        """Invoke the command in 'argv' and capture its output."""
+        # For a wonder, the incantation to redirect both stdout and
+        # stderr to a file is exactly the same on Windows as on Unix!
+        # We put the redirections first on the command line because
+        # CMD.EXE may include a trailing space in the string it passes
+        # to CreateProcess() if they're last.  Yeeeeeah.
+        rc = -1
+        msg = []
+        result = None
+        try:
+            try:
+                result = named_tmpfile(prefix="out", suffix="txt")
+                cmdline = ">" + result + " 2>&1 " + list2shell(argv)
+                msg.append(cmdline)
+                rc = os.system(cmdline)
+                if rc != 0:
+                    if sys.platform == 'win32':
+                        msg.append("[exit %08x]" % rc)
+                    elif os.WIFEXITED(rc):
+                        msg.append("[exit %d]" % os.WEXITSTATUS(rc))
+                    elif os.WIFSIGNALED(rc):
+                        msg.append("[signal %d]" % os.WTERMSIG(rc))
+                        # special check for ^C and ^\ (SIGINT, SIGQUIT:
+                        # respectively signal numbers 2 and 3, everywhere)
+                        if os.WTERMSIG(rc) == 2 or os.WTERMSIG(rc) == 3:
+                            raise KeyboardInterrupt
+                    else:
+                        msg.append("[status %08x]" % rc)
+                msg.extend(universal_readlines(result))
+            except EnvironmentError, e:
+                if e.filename:
+                    msg.append("%s: %s" % (e.filename, e.strerror))
+                else:
+                    msg.append("%s: %s" % (argv[0], e.strerror))
+        finally:
+            delete_if_exists(result)
+
+        self.log(msg[0]+"\n", msg[1:])
+        return (rc, msg)
+
+    #
+    # This is only here till snakebite comes back up and I can test some
+    # more wonky vendor compilers.
+    #
+
+    def old_compiler_id(self, cc):
+        stop_re = re.compile(
+        r'unrecognized option|must have argument|not found|warning|error|usage|'
+        r'must have argument|copyright|informational note 404|no input files',
+        re.IGNORECASE)
+
+        # gcc, clang: --version
+        # sun cc, compaq cc, HP CC: -V (possibly with a dummy compilation)
+        # mipspro cc: -version
+        # xlc: -qversion
+        # cl: prints its version number (among other things) upon
+        #     encountering any unrecognized invocation
+        # -qversion is first because xlc's behavior upon receiving an
+        # unrecognized option is to dump out its _entire manpage!_
+        for opt in ("-qversion", "--version", "-V", "-version",
+                    "-V -c dummy.i"):
+            # some versions of HP cc won't print their version info unless you
+            # give them something to compile, le sigh
+            if opt.endswith("dummy.i"):
+                made_dummy_i = 1
+                f = open("dummy.i", "w")
+                f.write("int foo;\n")
+                f.close()
+            else:
+                made_dummy_i = 0
+
+            cmd = cc + opt.split()
+            (rc, msg) = self.invoke(cmd)
+
+            if made_dummy_i:
+                delete_if_exists("dummy.i")
+                delete_if_exists("dummy.o")
+
+            results = []
+            for l in msg[1:]:
+                l = l.strip()
+                if l == "" or l.find("[exit") == 0: continue
+                if stop_re.search(l):
+                    # Special case: GCC's --version message might look like
+                    # cc (distro x.y.z-w) x.y.z
+                    # Copyright (C) yyyy Free Software Foundation, Inc.
+                    # [etc]
+                    # with the word "GCC" not appearing anywhere.  So if "GCC"
+                    # doesn't (case insensitively) appear in the text so far,
+                    # but we just hit the FSF copyright notice, annotate the
+                    # previous line accordingly.
+                    if (l.find("Free Software Foundation") != -1
+                        and results[-1].find("GCC") == -1
+                        and results[-1].find("gcc") == -1):
+                        results[-1] = results[-1] + " (GCC)"
+                    break
+                results.append(l)
+
+            ccid = " | ".join(results)
+            if len(ccid) > 0:
+                return ccid
+        return "unidentified"
 
     def failure_due_to_nonexistence(self, msg, header):
         for m in msg:
@@ -1154,11 +1216,9 @@ class Compiler:
             f.write("\n")
             f.close()
 
-            (rc, msg) = invoke(cmd)
-            if rc != 0:
-                msg.append("failed program was:")
-                msg.extend(["| %s" % l for l in code.split("\n")])
-            return (rc, msg)
+            self.progress_tick()
+            self.log("Compiling:\n", code.split("\n"))
+            return self.invoke(cmd)
         finally:
             delete_if_exists(test_c)
             delete_if_exists(test_s)
@@ -1216,7 +1276,8 @@ class Compiler:
             f.write("#else\n#error UNKNOWN\n#endif")
             f.close()
 
-            (rc, msg) = invoke(self.base_cmd + [test1])
+            self.log("Probing compiler identity:\n", universal_readlines(test1))
+            (rc, msg) = self.invoke(self.base_cmd + [test1])
             compiler = parse_output(msg, compilers)
 
             if compiler == "FAIL":
@@ -1234,13 +1295,13 @@ class Compiler:
                 if arg.startswith("$."):
                     test2 = named_tmpfile(prefix="cci", suffix=arg[2:])
                     f = open(test2, "w")
-                    f.write("int dummy;")
+                    f.write("int dummy;\n")
                     f.close()
                     test2_o  = self.subst_filename(test2, version_out)
                     version_argv = self.subst_filename(test2, version_argv)
                     break
 
-            (rc, msg) = invoke(self.base_cmd + version_argv)
+            (rc, msg) = self.invoke(self.base_cmd + version_argv)
             if rc != 0:
                 self.fatal("detailed version request failed", msg)
             mm = "\n".join(msg[1:]) # throw away the command line
@@ -1293,6 +1354,8 @@ class Compiler:
            wrong with the compiler and/or our usage of it.
            Either returns successfully, or issues a fatal error."""
 
+        self.begin_test("smoke test")
+
         test_modes = [
             (self.test_preproc, 0, "preprocess"),
             (self.test_preproc, 1, "preprocess (conformance mode)"),
@@ -1302,6 +1365,7 @@ class Compiler:
 
         # This code should compile without complaint.
         for (action, conform, tag) in test_modes:
+            self.log("smoke test: %s, should succeed\n" % tag)
             (rc, msg) = self.test_compile("#include <stdarg.h>\nint dummy;",
                                           conform)
             if rc != 0:
@@ -1312,12 +1376,15 @@ class Compiler:
         # This code should _not_ compile, in any mode, nor should it
         # preprocess.
         for (action, conform, tag) in test_modes:
+            self.log("smoke test: %s, should fail due to nonexistence\n" % tag)
             (rc, msg) = action("#include <nonexistent.h>\nint dummy;", conform)
             if rc == 0 or not self.failure_due_to_nonexistence(msg,
                                                                "nonexistent.h"):
                 self.fatal("failed to detect nonexistence of <nonexistent.h>"
                            " (%s). Check configuration for %s in %s."
                            % (tag, self.compiler, cfgf), msg)
+
+        self.end_test("ok")
 
     def probe_max_std(self, label, probes, testcode):
         """Subroutine of conformance_test.
@@ -1337,10 +1404,12 @@ class Compiler:
             if defines != "":
                 opts.extend([self.define_opt + d for d in defines.split()])
 
+            self.log("conformance test: trying for %s %s\n"
+                     % (label, expected))
             (rc, msg) = self.test_preproc(testcode, conform=1, opts=opts,
                                           defines=["EXPECTED="+expected])
             if rc == 0:
-                return opts
+                return (opts, expected)
 
             failures.append("")
             failures.extend(msg)
@@ -1354,25 +1423,32 @@ class Compiler:
            threaded code must be compiled in a special mode."""
 
         # First find and activate the newest supported C standard.
-        self.conform_opt.extend(self.probe_max_std("C", [
+        self.begin_test("determining ISO C conformance level")
+        (opts, result) = self.probe_max_std("C", [
                 (cfg.get(self.compiler, "c2011"), "", "201112L"),
                 (cfg.get(self.compiler, "c1999"), "", "199901L"),
                 # There are two possible values of __STDC_VERSION__ for C1989.
                 (cfg.get(self.compiler, "c1989"), "EXPECTED2=1", "199401L")
-                ], r"""
-#if __STDC_VERSION__ != EXPECTED && \
+                ], """\
+#if __STDC_VERSION__ != EXPECTED && \\
     (!defined EXPECTED2 || __STDC_VERSION__ != EXPECTED2)
 #error "wrong version"
-#endif"""))
+#endif""")
+        self.end_test(result)
+        self.conform_opt.extend(opts)
 
         # If we have unistd.h, also find and activate the newest supported
         # POSIX standard.
-        (rc, msg) = self.test_preproc("#include <unistd.h>\nint dummy;\n")
-        if rc != 0 and not self.failure_due_to_nonexistence(msg, "unistd.h"):
-            self.fatal("failed to determine presence of <unistd.h>. "
-                       "Check configuration for %s in %s."
-                       % (self.compiler, cfgf), msg)
-        if rc == 0:
+        self.begin_test("determining POSIX conformance level")
+        (rc, msg) = self.test_preproc("#include <unistd.h>\nint dummy;")
+        if rc != 0:
+            if not self.failure_due_to_nonexistence(msg, "unistd.h"):
+                self.fatal("failed to determine presence of <unistd.h>. "
+                           "Check configuration for %s in %s."
+                           % (self.compiler, cfgf), msg)
+            else:
+                self.end_test("none")
+        else:
             # If _XOPEN_SOURCE works, we want to use it instead of
             # _POSIX_C_SOURCE, as it may enable more stuff.
             #
@@ -1387,35 +1463,35 @@ class Compiler:
             #
             # There were meaningful values of _XOPEN_SOURCE and _POSIX_C_SOURCE
             # prior to 500 / 199506L, but they are so old that probing for them
-            # is not worth the trouble.
-            #
-            # The very last trial doesn't even include unistd.h, in case the
-            # failures are because it doesn't exist.
-            self.conform_opt.extend(self.probe_max_std("POSIX", [
+            # is not worth it.
+            (opts, result) = self.probe_max_std("POSIX", [
                     ("", "_XOPEN_SOURCE=700",       "200809L"),
                     ("", "_POSIX_C_SOURCE=200809L", "200809L"),
                     ("", "_XOPEN_SOURCE=600",       "200112L"),
                     ("", "_POSIX_C_SOURCE=200112L", "200112L"),
                     ("", "_XOPEN_SOURCE=500",       "199506L"),
                     ("", "_POSIX_C_SOURCE=199506L", "199506L"),
-                    ("", "",                        "0"),
-                ], r"""
-#if EXPECTED != 0
+                ], """\
 #include <unistd.h>
 #if _POSIX_VERSION != EXPECTED
 #error "wrong version"
-#endif
-#endif"""))
+#endif""")
+            self.end_test(result)
+            self.conform_opt.extend(opts)
 
         # Find out whether code that includes <pthread.h> must be
         # compiled in a special mode.  If so, enabling this mode may
         # change dependency sets, so we have to test both ways.
-        (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;\n")
+        self.begin_test("checking whether <pthread.h> requires special options")
+        (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;")
+        if rc == 0:
+            self.end_test("no")
         if rc != 0 and not self.failure_due_to_nonexistence(msg, "pthread.h"):
             (rc, msg2) = self.test_compile("#include <pthread.h>\nint dummy;",
                                            thread=1)
             if rc == 0:
                 self.test_with_thread_opt = 1
+                self.end_test("yes")
             else:
                 self.fatal("pthread.h exists but cannot be compiled? "
                            "Check configuration for %s in %s."
@@ -1423,7 +1499,7 @@ class Compiler:
                            msg + msg2)
 
     def report(self, outf):
-        outf.write("old: %s\n" % old_compiler_id(self.base_cmd))
+        outf.write("old: %s\n" % self.old_compiler_id(self.base_cmd))
         outf.write("new: %s\n" % self.label)
         outf.write("conformance options: %s\n" % " ".join(self.conform_opt))
         outf.write("repeat tests with threads: %d\n"
@@ -1562,8 +1638,8 @@ class Header:
     def __cmp__(self, other):
         return cmp(self.name, other.name)
 
-    def debug_dump(self, outf):
-        outf.write("%s = %s\n" % (self.name, self.state_label()))
+    def log_report(self, cc):
+        outf = StringIO.StringIO()
         outf.write("   presence: " + self.STATE_LABELS[self.presence] + "\n")
         outf.write("   contents: " + self.STATE_LABELS[self.contents] + "\n")
         outf.write("    depends: " + repr(self.depends) + "\n")
@@ -1598,6 +1674,9 @@ class Header:
         for a in self.annotations:
             outf.write("  ")
             a.output(outf)
+        cc.log("%s = %s\n" % (self.name, self.state_label()),
+               outf.getvalue().split("\n"))
+
 
     def state_code(self):
         if self.presence != self.PRESENT:
@@ -1693,37 +1772,44 @@ class Header:
 
     def test(self, cc):
         """Perform all checks on this header.  This blindly calls
-           itself on other header objects, and so must be idempotent
-           (which is handled in each subroutine, so *they* are all
-           idempotent as well)"""
+           itself on other header objects, and so must be idempotent."""
 
-        sys.stderr.write("#+ %s\n" % self.name)
-        x = 0
-        x |= self.test_presence(cc)
-        x |= self.test_depends(cc)
-        x |= self.test_conflict(cc)
-        x |= self.test_contents(cc)
-        if x:
-            self.debug_dump(sys.stderr)
-        sys.stderr.write("#- %s\n\n" % self.name)
+        if self.presence != self.UNKNOWN: return
+
+        # Test dependencies first so the logs are not jumbled.
+        for h in self.dataset.deps.get(self.name, []):
+            h.test(cc)
+
+        cc.begin_test(self.name)
+
+        self.test_presence(cc)
+        self.test_depends(cc)
+        self.test_conflict(cc)
+        self.test_contents(cc)
+        self.log_report(cc)
+
+        cc.end_test(self.state_label().lower())
 
     def test_presence(self, cc):
-        if self.presence != self.UNKNOWN: return 0
+        if self.presence != self.UNKNOWN: return
 
+        cc.log("testing presence of %s\n" % self.name)
         (rc, msg) = cc.test_preproc("#include <%s>" % self.name)
         if rc == 0:
             self.presence = self.PRESENT
-            return 1
+            return
         if cc.failure_due_to_nonexistence(msg, self.name):
             self.presence = self.ABSENT
-            return 1
+            return
 
         errs = self.dataset.is_known_error(msg, self.name)
         if errs is not None:
+            cc.log("*** errors detected: %s\n"
+                   % " ".join([err.tag for err in errs]))
             # caution vs error is ignored at this point; any problem is fatal.
             self.presence = self.BUGGY
             self.annotations.extend(errs)
-            return 1
+            return
 
         cc.fatal("unrecognized failure mode for <%s>. "
                  "Please investigate and add an entry to %s."
@@ -1735,11 +1821,14 @@ class Header:
         # dependency_combs is guaranteed to produce an empty set as the first
         # item in its returned list, and the complete set as the last item.
         for candidate_set in dependency_combs(possible_deps):
+            cc.log("dependency test %s mode %s candidates: [%s]\n" %
+                   (self.name, ct(conform, thread),
+                    " ".join([h.name for h in candidate_set])))
             buf = StringIO.StringIO()
             for h in candidate_set:
                 h.gen_includes(buf, conform, thread)
             buf.write("#include <%s>\n" % self.name)
-            buf.write("int avoid_empty_translation_unit;\n")
+            buf.write("int avoid_empty_translation_unit;")
 
             (rc, msg) = cc.test_compile(buf.getvalue(),
                                         conform=conform,
@@ -1757,6 +1846,8 @@ class Header:
         # problems.
         errs = self.dataset.is_known_error(msg, self.name)
         if errs is not None:
+            cc.log("*** errors detected: %s\n"
+                   % " ".join([err.tag for err in errs]))
             self.annotations.extend(errs)
             for e in errs:
                 if e.caution:
@@ -1770,8 +1861,8 @@ class Header:
                  % (self.name, self.dataset.errors_fname), msg)
 
     def test_depends(self, cc):
-        if self.depends is not None: return 0
-        if self.presence != self.PRESENT: return 0
+        if self.depends is not None: return
+        if self.presence != self.PRESENT: return
 
         possible_deps = []
         for h in self.dataset.deps.get(self.name, []):
@@ -1780,14 +1871,14 @@ class Header:
                 possible_deps.append(h)
 
         self.test_depends_1(cc, possible_deps, 0, 0)
-        if self.presence == self.BUGGY: return 1
+        if self.presence == self.BUGGY: return
         self.test_depends_1(cc, possible_deps, 1, 0)
-        if self.presence == self.BUGGY: return 1
+        if self.presence == self.BUGGY: return
         if cc.test_with_thread_opt:
             self.test_depends_1(cc, possible_deps, 0, 1)
-            if self.presence == self.BUGGY: return 1
+            if self.presence == self.BUGGY: return
             self.test_depends_1(cc, possible_deps, 1, 1)
-            if self.presence == self.BUGGY: return 1
+            if self.presence == self.BUGGY: return
         else:
             self.deplist[0][1] = self.deplist[0][0][:]
             self.deplist[1][1] = self.deplist[1][0][:]
@@ -1812,12 +1903,12 @@ class Header:
         else:
             # There is no mode without problems.
             self.presence = self.BUGGY
-        return 1
+        return
 
     # Conflict testing is quite algorithmically sophisticated, because
     # the wall-clock performance of this script is dominated by
-    # compiler invocations, and a naive conflict tester is O(N^2) in
-    # the number of header files in the survey.
+    # compiler invocations, and a naive conflict tester requires
+    # O(N^2) invocations, with N the number of header files in the survey.
     #
     # The algorithm below clusters headers into maximal groups that
     # can be tested together; even in the presence of known conflicts,
@@ -1842,7 +1933,10 @@ class Header:
         for h in others:
             h.gen_includes(buf, conform, thread)
         self.gen_includes(buf, conform, thread)
-        buf.write("int avoid_empty_translation_unit;\n")
+        buf.write("int avoid_empty_translation_unit;")
+        cc.log("conflict test %s mode %s: candidate set %d member%s\n"
+               % (self.name, ct(conform, thread),
+                  len(others), plural(len(others))))
         (rc, msg) = cc.test_compile(buf.getvalue(),
                                     conform=conform, thread=thread)
 
@@ -1853,6 +1947,8 @@ class Header:
         # Terminating case: if OTHERS has only a single element, we have
         # identified a pairwise conflict with self.
         if len(others) == 1:
+            cc.log("*** conflict identified: %s with %s\n"
+                   % (self.name, others[0].name))
             return others[:]
 
         # Split OTHERS into two halves and recurse.
@@ -1863,6 +1959,8 @@ class Header:
 
     def test_conflict_mode(self, cc, conform, thread):
         if self.caution[conform][thread]:
+            cc.log("conflict test %s mode %s skipped due to caution\n"
+                   % (self.name, ct(conform, thread)))
             return
 
         # Compute a list of every other known header whose dependencies
@@ -1921,8 +2019,8 @@ class Header:
                 h.conflist[conform][thread].append(self)
 
     def test_conflict(self, cc):
-        if self.presence != self.PRESENT: return 0
-        if self.conflict is not None: return 0
+        if self.presence != self.PRESENT: return
+        if self.conflict is not None: return
 
         self.test_conflict_mode(cc, conform=0, thread=0)
         self.test_conflict_mode(cc, conform=1, thread=0)
@@ -1930,19 +2028,19 @@ class Header:
             self.test_conflict_mode(cc, conform=0, thread=1)
             self.test_conflict_mode(cc, conform=1, thread=1)
 
-        return 1
-
     def test_contents(self, cc):
-        if self.presence != self.PRESENT: return 0
-        if self.contents != self.UNKNOWN: return 0
+        if self.presence != self.PRESENT: return
+        if self.contents != self.UNKNOWN: return
 
         if not self.dataset.decltests.has_key(self.name):
-            # no test for this header
+            cc.log("no contents test available for %s\n" % self.name)
             self.contents = self.PRESENT
-            return 1
+            return
 
         # Contents tests are done only in the preferred mode.
         (conform, thread) = self.pref_mode
+        cc.log("contents test for %s in mode %s\n" %
+               (self.name, ct(conform, thread)))
 
         tester = self.dataset.decltests[self.name]
 
@@ -1975,11 +2073,8 @@ class Header:
                     # each thing-under-test occupies exactly one line, so
                     # we don't need to understand the error message beyond
                     # which line it's on.
-                    sys.stderr.write("+ %s\n" % line)
-                    tester.disable_line(int(m.group("line")))
-                else:
-                    sys.stderr.write("- %s\n" % line)
-
+                    tag = tester.disable_line(int(m.group("line")))
+                    cc.log("disabled %s\n" % tag)
 
             disabled_tags = tester.disabled_tags()
             if disabled_tags == prev_disabled_tags:
@@ -1990,6 +2085,8 @@ class Header:
             buf = LineCounter(StringIO.StringIO())
             self.gen_includes(buf, conform, thread)
             tester.generate(buf)
+            cc.log("retry contents test for %s (mode %s)\n" %
+                   (self.name, ct(conform, thread)))
             (rc, msg) = cc.test_compile(buf.getvalue(),
                                         conform=conform, thread=thread)
 
@@ -2098,15 +2195,15 @@ if __name__ == '__main__':
     def main(argv, stdout):
         if len(argv) < 2: usage()
 
-        prepare_environment({})
+        logf = open("st.log", "w")
 
         if argv[1] == "compiler_id":
             if len(argv) == 2:
-                cc = Compiler(["cc"])
+                cc = Compiler(["cc"], logf)
             elif argv[2] == "--":
-                cc = Compiler(argv[3:])
+                cc = Compiler(argv[3:], logf)
             else:
-                cc = Compiler(argv[2:])
+                cc = Compiler(argv[2:], logf)
             cc.report(stdout)
         else:
             headers = None
@@ -2115,11 +2212,11 @@ if __name__ == '__main__':
                     if i == 1 or i == len(argv)-1:
                         usage()
                     headers = argv[1:i]
-                    cc = Compiler(argv[i+1:])
+                    cc = Compiler(argv[i+1:], logf)
                     break
             if headers == None:
                 headers = argv[1:]
-                cc = Compiler(["cc"])
+                cc = Compiler(["cc"], logf)
 
             dataset = Dataset()
             for h in headers:
