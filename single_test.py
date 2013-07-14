@@ -932,6 +932,7 @@ class TestProgram:
         assert line > 0
         item = self.line_index[line]
         assert item.lineno == line
+        if not item.enabled: return None
         item.enabled = 0
         return item.tag
 
@@ -2000,6 +2001,32 @@ class Header:
             self.errlist[1][1] != self.errlist[1][0]):
             output_1(outf, self.errlist[1][1], "conform,thread")
 
+    def extend_errlist(self, conform, thread, errs):
+        if self.errlist[conform][thread] is None:
+            self.errlist[conform][thread] = []
+        l0 = self.errlist[0][0]
+        l1 = self.errlist[conform][thread]
+
+        for e in errs:
+            found = 0
+            if e.caution:
+                self.caution[conform][thread] = 1
+                ll = l1
+            else:
+                # Errors that are not "cautions" are put on the
+                # "default" error list regardless of what mode we
+                # detected them in (the idea is that this problem
+                # is a problem regardless of mode, even if the
+                # compiler only catches it with warnings on).
+                self.presence = self.BUGGY
+                ll = l0
+            for x in ll:
+                if x.name == e.name:
+                    found = 1
+                    break
+            if not found:
+                ll.append(e)
+
     def gen_includes(self, outf, conform, thread):
         if self.presence != self.PRESENT: return
         for h in self.deplist[conform][thread]:
@@ -2045,14 +2072,13 @@ class Header:
             # caution vs error is ignored at this point; all are
             # treated as catastrophic.
             self.presence = self.BUGGY
-            self.errlist[0][0].extend(errs)
+            self.extend_errlist(0, 0, errs)
             return
 
         cc.error("unrecognized failure mode for <%s>. "
                  "Please investigate and add an entry to %s."
                  % (self.name, self.dataset.errors_fname))
-        self.presence = self.BUGGY
-        self.errlist[0][0].append(UnrecognizedError)
+        self.extend_errlist(0, 0, [UnrecognizedError])
 
     def test_depends_1(self, cc, possible_deps, conform, thread):
         failures = []
@@ -2087,27 +2113,13 @@ class Header:
         if errs is not None:
             cc.log("*** errors detected: %s\n"
                    % " ".join([err.name for err in errs]))
-            for e in errs:
-                if e.caution:
-                    self.caution[conform][thread] = 1
-                    if self.errlist[conform][thread] is None:
-                        self.errlist[conform][thread] = []
-                    self.errlist[conform][thread].append(e)
-                else:
-                    # Errors that are not "cautions" are put on the
-                    # "default" error list regardless of what mode we
-                    # detected them in (the idea is that this problem
-                    # is a problem regardless of mode, even if the
-                    # compiler only catches it with warnings on).
-                    self.presence = self.BUGGY
-                    self.errlist[0][0].append(e)
-            return 0
+            self.extend_errlist(conform, thread, errs)
+            return
 
         cc.error("unrecognized failure mode for <%s>. "
                  "Please investigate and add an entry to %s."
                  % (self.name, self.dataset.errors_fname))
-        self.presence = self.BUGGY
-        self.errlist[0][0].append(UnrecognizedError)
+        self.extend_errlist(0, 0, [UnrecognizedError])
 
     def test_depends(self, cc):
         if self.depends is not None: return
@@ -2311,9 +2323,16 @@ class Header:
                 # and it _still_ didn't go through.
                 cc.error("unrecognized failure mode for <%s> (contents tests)."
                          % self.name)
-                self.presence = self.BUGGY
-                self.errlist[0][0].append(UnrecognizedError)
+                self.extend_errlist(0, 0, [UnrecognizedError])
                 return
+
+            # Record any known errors (for instance, a macro might trigger
+            # the infamous legacy_type_decls).
+            errs = self.dataset.is_known_error(msg, self.name)
+            if errs is not None:
+                cc.log("*** errors detected: %s\n"
+                       % " ".join([err.name for err in errs]))
+                self.extend_errlist(conform, thread, errs)
 
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
@@ -2327,7 +2346,8 @@ class Header:
                     # we don't need to understand the error message beyond
                     # which line it's on.
                     tag = tester.disable_line(int(m.group("line")))
-                    cc.log("disabled %s\n" % tag)
+                    if tag:
+                        cc.log("disabled %s\n" % tag)
 
             disabled_tags = tester.disabled_tags()
             if disabled_tags == prev_disabled_tags:
