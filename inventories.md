@@ -188,10 +188,10 @@ Annotation lines should appear after every header whose state is not
 ABSENT, PRESENT, or CORRECT.  They give details about the problems
 encountered with that header.
 
-There are presently six types of annotation.  All annotations have an
-optional `[`<i>mode</i>`]` tag, which appears before any other information,
-and indicates that the annotation only applies to a particular
-compilation mode.  For instance,
+There are presently seven types of annotation.  Four of them have an
+optional `[`<i>mode</i>`]` tag, which appears before any other
+information, and indicates that the annotation only applies to a
+particular compilation mode.  For instance,
 
     %netinet/ip6.h
     $P sys/types.h
@@ -200,6 +200,10 @@ compilation mode.  For instance,
 indicates that `netinet/ip.h` always requires the programmer to
 include `sys/types.h` first, and when the compiler is in strict
 conformance mode it also requires `sys/socket.h`.
+
+Tests for header contents are done only in the header’s “preferred”
+mode (which is a strict conformance mode if possible), so `$M`, `$W`,
+and `$X` annotations don't have a mode tag.
 
 * `$P` `[`<i>mode</i>`]` *space-separated list of header names*
 
@@ -243,7 +247,7 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates either CAUTION or BUGGY.
 
-* `$M` `[`<i>mode</i>`]` `:`<i>category</i>`:` *space-separated list of symbols*
+* `$M` `:`<i>category</i>`:` *space-separated list of symbols*
 
   Indicates that this header fails to declare the symbols in the list.
   (M is for “missing.”)
@@ -258,11 +262,21 @@ conformance mode it also requires `sys/socket.h`.
   This annotation should only appear on a header whose state code
   indicates either INCOMPLETE or BUGGY.
 
-* `$W` `[`<i>mode</i>`]` `:`<i>category</i>`:` *space-separated list of symbols*
+* `$W` `:`<i>category</i>`:` *space-separated list of symbols*
 
   Indicates that this header does declare the symbols in the list, but
   incorrectly. (W is for “wrong.”)  Category tags work the same way as
   for `$M`.
+
+  This annotation should only appear on a header whose state code
+  indicates either INCOMPLETE or BUGGY.
+
+* `$X` `:`<i>category</i>`:` *space-separated list of symbols*
+
+  Indicates that the symbols in the list are either missing or
+  incorrect, but we can't tell which.  (X looks kind of like an M and
+  a W stacked on top of each other if you squint.) Category tags work
+  the same way as for `$M`.
 
   This annotation should only appear on a header whose state code
   indicates either INCOMPLETE or BUGGY.

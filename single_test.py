@@ -375,11 +375,12 @@ def crunch_fncall(val):
     return (rtype, argtypes, argdecl, call, return_)
 
 class TestItem:
-    def __init__(self, infname, std, ann, tag):
+    def __init__(self, infname, std, mod, tag, missing):
         self.infname = infname
         self.std = std
-        self.ann = ann
+        self.mod = mod
         self.tag = tag
+        self.missing = missing
         self.enabled = 1
         self.name = None
         self.lineno = None
@@ -393,7 +394,7 @@ class TestItem:
             if self.lineno < outf.lineno:
                 raise RuntimeError("%s (%s:%s): line numbers out of sync "
                                    " (want %d, already at %d)"
-                                   % (self.tag, self.std, self.ann,
+                                   % (self.tag, self.std, self.mod,
                                       self.lineno, outf.lineno))
             while outf.lineno < self.lineno:
                 outf.write("\n")
@@ -404,8 +405,9 @@ class TestItem:
 
 idchars = string.letters + string.digits + "_"
 class TestDecl(TestItem):
-    def __init__(self, infname, std, ann, tag, dtype, init="", cond=""):
-        TestItem.__init__(self, infname, std, ann, tag)
+    def __init__(self, infname, std, mod, tag, missing,
+                 dtype, init="", cond=""):
+        TestItem.__init__(self, infname, std, mod, tag, missing)
 
         self.dtype = squishwhite(dtype)
         self.init = squishwhite(init)
@@ -426,8 +428,9 @@ class TestDecl(TestItem):
             outf.write("#endif\n")
 
 class TestFn(TestItem):
-    def __init__(self, infname, std, ann, tag, rtype="", argv="", body=""):
-        TestItem.__init__(self, infname, std, ann, tag)
+    def __init__(self, infname, std, mod, tag, missing,
+                 rtype="", argv="", body=""):
+        TestItem.__init__(self, infname, std, mod, tag, missing)
 
         self.rtype = squishwhite(rtype)
         self.argv = squishwhite(argv)
@@ -452,8 +455,9 @@ class TestFn(TestItem):
             outf.write("%s { %s }\n" % (decl, self.body))
 
 class TestCondition(TestItem):
-    def __init__(self, infname, std, ann, tag, expr, cond=""):
-        TestItem.__init__(self, infname, std, ann, tag)
+    def __init__(self, infname, std, mod, tag, missing,
+                 expr, cond=""):
+        TestItem.__init__(self, infname, std, mod, tag, missing)
         self.expr = squishwhite(expr)
         self.cond = squishwhite(cond)
 
@@ -469,10 +473,10 @@ class TestCondition(TestItem):
             outf.write("#endif\n")
 
 class TestComponent:
-    def __init__(self, infname, std, ann, items):
+    def __init__(self, infname, std, mod, items):
         self.infname = infname
         self.std = std
-        self.ann = ann
+        self.mod = mod
         self.preprocess(items)
 
     def preprocess(self, items):
@@ -488,7 +492,7 @@ class TestComponent:
 
         raise RuntimeError("%s [functions:%s:%s]: "
                            "invalid or misused key '%s'"
-                           % (self.infname, self.std, self.ann, k))
+                           % (self.infname, self.std, self.mod, k))
 
     def generate(self, outf):
         items = self.items
@@ -505,53 +509,59 @@ class TestTypes(TestComponent):
             if self.pp_special_key(k, v): continue
 
             d = " ".join(k.split("."))
+            if v.endswith(" struct"):
+                d = "struct " + d
+                v = v[:-7]
 
-            if len(v) >= 7 and v[:5] == "expr(" and v[-1] == ")":
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=d, init=v[5:-1])
+            # To test for the basic presence of a type name, attempt
+            # to declare a function that takes a pointer to that type
+            # as part of its argument list.  Unlike most other
+            # constructs that depend only on the presence of a
+            # (possibly-incomplete) type name, this works even to
+            # detect undeclared struct tags.  (Anything you do with an
+            # undeclared struct tag will forward-declare it as a side
+            # effect, so it's basically impossible to get the compiler
+            # to error out by using one.  But if this happens inside a
+            # prototype argument list, the tag is scoped only to that
+            # declaration, so both gcc and clang issue a warning, which
+            # is good enough for our purposes.)
+            pitems[k+".M"] = TestFn(self.infname, self.std, self.mod,
+                                    tag=k, missing=1,
+                                    argv=mk_pointer_to(d))
 
-            elif v == "opaque":
+            # Test correctness by attempting to declare a variable
+            # of the specified type with an appropriate initializer.
+            # ??? Can we do better about enforcing scalar type categories
+            #     (signed/unsigned/integral/floating)?
+
+            if v == "opaque":
                 # Just test that a local variable of this type can be declared.
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=d)
-            elif v == "opaque struct":
-                # Same as "opaque" but tacks "struct" on the beginning of the typename.
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype="struct " + d)
+                pitems[k+".W"] = TestDecl(self.infname, self.std, self.mod,
+                                          tag=k, missing=0, dtype=d)
             elif v == "incomplete":
-                # Test that a pointer to this type can be declared.
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=mk_pointer_to(d))
-            elif v == "incomplete struct":
-                # Writing "struct X *y;" at top level will forward-declare X
-                # as a structure tag if it's not already visible.  So will
-                # most other declarations containing "struct X" that don't
-                # require it to be complete.  Until someone has a better idea,
-                # we define a _function_ with "struct X *y" in its argument
-                # list, which provokes a warning from both gcc and clang if
-                # the tag isn't already visible (it still forward-declares the
-                # tag, but with a surprisingly limited scope, so a warning was
-                # felt useful).
-                pitems[k] = TestFn(self.infname, self.std, self.ann,
-                                   tag=k, argv=mk_pointer_to("struct " + d))
-
-            # ??? Can we do better about enforcing signed/unsigned/floating/integralness?
-            elif v == "signed":
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=d, init="-1")
-            elif v == "unsigned" or v == "integral" or v == "arithmetic":
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=d, init="1")
-            elif v == "floating":
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=d, init="1.0f")
-            elif v == "scalar":
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=d, init="0")
+                # We've already tested this as much as we can.
+                pass
             else:
-                raise RuntimeError("%s [types:%s:%s]: %s: "
-                                   "unimplemented type category %s"
-                                   % (self.infname, self.std, self.ann, k, v))
+                if v == "signed":
+                    init = "-1"
+                elif v == "unsigned" or v == "integral" or v == "arithmetic":
+                    init = "1"
+                elif v == "floating":
+                    init = "1.0f"
+                elif v == "scalar":
+                    init = "0"
+                elif len(v) >= 7 and v[:5] == "expr(" and v[-1] == ")":
+                    init = v[5:-1]
+                else:
+                    raise RuntimeError("%s [types:%s:%s]: %s: "
+                                       "unimplemented type category %s"
+                                       % (self.infname, self.std, self.mod,
+                                          k, v))
+
+                pitems[k+".W"] = TestDecl(self.infname, self.std, self.mod,
+                                          tag=k, missing=0,
+                                          dtype=d, init=init)
+
         self.items = pitems
 
 class TestStructs(TestComponent):
@@ -563,51 +573,42 @@ class TestStructs(TestComponent):
             (typ, field) = splitto(k, ".", 2)
             if field == "":
                 raise RuntimeError("%s [structs:%s:%s]: %s: missing field name"
-                                   % (self.infname, self.std, self.ann, k))
+                                   % (self.infname, self.std, self.mod, k))
             # "s_TAG" is shorthand for "struct TAG", as "option" names
             # cannot contain spaces; similarly, "u_TAG" for "union TAG"
             if typ[:2] == "s_": typ = "struct " + typ[2:]
             if typ[:2] == "u_": typ = "union " + typ[2:]
 
-            # There are two tests for each field, because some systems
-            # have "harmless" divergences from the precise type
-            # specified by the standard.  The more aggressive test is
-            # to take a pointer to the field.  The less aggressive
-            # test is to set the field to zero, which confirms only
-            # that the field does exist (zero is a valid initializer
-            # for every scalar type in C).
-            #
-            # If the declared type is "integral" or "arithmetic"
-            # we skip the first test.
-            #
-            # If the declared type is "O:something", we chop off the
-            # O: and skip the second test.  (O is for Opaque, but this
-            # should be used for any non-scalar type.)
-            #
-            # If the declared type ends with [], we adjust the first test
-            # to avoid attempting to return an array (which is invalid)
-            # and skip the second test.
+            # To test whether a field exists, attempt to take a
+            # pointer to it.  To test whether the field has the
+            # correct type, attempt to return that pointer without
+            # casting it.
             argv=mkdeclarator(mk_pointer_to(typ), "xx")
-            opaque = 0
             addressop = "&"
-            if v.startswith("O:"):
-                v = v[2:]
-                opaque = 1
             if v.endswith("[]"):
                 v = v[:-2]
-                opaque = 1
                 addressop = ""
-            if v != "integral" and v != "arithmetic":
-                pitems[k+".1"] = TestFn(self.infname, self.std, self.ann,
-                                        tag=k+".1",
-                                        rtype=mk_pointer_to(v), argv=argv,
-                                        body="return %sxx->%s" % (addressop,
-                                                                  field))
-            if not opaque:
-                pitems[k+".2"] = TestFn(self.infname, self.std, self.ann,
-                                        tag=k+".2",
+
+            # Explicitly cast to void to avoid warnings.
+            pitems[k+".M"] = TestFn(self.infname, self.std, self.mod,
+                                    tag=k, missing=1,
+                                    rtype="void *", argv=argv,
+                                    body="return (void *)%sxx->%s"
+                                    % (addressop, field))
+
+            # If the type is not precisely specified, attempt to set the
+            # field to 0 instead of taking a pointer.
+            if v == "integral" or v == "arithmetic":
+                pitems[k+".W"] = TestFn(self.infname, self.std, self.mod,
+                                        tag=k, missing=0,
                                         rtype="void", argv=argv,
                                         body="xx->" + field + " = 0")
+            else:
+                pitems[k+".W"] = TestFn(self.infname, self.std, self.mod,
+                                        tag=k, missing=0,
+                                        rtype=mk_pointer_to(v), argv=argv,
+                                        body="return %sxx->%s"
+                                        % (addressop, field))
 
         self.items = pitems
 
@@ -621,10 +622,10 @@ class TestConstants(TestComponent):
             # Constants may be conditionally defined; notably, X/Open
             # specifies lots of these in limits.h and unistd.h.  To
             # handle this, when the value starts with "ifdef:", we
-            # wrap #ifdef NAME ... #endif around the test.  It can
-            # also start with "if CONDITION:" which case we wrap #if
-            # CONDITION ... #endif around the test.  Note that in the
-            # latter case, CONDITION may not contain a colon.
+            # wrap #ifdef NAME ... #endif around each test.  It can
+            # also start with "if CONDITION:" which case we wrap
+            # #if CONDITION ... #endif around each test.  Note that in
+            # the latter case, CONDITION may not contain a colon.
             cond = ""
             if v.startswith("ifdef:"):
                 cond = k
@@ -634,39 +635,62 @@ class TestConstants(TestComponent):
                 if colon == -1:
                     raise RuntimeError("%s [constants:%s:%s]: %s: "
                                        "ill-formed #if expression"
-                                       % (self.infname, self.std, self.ann, k))
+                                       % (self.infname, self.std, self.mod, k))
                 cond = '?'+v[3:colon]
                 v = v[(colon+1):]
 
             # If 'k' starts with a dollar sign, it is not a real
             # constant name; 'v' is an expression to be tested
-            # literally.  Otherwise, if 'v' contains dollar signs,
-            # each of them is replaced with 'k' (the constant name) to
-            # form the expression to test; or if it starts with a
-            # relational operator, 'k' is inserted before the
-            # operator.
+            # literally.
             if k.startswith("$"):
-                pitems[k] = TestCondition(self.infname, self.std, self.ann,
-                                          tag=k, expr=v, cond=cond)
-            elif v.find("$") != -1:
-                pitems[k] = TestCondition(self.infname, self.std, self.ann,
-                                          tag=k, expr=dollar_re.sub(k, v),
-                                          cond=cond)
-            elif v.find(">") != -1 or v.find("<") != -1 or v.find("=") != -1:
-                pitems[k] = TestCondition(self.infname, self.std, self.ann,
-                                          tag=k, expr=k + " " + v,
-                                          cond=cond)
-            elif v == "str":
-                # testing for a string literal
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype="const char $[]",
-                                     init = "\"\"" + k + "\"\"",
-                                     cond=cond)
+                pitems[k] = TestCondition(self.infname, self.std, self.mod,
+                                          tag=k, missing=0, expr=v, cond=cond)
             else:
-                if v == "": v = "int"
-                pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=v, init=k,
-                                     cond=cond)
+                # Optional test for correctness.
+                # 'v' may start with a type in square brackets.
+                if v.startswith("["):
+                    (t, v) = v.split("]", 1)
+                    t = t[1:]
+                    v = v.strip()
+                else:
+                    t = None
+
+                # If 'v' contains dollar signs, each of them is replaced
+                # with 'k' (the constant name) to form the expression to
+                # test; or if it starts with a relational operator, 'k' is
+                # inserted before the operator.
+                if v.find("$") != -1:
+                    pitems[k+".W"] = TestCondition(self.infname, self.std,
+                                                   self.mod, tag=k, missing=0,
+                                                   expr=dollar_re.sub(k, v),
+                                                   cond=cond)
+                    if t is None: t = "int"
+
+                elif (v.find(">") != -1 or v.find("<") != -1
+                      or v.find("=") != -1):
+                    pitems[k+".W"] = TestCondition(self.infname, self.std,
+                                                   self.mod, tag=k, missing=0,
+                                                   expr=k + " " + v,
+                                                   cond=cond)
+                    if t is None: t = "int"
+
+                else:
+                    if t is None: t = v
+                    if t == "": t = "int"
+
+                # Test for presence (with the correct type).
+                if t == "str":
+                    pitems[k+".M"] = TestDecl(self.infname, self.std, self.mod,
+                                              tag=k, missing=1,
+                                              dtype="const char $[]",
+                                              init = "\"\"" + k + "\"\"",
+                                              cond=cond)
+                else:
+                    pitems[k+".M"] = TestDecl(self.infname, self.std, self.mod,
+                                              tag=k, missing=1,
+                                              dtype=t, init=k,
+                                              cond=cond)
+
         self.items = pitems
 
 class TestGlobals(TestComponent):
@@ -677,13 +701,14 @@ class TestGlobals(TestComponent):
 
             if v == "": v = "int"
             # does it exist?
-            pitems[k+".1"] = TestDecl(self.infname, self.std, self.ann,
-                                      tag=k+".1",
+            pitems[k+".M"] = TestDecl(self.infname, self.std, self.mod,
+                                      tag=k, missing=1,
                                       dtype="extern const char "
                                       "$[sizeof(%s)]" % k)
-            # does it produce the correct type?
-            pitems[k+".2"] = TestFn(self.infname, self.std, self.ann,
-                                    tag=k+".2", rtype=v, body="return " + k)
+            # does it have the correct type?
+            pitems[k+".W"] = TestFn(self.infname, self.std, self.mod,
+                                    tag=k, missing=0, rtype=v,
+                                    body="return " + k)
         self.items = pitems
 
 
@@ -702,17 +727,17 @@ class TestFunctions(TestComponent):
             # standard and the system, so we also test that we can call the
             # function passing arguments of the expected types.  That test is
             # done twice, once suppressing any macro definition, once not.
-            pitems[k+".1"] = TestDecl(self.infname, self.std, self.ann,
-                                      tag=k+".1",
-                                      dtype = rtype + " (*$)(" + argtypes + ")",
-                                      init = k)
-            pitems[k+".2"] = TestFn(self.infname, self.std, self.ann,
-                                    tag=k+".2",
-                                    rtype = rtype,
-                                    argv  = argdecl,
-                                    body  = "%s(%s)(%s);" % (return_, k, call))
-            pitems[k+".3"] = TestFn(self.infname, self.std, self.ann,
-                                    tag=k+".3",
+            pitems[k+".W1"] = TestDecl(self.infname, self.std, self.mod,
+                                       tag=k, missing=0,
+                                       dtype = rtype + " (*$)("+argtypes+")",
+                                       init = k)
+            pitems[k+".W2"] = TestFn(self.infname, self.std, self.mod,
+                                     tag=k, missing=0,
+                                     rtype = rtype,
+                                     argv  = argdecl,
+                                     body  = "%s(%s)(%s);" % (return_, k, call))
+            pitems[k+".M"] = TestFn(self.infname, self.std, self.mod,
+                                    tag=k, missing=1,
                                     rtype = rtype,
                                     argv  = argdecl,
                                     body  = "%s%s(%s);" % (return_, k, call))
@@ -728,8 +753,8 @@ class TestFnMacros(TestComponent):
 
             # Function-like macros can only be tested by calling them in
             # the usual way.
-            pitems[k] = TestFn(self.infname, self.std, self.ann,
-                               tag=k,
+            pitems[k] = TestFn(self.infname, self.std, self.mod,
+                               tag=k, missing=2,
                                rtype = rtype,
                                argv  = argdecl,
                                body  = "%s%s(%s);" % (return_, k, call))
@@ -744,7 +769,7 @@ class TestSpecial(TestComponent):
         if items.has_key("__tested__"):
             if not items.has_key("__body__"):
                 raise RuntimeError("%s [special:%s:%s]: section incomplete"
-                                   % (self.infname, self.std, self.ann))
+                                   % (self.infname, self.std, self.mod))
             for k in items.keys():
                 if (k != "__args__" and
                     k != "__rtype__" and
@@ -754,8 +779,9 @@ class TestSpecial(TestComponent):
 
             tag = items["__tested__"]
             body = items["__body__"]
-            tfn = TestFn(self.infname, self.std, self.ann,
-                         tag, rtype, argv, body)
+            tfn = TestFn(self.infname, self.std, self.mod,
+                         tag=tag, missing=2,
+                         rtype=rtype, argv=argv, body=body)
             for t in tag.split():
                 pitems[t] = tfn
         else:
@@ -764,11 +790,13 @@ class TestSpecial(TestComponent):
                 if self.pp_special_key(k, v): continue
                 vx = v.split(":", 1)
                 if len(vx) == 2:
-                    tfn = TestFn(self.infname, self.std, self.ann,
-                                 k, vx[0], argv, vx[1])
+                    tfn = TestFn(self.infname, self.std, self.mod,
+                                 tag=k, missing=2,
+                                 rtype=vx[0], argv=argv, body=vx[1])
                 else:
-                    tfn = TestFn(self.infname, self.std, self.ann,
-                                 k, rtype, argv, v)
+                    tfn = TestFn(self.infname, self.std, self.mod,
+                                 tag=k, missing=2,
+                                 rtype=rtype, argv=argv, body=v)
                 pitems[k] = tfn
 
         self.items = pitems
@@ -798,8 +826,8 @@ class TestSpecialDecls(TestComponent):
             if self.pp_special_key(k, v): continue
 
             (dtype, init) = splitto(v, "=", 2)
-            pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                 tag=k, dtype=dtype, init=init)
+            pitems[k] = TestDecl(self.infname, self.std, self.mod,
+                                 tag=k, missing=2, dtype=dtype, init=init)
 
         self.items = pitems
 
@@ -834,18 +862,18 @@ class TestProgram:
         spec.read(fname)
 
         for sect in spec.sections():
-            what, std, ann = splitto(sect, ":", 3)
+            what, std, mod = splitto(sect, ":", 3)
             items = {}
             for k in spec.options(sect):
                 items[k] = spec.get(sect, k, raw=1)
             if what == "preamble":
-                if std != "" or ann != "":
+                if std != "" or mod != "":
                     raise RuntimeError("%s: [preamble] section cannot be "
                                        "annotated" % fname)
                 self.load_preamble(fname, items)
             else:
                 getattr(self, what).append(
-                    self.COMPONENTS[what](fname, std, ann, items))
+                    self.COMPONENTS[what](fname, std, mod, items))
 
     def load_preamble(self, fname, items):
         if self.header is None:
@@ -2117,7 +2145,7 @@ class Header:
         while rc != 0:
             if tester.all_disabled():
                 cc.fatal("unrecognized failure mode for <%s> (contents tests). "
-                         "Please investigate." % self.name, msg)
+                         "Please investigate." % self.name)
 
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
@@ -2224,6 +2252,7 @@ class Dataset:
     def load_decltests(self, dname):
         decltests = {}
         for f in glob.glob(os.path.join(dname, "*.ini")):
+            if f.endswith("CATEGORIES.ini"): continue
             dt = TestProgram(f)
             if decltests.has_key(dt.header):
                 sys.stderr.write("%s: skipping extra test for %s\n"
