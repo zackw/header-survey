@@ -544,7 +544,7 @@ class TestTypes(TestComponent):
                                      tag=k, dtype=d, init="1")
             elif v == "floating":
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
-                                     tag=k, dtype=d, init="6.02e23")
+                                     tag=k, dtype=d, init="1.0f")
             elif v == "scalar":
                 pitems[k] = TestDecl(self.infname, self.std, self.ann,
                                      tag=k, dtype=d, init="0")
@@ -676,8 +676,14 @@ class TestGlobals(TestComponent):
             if self.pp_special_key(k, v): continue
 
             if v == "": v = "int"
-            pitems[k] = TestFn(self.infname, self.std, self.ann,
-                               tag=k, rtype=v, body="return " + k)
+            # does it exist?
+            pitems[k+".1"] = TestDecl(self.infname, self.std, self.ann,
+                                      tag=k+".1",
+                                      dtype="extern const char "
+                                      "$[sizeof(%s)]" % k)
+            # does it produce the correct type?
+            pitems[k+".2"] = TestFn(self.infname, self.std, self.ann,
+                                    tag=k+".2", rtype=v, body="return " + k)
         self.items = pitems
 
 
