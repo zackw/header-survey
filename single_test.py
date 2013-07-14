@@ -1629,10 +1629,26 @@ class ContentTestResult:
     """Results of a test for contents.  Instantiate from a TestProgram
        instance; walks the data structure and computes the appropriate
        set of annotations."""
+
+    required_modules = None
+    def init_required_modules(self):
+        self.required_modules = {"": 1}
+
+        parser = ConfigParser.ConfigParser()
+        parser.read("decltests/CATEGORIES.ini")
+        if parser.has_section("required_modules"):
+            for m in parser.options("required_modules"):
+                self.required_modules[m] = 1
+
     def __init__(self, tester):
         self.missing_items = []
         self.wrong_items = []
         self.uncertain_items = []
+
+        if self.required_modules is None:
+            self.init_required_modules()
+
+        self.badness = 0
 
         CTRC = ContentTestResultCluster
 
@@ -1665,6 +1681,11 @@ class ContentTestResult:
                     if wrong.has_key(tag): del wrong[tag]
                     if uncertain.has_key(tag): del uncertain[tag]
 
+                if (std == tester.baseline and
+                    (missing or wrong or uncertain) and
+                    self.required_modules.has_key(mod)):
+                    self.badness = 1
+
                 if (len(missing) + len(wrong) + len(uncertain)
                     == len(all_symbols)):
                     # All the symbols in this module are busted
@@ -1687,6 +1708,9 @@ class ContentTestResult:
                     if uncertain:
                         self.uncertain_items.append(CTRC(std, mod,
                                                          uncertain.keys()))
+
+        if tester.all_disabled():
+            self.badness = 2
 
     def output(self, outf):
         for cluster in self.missing_items:
@@ -1779,7 +1803,6 @@ class Header:
     def __init__(self, name, dataset):
         self.name = name
         self.dataset = dataset
-        self.annotations  = []
 
         self.presence  = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
         self.contents  = self.UNKNOWN # can be PRESENT, INCOMPLETE, CORRECT
@@ -1807,64 +1830,65 @@ class Header:
         self.caution = [ [ 0, 0 ],
                          [ 0, 0 ] ]
 
+        self.content_results = None
+
     def __cmp__(self, other):
         return cmp(self.name, other.name)
 
     def log_report(self, cc):
         outf = StringIO.StringIO()
-        outf.write("   presence: " + self.STATE_LABELS[self.presence] + "\n")
-        outf.write("   contents: " + self.STATE_LABELS[self.contents] + "\n")
-        outf.write("    depends: " + repr(self.depends) + "\n")
-        outf.write("   conflict: " + repr(self.conflict) + "\n")
-        outf.write("  pref_mode: " + repr(self.pref_mode) + "\n")
-        outf.write("    caution: [..]=%d [c.]=%d [.t]=%d [ct]=%d\n"
+        outf.write(" presence: " + self.STATE_LABELS[self.presence] + "\n")
+        outf.write(" contents: " + self.STATE_LABELS[self.contents] + "\n")
+        outf.write("  depends: " + repr(self.depends) + "\n")
+        outf.write(" conflict: " + repr(self.conflict) + "\n")
+        outf.write("pref_mode: " + repr(self.pref_mode) + "\n")
+        outf.write("  caution: [..]=%d [c.]=%d [.t]=%d [ct]=%d\n"
                    % (self.caution[0][0],
                       self.caution[1][0],
                       self.caution[0][1],
                       self.caution[1][1]))
 
-        outf.write("   deplists:\n")
-        outf.write("     [..] = %s\n"
+        outf.write(" deplists:\n")
+        outf.write("   [..] = %s\n"
                    % " ".join([h.name for h in self.deplist[0][0]]))
-        outf.write("     [c.] = %s\n"
+        outf.write("   [c.] = %s\n"
                    % " ".join([h.name for h in self.deplist[1][0]]))
-        outf.write("     [.t] = %s\n"
+        outf.write("   [.t] = %s\n"
                    % " ".join([h.name for h in self.deplist[0][1]]))
-        outf.write("     [ct] = %s\n"
+        outf.write("   [ct] = %s\n"
                    % " ".join([h.name for h in self.deplist[1][1]]))
 
-        outf.write("   conflists:\n")
-        outf.write("     [..] = %s\n"
+        outf.write("conflists:\n")
+        outf.write("   [..] = %s\n"
                    % " ".join([h.name for h in self.conflist[0][0]]))
-        outf.write("     [c.] = %s\n"
+        outf.write("   [c.] = %s\n"
                    % " ".join([h.name for h in self.conflist[1][0]]))
         if self.conflist[0][1] is not None:
-            outf.write("     [.t] = %s\n"
+            outf.write("   [.t] = %s\n"
                        % " ".join([h.name for h in self.conflist[0][1]]))
         if self.conflist[1][1] is not None:
-            outf.write("     [ct] = %s\n"
+            outf.write("   [ct] = %s\n"
                        % " ".join([h.name for h in self.conflist[1][1]]))
 
-        outf.write("   errlists:\n")
-        outf.write("     [..] = %s\n"
+        outf.write(" errlists:\n")
+        outf.write("   [..] = %s\n"
                    % " ".join([h.name for h in self.errlist[0][0]]))
         if self.errlist[1][0] is not None:
-            outf.write("     [c.] = %s\n"
+            outf.write("   [c.] = %s\n"
                        % " ".join([h.name for h in self.errlist[1][0]]))
         if self.errlist[0][1] is not None:
-            outf.write("     [.t] = %s\n"
+            outf.write("   [.t] = %s\n"
                        % " ".join([h.name for h in self.errlist[0][1]]))
         if self.errlist[1][1] is not None:
-            outf.write("     [ct] = %s\n"
+            outf.write("   [ct] = %s\n"
                        % " ".join([h.name for h in self.errlist[1][1]]))
 
-        outf.write("  annotations:\n")
-        for a in self.annotations:
-            outf.write("  ")
-            a.output(outf)
+        if self.content_results is not None:
+            outf.write(" contents:\n")
+            self.content_results.output(outf)
+
         cc.log("%s = %s\n" % (self.name, self.state_label()),
                outf.getvalue().split("\n"))
-
 
     def state_code(self):
         if self.presence != self.PRESENT:
@@ -1901,8 +1925,8 @@ class Header:
         self.output_depends(outf)
         self.output_conflicts(outf)
         self.output_errors(outf)
-        for ann in self.annotations:
-            ann.output(outf)
+        if self.content_results is not None:
+            self.content_results.output(outf)
 
     def output_depends(self, outf):
         if not self.depends: return
@@ -2321,11 +2345,20 @@ class Header:
 
         # If we get here, we just had a successful compilation with at
         # least some items disabled.  Annotate accordingly.
-        if tester.all_disabled():
-            self.contents = self.BUGGY
-        else:
+        result = ContentTestResult(tester)
+        if result.badness == 0:
+            # Only optional items are missing.
             self.contents = self.INCOMPLETE
-        self.annotations.append(ContentTestResult(tester))
+        elif result.badness == 1:
+            # Some required items are missing.
+            self.contents = self.INCOMPLETE
+            self.caution[conform][thread] = 1
+        else:
+            # _All_ items are missing.
+            assert result.badness == 2
+            self.presence = self.BUGGY
+
+        self.content_results = result
 
 class Dataset:
     """A Dataset instance represents the totality of information known
