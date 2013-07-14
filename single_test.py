@@ -935,6 +935,7 @@ class TestProgram:
 
     def generate(self, outf):
         self.gen_preamble(outf)
+        outf.write("int avoid_empty_translation_unit;")
 
         for c in self.types:     c.generate(outf)
         for c in self.structs:   c.generate(outf)
@@ -1315,11 +1316,11 @@ class Compiler:
             compiler = parse_output(msg, compilers)
 
             if compiler == "FAIL":
-                self.fatal("unable to parse compiler output.", msg)
+                self.fatal("unable to parse compiler output.")
             if compiler == "UNKNOWN":
                 self.fatal("no configuration available for this "
                            "compiler.  Please add appropriate settings "
-                           "to " + repr(cfgf) + ".", [])
+                           "to " + repr(cfgf) + ".")
 
             # Confirm the identification.
             version_argv = cfg.get(compiler, "version").split()
@@ -1337,14 +1338,14 @@ class Compiler:
 
             (rc, msg) = self.invoke(self.base_cmd + version_argv)
             if rc != 0:
-                self.fatal("detailed version request failed", msg)
+                self.fatal("detailed version request failed")
             mm = "\n".join(msg[1:]) # throw away the command line
             version_re = re.compile(cfg.get(compiler, "id_regexp"),
                                     re.VERBOSE|re.DOTALL)
             match = version_re.search(mm)
             if not match:
                 self.fatal("version information not as expected: "
-                           "is this really " + compiler + "?", msg)
+                           "is this really " + compiler + "?")
 
             try:
                 version = match.group("version")
@@ -1354,7 +1355,7 @@ class Compiler:
                 if group_matched(versio1): version = versio1
                 elif group_matched(versio2): version = versio2
                 else:
-                    self.fatal("version number not found", msg)
+                    self.fatal("version number not found")
 
             details = -1
             try:
@@ -1400,12 +1401,12 @@ class Compiler:
         # This code should compile without complaint.
         for (action, conform, tag) in test_modes:
             self.log("smoke test: %s, should succeed\n" % tag)
-            (rc, msg) = self.test_compile("#include <stdarg.h>\nint dummy;",
-                                          conform)
+            (rc, msg) = action("#include <stdarg.h>\nint dummy;",
+                               conform)
             if rc != 0:
                 self.fatal("failed to %s simple test program. "
                            "Check configuration for %s in %s."
-                           % (tag, self.compiler, cfgf), msg)
+                           % (tag, self.compiler, cfgf))
 
         # This code should _not_ compile, in any mode, nor should it
         # preprocess.
@@ -1416,7 +1417,35 @@ class Compiler:
                                                                "nonexistent.h"):
                 self.fatal("failed to detect nonexistence of <nonexistent.h>"
                            " (%s). Check configuration for %s in %s."
-                           % (tag, self.compiler, cfgf), msg)
+                           % (tag, self.compiler, cfgf))
+
+        # We should be able to tell that the error in this code is on line 3.
+        for conform in (0,1):
+            self.log("smoke test: error on specific line (conform=%d)\n"
+                     % conform)
+            (rc, msg) = self.test_compile("int main(void)\n"
+                                          "{\n"
+                                          "  not_a_type v;\n"
+                                          "  return 0;\n"
+                                          "}",
+                                          conform);
+            # The source file will be the last space-separated token on
+            # the first line of 'msg'.
+            srcf = msg[0].split()[-1]
+            found = 0
+            for line in msg:
+                m = self.errloc_re.search(line)
+                if m and m.group("file") == srcf:
+                    if int(m.group("line")) == 3:
+                        found = 1
+                    else:
+                        self.fatal("error on unexpected line %s. "
+                                   "Check configuration for %s in %s."
+                                   % (m.group(line), self.compiler, cfgf))
+            if not found:
+                self.fatal("failed to detect error on line 3. "
+                           "Check configuration for %s in %s."
+                           % (self.compiler, cfgf))
 
         self.end_test("ok")
 
@@ -1448,7 +1477,7 @@ class Compiler:
             failures.append("")
             failures.extend(msg)
 
-        self.fatal("all %s version tests failed." % label, msg)
+        self.fatal("all %s version tests failed." % label)
 
     def conformance_test(self, cfg, cfgf):
         """Determine the levels of the C, POSIX, and XSI standards to
@@ -1479,7 +1508,7 @@ class Compiler:
             if not self.failure_due_to_nonexistence(msg, "unistd.h"):
                 self.fatal("failed to determine presence of <unistd.h>. "
                            "Check configuration for %s in %s."
-                           % (self.compiler, cfgf), msg)
+                           % (self.compiler, cfgf))
             else:
                 self.end_test("none")
         else:
@@ -1520,17 +1549,18 @@ class Compiler:
         (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;")
         if rc == 0:
             self.end_test("no")
-        if rc != 0 and not self.failure_due_to_nonexistence(msg, "pthread.h"):
-            (rc, msg2) = self.test_compile("#include <pthread.h>\nint dummy;",
-                                           thread=1)
+        elif self.failure_due_to_nonexistence(msg, "pthread.h"):
+            self.end_test("no (it's absent)")
+        else:
+            (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;",
+                                          thread=1)
             if rc == 0:
                 self.test_with_thread_opt = 1
                 self.end_test("yes")
             else:
                 self.fatal("pthread.h exists but cannot be compiled? "
-                           "Check configuration for %s in %s."
-                           % (self.compiler, cfgf),
-                           msg + msg2)
+                           "Check thread configuration for %s in %s."
+                           % (self.compiler, cfgf))
 
     def report(self, outf):
         outf.write("old: %s\n" % self.old_compiler_id(self.base_cmd))
@@ -1557,6 +1587,8 @@ class KnownError:
 
     def output(self, outf):
         outf.write("  $E %s\n" % self.name)
+
+UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0)
 
 class MissingSymbols:
     """A set of symbols missing from a source file."""
@@ -1885,14 +1917,17 @@ class Header:
         if errs is not None:
             cc.log("*** errors detected: %s\n"
                    % " ".join([err.name for err in errs]))
-            # caution vs error is ignored at this point; any problem is fatal.
+            # caution vs error is ignored at this point; all are
+            # treated as catastrophic.
             self.presence = self.BUGGY
             self.errlist[0][0].extend(errs)
             return
 
-        cc.fatal("unrecognized failure mode for <%s>. "
+        cc.error("unrecognized failure mode for <%s>. "
                  "Please investigate and add an entry to %s."
-                 % (self.name, self.dataset.errors_fname), msg)
+                 % (self.name, self.dataset.errors_fname))
+        self.presence = self.BUGGY
+        self.errlist[0][0].append(UnrecognizedError)
 
     def test_depends_1(self, cc, possible_deps, conform, thread):
         failures = []
@@ -1943,9 +1978,11 @@ class Header:
                     self.errlist[0][0].append(e)
             return 0
 
-        cc.fatal("unrecognized failure mode for <%s>. "
+        cc.error("unrecognized failure mode for <%s>. "
                  "Please investigate and add an entry to %s."
-                 % (self.name, self.dataset.errors_fname), msg)
+                 % (self.name, self.dataset.errors_fname))
+        self.presence = self.BUGGY
+        self.errlist[0][0].append(UnrecognizedError)
 
     def test_depends(self, cc):
         if self.depends is not None: return
@@ -2138,22 +2175,26 @@ class Header:
                                          conform=conform, thread=thread)
         if rc == 0:
             self.contents = self.CORRECT
-            return 1
+            return
 
         msg = base_msg
         prev_disabled_tags = []
         while rc != 0:
             if tester.all_disabled():
-                cc.fatal("unrecognized failure mode for <%s> (contents tests). "
-                         "Please investigate." % self.name)
+                # Everything being disabled at the top of the loop means that
+                # we tried to compile a source file with everything disabled
+                # and it _still_ didn't go through.
+                cc.error("unrecognized failure mode for <%s> (contents tests)."
+                         % self.name)
+                self.presence = self.BUGGY
+                self.errlist[0][0].append(UnrecognizedError)
+                return
 
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
             srcf = msg[0].split()[-1]
 
             for line in msg:
-                # No point scanning the dump of the program for error messages.
-                if line == "failed program was:": break
                 m = cc.errloc_re.search(line)
                 if m and m.group("file") == srcf:
                     # The test program is constructed to ensure that
@@ -2165,8 +2206,8 @@ class Header:
 
             disabled_tags = tester.disabled_tags()
             if disabled_tags == prev_disabled_tags:
-                cc.fatal("unrecognized failure mode for <%s> (contents tests). "
-                         "Please investigate." % self.name, msg)
+                cc.error("unrecognized failure mode for <%s> (contents tests)."
+                         % self.name)
             prev_disabled_tags = disabled_tags
 
             buf = LineCounter(StringIO.StringIO())
@@ -2179,9 +2220,11 @@ class Header:
 
         # If we get here, we just had a successful compilation with at
         # least some items disabled.  Annotate accordingly.
-        self.contents = self.INCOMPLETE
+        if tester.all_disabled():
+            self.contents = self.BUGGY
+        else:
+            self.contents = self.INCOMPLETE
         self.annotations.append(MissingSymbols(tester.disabled_tags()))
-        return 1
 
 class Dataset:
     """A Dataset instance represents the totality of information known
@@ -2310,6 +2353,9 @@ if __name__ == '__main__':
             for h in headers:
                 hh = dataset.get_header(h)
                 hh.test(cc)
+
+            if cc.error_occurred:
+                raise SystemExit(1)
 
             kk = dataset.headers.items()
             try:
