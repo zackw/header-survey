@@ -502,6 +502,13 @@ class TestComponent:
             items[k].generate(outf)
         outf.write("\n")
 
+    def disabled_items(self):
+        rv = []
+        for item in self.items.values():
+            if not item.enabled:
+                rv.append(item)
+        return rv
+
 class TestTypes(TestComponent):
     def preprocess(self, items):
         pitems = {}
@@ -851,6 +858,7 @@ class TestProgram:
         self.extra_includes = []
         for k in self.COMPONENTS.keys():
             setattr(self, k, [])
+        self.std_index = {}
 
         self.load(fname)
 
@@ -871,9 +879,19 @@ class TestProgram:
                     raise RuntimeError("%s: [preamble] section cannot be "
                                        "annotated" % fname)
                 self.load_preamble(fname, items)
+            elif std == "":
+                raise RuntimeError("%s: [%s] section must be annotated "
+                                   "with a standard"
+                                   % (fname, what))
             else:
-                getattr(self, what).append(
-                    self.COMPONENTS[what](fname, std, mod, items))
+                if not self.std_index.has_key(std):
+                    self.std_index[std] = {}
+                if not self.std_index[std].has_key(mod):
+                    self.std_index[std][mod] = []
+
+                component = self.COMPONENTS[what](fname, std, mod, items)
+                getattr(self, what).append(component)
+                self.std_index[std][mod].append(component)
 
     def load_preamble(self, fname, items):
         if self.header is None:
@@ -1588,15 +1606,98 @@ class KnownError:
     def output(self, outf):
         outf.write("  $E %s\n" % self.name)
 
+# Stopgap value used to preserve data structure consistency when we
+# hit a failure mode that isn't recognized (e.g. via errors.ini).
 UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0)
 
-class MissingSymbols:
-    """A set of symbols missing from a source file."""
-    def __init__(self, syms):
-        self.syms = syms
+class ContentTestResultCluster:
+    """Data structure object used by ContentTestResult."""
+    def __init__(self, std, mod, symbols):
+        if mod == "":
+            self.category = std
+        else:
+            self.category = std + ":" + mod
+        self.symbols = symbols
+        self.symbols.sort()
+
+    def symbol_list(self):
+        if not self.symbols:
+            return ""
+        return " " + " ".join(self.symbols)
+
+class ContentTestResult:
+    """Results of a test for contents.  Instantiate from a TestProgram
+       instance; walks the data structure and computes the appropriate
+       set of annotations."""
+    def __init__(self, tester):
+        self.missing_items = []
+        self.wrong_items = []
+        self.uncertain_items = []
+
+        CTRC = ContentTestResultCluster
+
+        for std, mods in tester.std_index.items():
+            for mod, components in mods.items():
+
+                missing = {}
+                wrong = {}
+                uncertain = {}
+                all_symbols = {}
+
+                for comp in components:
+                    for item in comp.items.values():
+                        all_symbols[item.tag] = 1
+
+                    disabled = comp.disabled_items()
+
+                    for item in disabled:
+                        if item.missing == 0:
+                            wrong[item.tag] = 1
+                        elif item.missing == 1:
+                            missing[item.tag] = 1
+                        else:
+                            assert item.missing == 2
+                            uncertain[item.tag] = 1
+
+                # A 'missing' item trumps a 'wrong' or 'uncertain' item
+                # with the same tag.
+                for tag in missing.keys():
+                    if wrong.has_key(tag): del wrong[tag]
+                    if uncertain.has_key(tag): del uncertain[tag]
+
+                if (len(missing) + len(wrong) + len(uncertain)
+                    == len(all_symbols)):
+                    # All the symbols in this module are busted
+                    # somehow.  Treat "missing" as collectively
+                    # trumping "wrong" and "uncertain", and "wrong" as
+                    # trumping "uncertain", for compactness' sake.
+                    if missing:
+                        self.missing_items.append(CTRC(std, mod, []))
+                    elif wrong:
+                        self.wrong_items.append(CTRC(std, mod, []))
+                    elif uncertain:
+                        self.uncertain_items.append(CTRC(std, mod, []))
+                else:
+                    if missing:
+                        self.missing_items.append(CTRC(std, mod,
+                                                       missing.keys()))
+                    if wrong:
+                        self.wrong_items.append(CTRC(std, mod,
+                                                     wrong.keys()))
+                    if uncertain:
+                        self.uncertain_items.append(CTRC(std, mod,
+                                                         uncertain.keys()))
 
     def output(self, outf):
-        outf.write("  $M %s\n" % " ".join(self.syms))
+        for cluster in self.missing_items:
+            outf.write("  $M :%s:%s\n" % (cluster.category,
+                                          cluster.symbol_list()))
+        for cluster in self.wrong_items:
+            outf.write("  $W :%s:%s\n" % (cluster.category,
+                                          cluster.symbol_list()))
+        for cluster in self.uncertain_items:
+            outf.write("  $X :%s:%s\n" % (cluster.category,
+                                           cluster.symbol_list()))
 
 class SpecialDependency:
     """Used to represent [special] dependencies from prereqs.ini.
@@ -2224,7 +2325,7 @@ class Header:
             self.contents = self.BUGGY
         else:
             self.contents = self.INCOMPLETE
-        self.annotations.append(MissingSymbols(tester.disabled_tags()))
+        self.annotations.append(ContentTestResult(tester))
 
 class Dataset:
     """A Dataset instance represents the totality of information known
