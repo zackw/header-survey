@@ -1896,12 +1896,13 @@ class Header:
             # unknown/absent/buggy exclude all other indicators.
             return self.presence
         else:
+            assert self.depends is not None
+
             caution = (self.conflict or
                        self.caution[0][0] or self.caution[0][1] or
                        self.caution[1][0] or self.caution[1][1])
 
-            if (self.contents == self.PRESENT or
-                self.contents == self.UNKNOWN):
+            if self.contents == self.PRESENT:
                 if        caution: return self.PRES_CAU
                 elif self.depends: return self.PRES_DEP
                 else:              return self.PRESENT
@@ -2047,10 +2048,11 @@ class Header:
         if already is not None: already[self.name] = 1
 
     def test(self, cc):
-        """Perform all basic checks on this header.  This blindly calls
-           itself on other header objects, and so must be idempotent.
+        """Perform all checks on this header in isolation (up to
+           dependencies).  This blindly calls itself on other header
+           objects, and so must be idempotent.
 
-           Conflict and content tests are done later, from the dataset."""
+           Conflict checking is done in a second pass, by the dataset."""
 
         if self.presence != self.UNKNOWN: return
 
@@ -2062,6 +2064,7 @@ class Header:
 
         self.test_presence(cc)
         self.test_depends(cc)
+        self.test_contents(cc)
         self.log_report(cc)
 
         cc.end_test(self.state_label().lower())
@@ -2096,6 +2099,10 @@ class Header:
             for h in candidate_set:
                 h.gen_includes(buf, conform, thread)
             buf.write("#include <%s>\n" % self.name)
+            # As a sanity check, confirm that this header can be
+            # included twice in a row.  Failures of this check are
+            # rare and handled via errors.ini.
+            buf.write("#include <%s>\n" % self.name)
             buf.write("int avoid_empty_translation_unit;")
 
             (rc, msg) = cc.test_compile(buf.getvalue(),
@@ -2103,21 +2110,7 @@ class Header:
                                         thread=thread)
             if rc == 0:
                 self.deplist[conform][thread] = candidate_set
-
-                # As a further sanity check, confirm that this header can
-                # be included twice in a row, after all its dependencies.
-                buf.seek(0)
-                self.gen_includes(buf, conform, thread) # this includes us once
-                buf.write("#include <%s>\n" % self.name) # do it again
-                buf.write("int avoid_empty_translation_unit;")
-
-                (rc, msg) = cc.test_compile(buf.getvalue(),
-                                            conform=conform,
-                                            thread=thread)
-                if rc != 0:
-                    self.record_errors(cc, msg, conform, thread)
-
-                return 1
+                return
 
             if len(failures) > 0: failures.append("")
             failures.extend(msg)
@@ -2312,16 +2305,17 @@ class Header:
         else:
             cc.end_test("ok")
 
-    def test_contents(self, cc, tester):
+    def test_contents(self, cc):
         if self.presence != self.PRESENT: return
         if self.contents != self.UNKNOWN: return
 
-        cc.begin_test(self.name)
-        self.test_contents_internal(cc, tester)
-        self.log_report(cc)
-        cc.end_test(self.state_label().lower())
+        if not self.dataset.decltests.has_key(self.name):
+            cc.log("no contents test available for %s\n" % self.name)
+            self.contents = self.PRESENT
+            return
 
-    def test_contents_internal(self, cc, tester):
+        tester = self.dataset.decltests[self.name]
+
         # Contents tests are done only in the preferred mode.
         (conform, thread) = self.pref_mode
         cc.log("contents test for %s in mode %s\n" %
@@ -2496,12 +2490,6 @@ class Dataset:
         for h in self.headers.values():
             h.test_conflict(cc)
 
-    def content_test(self, cc):
-        sys.stderr.write("Testing contents:\n")
-        for h in self.headers.values():
-            if self.decltests.has_key(h.name):
-                h.test_contents(cc, self.decltests[h.name])
-
 if __name__ == '__main__':
     def usage(argv):
         raise SystemExit("usage: %s (compiler_id|header.h...) "
@@ -2540,7 +2528,6 @@ if __name__ == '__main__':
                 hh.test(cc)
 
             dataset.conflict_test(cc)
-            dataset.content_test(cc)
 
             if cc.error_occurred:
                 raise SystemExit(1)
