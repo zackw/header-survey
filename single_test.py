@@ -1101,7 +1101,7 @@ class Compiler:
     def begin_test(self, msg):
         self.log("Begin test: %s\n" % msg)
         sys.stderr.write(msg)
-        sys.stderr.write("...")
+        sys.stderr.write("..")
         sys.stderr.flush()
         self.need_cr = 1
 
@@ -1896,15 +1896,12 @@ class Header:
             # unknown/absent/buggy exclude all other indicators.
             return self.presence
         else:
-            # Confirm we have done all the tests.
-            assert self.depends is not None
-            assert self.conflict is not None
-
             caution = (self.conflict or
                        self.caution[0][0] or self.caution[0][1] or
                        self.caution[1][0] or self.caution[1][1])
 
-            if self.contents == self.PRESENT:
+            if (self.contents == self.PRESENT or
+                self.contents == self.UNKNOWN):
                 if        caution: return self.PRES_CAU
                 elif self.depends: return self.PRES_DEP
                 else:              return self.PRESENT
@@ -2027,15 +2024,33 @@ class Header:
             if not found:
                 ll.append(e)
 
-    def gen_includes(self, outf, conform, thread):
+    def record_errors(self, cc, msg, conform, thread, ignore_unknown=0):
+        errs = self.dataset.is_known_error(msg, self.name)
+        if errs is not None:
+            cc.log("*** errors detected: %s\n"
+                   % " ".join([err.name for err in errs]))
+            self.extend_errlist(conform, thread, errs)
+        else:
+            if ignore_unknown: return
+
+            cc.error("unrecognized failure mode for <%s>. "
+                     "Please investigate and add an entry to %s."
+                     % (self.name, self.dataset.errors_fname))
+            self.extend_errlist(0, 0, [UnrecognizedError])
+
+    def gen_includes(self, outf, conform, thread, already=None):
         if self.presence != self.PRESENT: return
+        if already is not None and already.has_key(self.name): return
         for h in self.deplist[conform][thread]:
             h.gen_includes(outf, conform, thread)
         outf.write("#include <%s>\n" % self.name)
+        if already is not None: already[self.name] = 1
 
     def test(self, cc):
-        """Perform all checks on this header.  This blindly calls
-           itself on other header objects, and so must be idempotent."""
+        """Perform all basic checks on this header.  This blindly calls
+           itself on other header objects, and so must be idempotent.
+
+           Conflict and content tests are done later, from the dataset."""
 
         if self.presence != self.UNKNOWN: return
 
@@ -2047,8 +2062,6 @@ class Header:
 
         self.test_presence(cc)
         self.test_depends(cc)
-        self.test_conflict(cc)
-        self.test_contents(cc)
         self.log_report(cc)
 
         cc.end_test(self.state_label().lower())
@@ -2065,20 +2078,10 @@ class Header:
             self.presence = self.ABSENT
             return
 
-        errs = self.dataset.is_known_error(msg, self.name)
-        if errs is not None:
-            cc.log("*** errors detected: %s\n"
-                   % " ".join([err.name for err in errs]))
-            # caution vs error is ignored at this point; all are
-            # treated as catastrophic.
-            self.presence = self.BUGGY
-            self.extend_errlist(0, 0, errs)
-            return
-
-        cc.error("unrecognized failure mode for <%s>. "
-                 "Please investigate and add an entry to %s."
-                 % (self.name, self.dataset.errors_fname))
-        self.extend_errlist(0, 0, [UnrecognizedError])
+        # caution vs error is ignored at this point; all failures are
+        # treated as catastrophic.
+        self.record_errors(cc, msg, conform=0, thread=0)
+        self.presence = self.BUGGY
 
     def test_depends_1(self, cc, possible_deps, conform, thread):
         failures = []
@@ -2100,6 +2103,20 @@ class Header:
                                         thread=thread)
             if rc == 0:
                 self.deplist[conform][thread] = candidate_set
+
+                # As a further sanity check, confirm that this header can
+                # be included twice in a row, after all its dependencies.
+                buf.seek(0)
+                self.gen_includes(buf, conform, thread) # this includes us once
+                buf.write("#include <%s>\n" % self.name) # do it again
+                buf.write("int avoid_empty_translation_unit;")
+
+                (rc, msg) = cc.test_compile(buf.getvalue(),
+                                            conform=conform,
+                                            thread=thread)
+                if rc != 0:
+                    self.record_errors(cc, msg, conform, thread)
+
                 return 1
 
             if len(failures) > 0: failures.append("")
@@ -2109,17 +2126,7 @@ class Header:
         # Look for a known bug in the last set of messages, which will be
         # the maximal dependency set and therefore the least likely to have
         # problems.
-        errs = self.dataset.is_known_error(msg, self.name)
-        if errs is not None:
-            cc.log("*** errors detected: %s\n"
-                   % " ".join([err.name for err in errs]))
-            self.extend_errlist(conform, thread, errs)
-            return
-
-        cc.error("unrecognized failure mode for <%s>. "
-                 "Please investigate and add an entry to %s."
-                 % (self.name, self.dataset.errors_fname))
-        self.extend_errlist(0, 0, [UnrecognizedError])
+        self.record_errors(cc, msg, conform, thread)
 
     def test_depends(self, cc):
         if self.depends is not None: return
@@ -2164,12 +2171,20 @@ class Header:
         else:
             # There is no mode without problems.
             self.presence = self.BUGGY
-        return
 
     # Conflict testing is quite algorithmically sophisticated, because
     # the wall-clock performance of this script is dominated by
     # compiler invocations, and a naive conflict tester requires
-    # O(N^2) invocations, with N the number of header files in the survey.
+    # O(N^2) invocations, with N the number of header files in the
+    # survey.  Furthermore, conflicts may only be visible in one
+    # direction: for instance, a macro defined in one header might
+    # conflict with the declarations in another header, but if they're
+    # included in the opposite order, the problem will only manifest
+    # when you try to _use_ the conflicting item.  This is adequately
+    # handled by running all the conflict tests in a batch after the
+    # complete set of 'present' headers is known (so every header has
+    # a chance to appear below all the others) but that makes the
+    # testing even more expensive.
     #
     # The algorithm below clusters headers into maximal groups that
     # can be tested together; even in the presence of known conflicts,
@@ -2191,9 +2206,10 @@ class Header:
         # Can we compile a source file that includes all of OTHERS,
         # and then this source file?
         buf = StringIO.StringIO()
+        already = {}
         for h in others:
-            h.gen_includes(buf, conform, thread)
-        self.gen_includes(buf, conform, thread)
+            h.gen_includes(buf, conform, thread, already)
+        self.gen_includes(buf, conform, thread, already)
         buf.write("int avoid_empty_translation_unit;")
         cc.log("conflict test %s mode %s: candidate set %d member%s\n"
                % (self.name, ct(conform, thread),
@@ -2226,13 +2242,12 @@ class Header:
 
         # Compute a list of every other known header whose dependencies
         # have been calculated and which is compatible with this
-        # compilation mode.  Include self explicitly in this list
-        # (we want to know if a header fails when included twice).
-        others = [self]
+        # compilation mode.
+        others = []
         for h in self.dataset.headers.values():
-            if   (h != self and h.presence == h.PRESENT and
-                  h.depends is not None and
-                  not h.caution[conform][thread]):
+            if (h != self and h.presence == h.PRESENT and
+                h.depends is not None and
+                not h.caution[conform][thread]):
                 others.append(h)
 
         # Greedily partition 'others' into maximal clusters containing
@@ -2283,27 +2298,34 @@ class Header:
         if self.presence != self.PRESENT: return
         if self.conflict is not None: return
 
+        cc.begin_test(self.name)
+
         self.test_conflict_mode(cc, conform=0, thread=0)
         self.test_conflict_mode(cc, conform=1, thread=0)
         if cc.test_with_thread_opt:
             self.test_conflict_mode(cc, conform=0, thread=1)
             self.test_conflict_mode(cc, conform=1, thread=1)
 
-    def test_contents(self, cc):
+        self.log_report(cc)
+        if self.conflict:
+            cc.end_test("conflict")
+        else:
+            cc.end_test("ok")
+
+    def test_contents(self, cc, tester):
         if self.presence != self.PRESENT: return
         if self.contents != self.UNKNOWN: return
 
-        if not self.dataset.decltests.has_key(self.name):
-            cc.log("no contents test available for %s\n" % self.name)
-            self.contents = self.PRESENT
-            return
+        cc.begin_test(self.name)
+        self.test_contents_internal(cc, tester)
+        self.log_report(cc)
+        cc.end_test(self.state_label().lower())
 
+    def test_contents_internal(self, cc, tester):
         # Contents tests are done only in the preferred mode.
         (conform, thread) = self.pref_mode
         cc.log("contents test for %s in mode %s\n" %
                (self.name, ct(conform, thread)))
-
-        tester = self.dataset.decltests[self.name]
 
         buf = LineCounter(StringIO.StringIO())
         self.gen_includes(buf, conform, thread)
@@ -2326,13 +2348,11 @@ class Header:
                 self.extend_errlist(0, 0, [UnrecognizedError])
                 return
 
-            # Record any known errors (for instance, a macro might trigger
-            # the infamous legacy_type_decls).
-            errs = self.dataset.is_known_error(msg, self.name)
-            if errs is not None:
-                cc.log("*** errors detected: %s\n"
-                       % " ".join([err.name for err in errs]))
-                self.extend_errlist(conform, thread, errs)
+            # Record any known errors (for instance, a macro might
+            # trigger the infamous legacy_type_decls).  Do not record
+            # unknown errors; they are probably from the test code,
+            # not the header.
+            self.record_errors(cc, msg, conform, thread, ignore_unknown=1)
 
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
@@ -2471,6 +2491,17 @@ class Dataset:
             return errs.values()
         return None
 
+    def conflict_test(self, cc):
+        sys.stderr.write("Testing for conflicts:\n")
+        for h in self.headers.values():
+            h.test_conflict(cc)
+
+    def content_test(self, cc):
+        sys.stderr.write("Testing contents:\n")
+        for h in self.headers.values():
+            if self.decltests.has_key(h.name):
+                h.test_contents(cc, self.decltests[h.name])
+
 if __name__ == '__main__':
     def usage(argv):
         raise SystemExit("usage: %s (compiler_id|header.h...) "
@@ -2507,6 +2538,9 @@ if __name__ == '__main__':
             for h in headers:
                 hh = dataset.get_header(h)
                 hh.test(cc)
+
+            dataset.conflict_test(cc)
+            dataset.content_test(cc)
 
             if cc.error_occurred:
                 raise SystemExit(1)
