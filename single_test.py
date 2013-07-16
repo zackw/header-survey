@@ -76,7 +76,7 @@ def delete_if_exists(fname):
     """Delete FNAME; do not raise an exception if FNAME already
        doesn't exist.  Used to clean up files that may or may not
        have been created by a compile invocation."""
-    if fname is None:
+    if fname is None or fname == "":
         return
     try:
         os.remove(fname)
@@ -2269,7 +2269,7 @@ class Header:
         elif result.badness == 1:
             # Some required items are missing.
             self.contents = self.INCOMPLETE
-            self.caution[conform][thread] = 1
+            self.caution[conform][thread] = 2
         else:
             # _All_ items are missing.
             assert result.badness == 2
@@ -2317,6 +2317,9 @@ class ConflictMatrix:
             self.matrix[h.name] = {}
             for hh in headers:
                 self.matrix[h.name][hh.name] = int(hh is h)
+        # This has to be done in a second pass so the table is
+        # fully constructed.
+        for h in headers:
             self.note_dependencies(h, h)
 
         self.all_headers = sorthdr(self.header_object.keys())
@@ -2409,8 +2412,9 @@ class ConflictMatrix:
         eset = []
         already = {}
         for h in tset:
-            eset.extend(self.header_object[h]
-                        .gen_includes(self.conform, self.thread, already))
+            if self.header_object.has_key(h):
+                eset.extend(self.header_object[h]
+                            .gen_includes(self.conform, self.thread, already))
 
         cc.log("conflict extended set: %s\n" % " ".join(eset))
 
@@ -2659,7 +2663,7 @@ class Dataset:
         headers = []
         for h in self.headers.values():
             if h.presence != h.PRESENT: continue
-            if h.caution[conform][thread]: continue
+            if h.caution[conform][thread] == 1: continue
             assert h.depends is not None
             headers.append(h)
 
