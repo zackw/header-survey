@@ -1110,6 +1110,14 @@ class Compiler:
         sys.stderr.flush()
         self.need_cr = 1
 
+    def progress_note(self, msg):
+        self.log(msg)
+        if self.need_cr:
+            sys.stderr.write("\n")
+        sys.stderr.write(msg)
+        sys.stderr.flush()
+        self.need_cr = (msg[-1] != '\n')
+
     def end_test(self, msg):
         self.log("Test complete: %s\n" % msg)
         sys.stderr.write(" ")
@@ -1451,17 +1459,17 @@ class Compiler:
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
             srcf = msg[0].split()[-1]
-            found = 0
+
             for line in msg:
                 m = self.errloc_re.search(line)
                 if m and m.group("file") == srcf:
                     if int(m.group("line")) == 3:
-                        found = 1
+                        break
                     else:
                         self.fatal("error on unexpected line %s. "
                                    "Check configuration for %s in %s."
                                    % (m.group(line), self.compiler, cfgf))
-            if not found:
+            else:
                 self.fatal("failed to detect error on line 3. "
                            "Check configuration for %s in %s."
                            % (self.compiler, cfgf))
@@ -1736,9 +1744,8 @@ class SpecialDependency:
         self.text = text
         self.presence = self.PRESENT
 
-    def gen_includes(self, outf, conform, thread):
-        outf.write(self.text)
-        outf.write("\n")
+    def gen_includes(self, conform, thread, already=None):
+        return [self.text]
 
     def test(self, cc):
         pass
@@ -2006,7 +2013,6 @@ class Header:
         l1 = self.errlist[conform][thread]
 
         for e in errs:
-            found = 0
             if e.caution:
                 self.caution[conform][thread] = 1
                 ll = l1
@@ -2018,11 +2024,11 @@ class Header:
                 # compiler only catches it with warnings on).
                 self.presence = self.BUGGY
                 ll = l0
+
             for x in ll:
                 if x.name == e.name:
-                    found = 1
                     break
-            if not found:
+            else:
                 ll.append(e)
 
     def record_errors(self, cc, msg, conform, thread, ignore_unknown=0):
@@ -2039,13 +2045,25 @@ class Header:
                      % (self.name, self.dataset.errors_fname))
             self.extend_errlist(0, 0, [UnrecognizedError])
 
-    def gen_includes(self, outf, conform, thread, already=None):
-        if self.presence != self.PRESENT: return
-        if already is not None and already.has_key(self.name): return
+    def record_conflict(self, other, conform, thread):
+        self.conflict = 1
+        for hh in self.conflist[conform][thread]:
+            if hh is other:
+                break
+        else:
+            self.conflist[conform][thread].append(other)
+
+    def gen_includes(self, conform, thread, already=None):
+        if self.presence != self.PRESENT: return []
+        if already is not None:
+            if already.has_key(self.name): return []
+            already[self.name] = 1
+
+        rv = []
         for h in self.deplist[conform][thread]:
-            h.gen_includes(outf, conform, thread)
-        outf.write("#include <%s>\n" % self.name)
-        if already is not None: already[self.name] = 1
+            rv.extend(h.gen_includes(conform, thread, already))
+        rv.append(self.name)
+        return rv
 
     def test(self, cc):
         """Perform all checks on this header in isolation (up to
@@ -2095,17 +2113,20 @@ class Header:
             cc.log("dependency test %s mode %s candidates: [%s]\n" %
                    (self.name, ct(conform, thread),
                     " ".join([h.name for h in candidate_set])))
-            buf = StringIO.StringIO()
+
+            includes = []
+            already = {}
             for h in candidate_set:
-                h.gen_includes(buf, conform, thread)
-            buf.write("#include <%s>\n" % self.name)
+                includes.extend(h.gen_includes(conform, thread, already))
+            includes = ["#include <%s>" % h for h in includes]
+
             # As a sanity check, confirm that this header can be
             # included twice in a row.  Failures of this check are
             # rare and handled via errors.ini.
-            buf.write("#include <%s>\n" % self.name)
-            buf.write("int avoid_empty_translation_unit;")
+            includes.append("#include <%s>\n" % self.name)
+            includes.append("int avoid_empty_translation_unit;")
 
-            (rc, msg) = cc.test_compile(buf.getvalue(),
+            (rc, msg) = cc.test_compile("\n".join(includes),
                                         conform=conform,
                                         thread=thread)
             if rc == 0:
@@ -2165,146 +2186,6 @@ class Header:
             # There is no mode without problems.
             self.presence = self.BUGGY
 
-    # Conflict testing is quite algorithmically sophisticated, because
-    # the wall-clock performance of this script is dominated by
-    # compiler invocations, and a naive conflict tester requires
-    # O(N^2) invocations, with N the number of header files in the
-    # survey.  Furthermore, conflicts may only be visible in one
-    # direction: for instance, a macro defined in one header might
-    # conflict with the declarations in another header, but if they're
-    # included in the opposite order, the problem will only manifest
-    # when you try to _use_ the conflicting item.  This is adequately
-    # handled by running all the conflict tests in a batch after the
-    # complete set of 'present' headers is known (so every header has
-    # a chance to appear below all the others) but that makes the
-    # testing even more expensive.
-    #
-    # The algorithm below clusters headers into maximal groups that
-    # can be tested together; even in the presence of known conflicts,
-    # only two clusters are typically needed, so headers without
-    # conflicts of their own can be disposed of in at most two
-    # compilations per mode.  When a new conflict must be diagnosed,
-    # we use binary divide-and-conquer to find the problem in O(lg N)
-    # compilations.
-
-    def test_conflict_r(self, cc, conform, thread, others):
-        """Divide-and-conquer recursive worker for conflict testing.
-           Returns a list of headers found to conflict with self."""
-
-        # Degenerate case: if the list is empty, there is nothing to
-        # do.  (This can happen for instance when there are no
-        # 'conflicted' headers.)
-        if len(others) == 0: return others
-
-        # Can we compile a source file that includes all of OTHERS,
-        # and then this source file?
-        buf = StringIO.StringIO()
-        already = {}
-        for h in others:
-            h.gen_includes(buf, conform, thread, already)
-        self.gen_includes(buf, conform, thread, already)
-        buf.write("int avoid_empty_translation_unit;")
-        cc.log("conflict test %s mode %s: candidate set %d member%s\n"
-               % (self.name, ct(conform, thread),
-                  len(others), plural(len(others))))
-        (rc, msg) = cc.test_compile(buf.getvalue(),
-                                    conform=conform, thread=thread)
-
-        # Success case: no conflicts among OTHERS.
-        if rc == 0:
-            return []
-
-        # Terminating case: if OTHERS has only a single element, we have
-        # identified a pairwise conflict with self.
-        if len(others) == 1:
-            cc.log("*** conflict identified: %s with %s\n"
-                   % (self.name, others[0].name))
-            return others[:]
-
-        # Split OTHERS into two halves and recurse.
-        mid = floordiv(len(others), 2)
-        cf = self.test_conflict_r(cc, conform, thread, others[:mid])
-        cf.extend(self.test_conflict_r(cc, conform, thread, others[mid:]))
-        return cf
-
-    def test_conflict_mode(self, cc, conform, thread):
-        if self.caution[conform][thread]:
-            cc.log("conflict test %s mode %s skipped due to caution\n"
-                   % (self.name, ct(conform, thread)))
-            return
-
-        # Compute a list of every other known header whose dependencies
-        # have been calculated and which is compatible with this
-        # compilation mode.
-        others = []
-        for h in self.dataset.headers.values():
-            if (h != self and h.presence == h.PRESENT and
-                h.depends is not None and
-                not h.caution[conform][thread]):
-                others.append(h)
-
-        # Greedily partition 'others' into maximal clusters containing
-        # no internal conflicts; test each such cluster for conflicts
-        # with self, by divide-and-conquer.
-        conflicts = []
-        while len(others) > 0:
-            p_cur = [others.pop()]
-            p_later = []
-            reject = { p_cur[0].name : 1 }
-
-            for h in others:
-                rejected = 0
-                for c in h.conflist[conform][thread]:
-                    if reject.has_key(c.name):
-                        rejected = 1
-                        break
-                if rejected:
-                    p_later.append(h)
-                else:
-                    p_cur.append(h)
-                    reject[h.name] = 1
-
-            conflicts.extend(self.test_conflict_r(cc, conform, thread, p_cur))
-            others = p_later
-
-        if len(conflicts) == 0:
-            if self.conflict is None:
-                self.conflict = 0
-            return
-
-        self.conflict = 1
-        assert len(self.conflist[conform][thread]) == 0
-        self.conflist[conform][thread] = conflicts
-
-        # Conflicts are mutual; annotate the other headers as well.
-        for h in conflicts:
-            h.conflict = 1
-            found = 0
-            for hh in h.conflist[conform][thread]:
-                if hh is self:
-                    found = 1
-                    break
-            if not found:
-                h.conflist[conform][thread].append(self)
-
-    def test_conflict(self, cc):
-        if self.presence != self.PRESENT: return
-        if self.conflict is not None: return
-
-        cc.begin_test(self.name)
-
-        self.test_conflict_mode(cc, conform=0, thread=0)
-        self.test_conflict_mode(cc, conform=1, thread=0)
-        if cc.test_with_thread_opt:
-            self.test_conflict_mode(cc, conform=0, thread=1)
-            self.test_conflict_mode(cc, conform=1, thread=1)
-
-        self.log_report(cc)
-        if self.conflict:
-            cc.end_test("conflict")
-        else:
-            cc.end_test("ok")
-
     def test_contents(self, cc):
         if self.presence != self.PRESENT: return
         if self.contents != self.UNKNOWN: return
@@ -2322,7 +2203,8 @@ class Header:
                (self.name, ct(conform, thread)))
 
         buf = LineCounter(StringIO.StringIO())
-        self.gen_includes(buf, conform, thread)
+        buf.writelines(["#include <%s>\n" % h
+                        for h in self.gen_includes(conform, thread)])
         tester.generate(buf)
         (rc, base_msg) = cc.test_compile(buf.getvalue(),
                                          conform=conform, thread=thread)
@@ -2370,7 +2252,8 @@ class Header:
             prev_disabled_tags = disabled_tags
 
             buf = LineCounter(StringIO.StringIO())
-            self.gen_includes(buf, conform, thread)
+            buf.writelines(["#include <%s>\n" % h
+                            for h in self.gen_includes(conform, thread)])
             tester.generate(buf)
             cc.log("retry contents test for %s (mode %s)\n" %
                    (self.name, ct(conform, thread)))
@@ -2393,6 +2276,271 @@ class Header:
             self.presence = self.BUGGY
 
         self.content_results = result
+
+class ConflictMatrix:
+    """Data structure used by the conflict tester.  Provides a canonical
+       ordering of the headers, and records which pairs have already been
+       tested against each other in matrix format:
+
+           A B C .. Z
+         A 1 0 0    0
+         B 0 1 0    0
+         C 0 0 1    0
+         :
+         Z 0 0 0    1
+
+       bit [X][Y] is 1 if #include <X.h> followed by #include <Y.h>
+       provokes no error, 2 if it does provoke an error, and 0 if this
+       pair has not yet been tested.  Note that [X][Y]==1 *does not*
+       imply [Y][X]==1; there are real systems where a conflict
+       between X and Y only provokes an error in one of the two
+       possible orderings.  However, [X][Y]==2 *does* imply [Y][X]==2,
+       and we will go back and correct 1 to 2 if appropriate.
+
+       The initial state of this matrix has 1s on the main diagonal
+       and 0 everywhere else, because conflicts with self (can't
+       include the same header twice) have been dealt with already and
+       we don't need to track them.  (They're vanishingly rare, anyway.)
+
+       Much of the algorithmic complexity of the conflict tester boils
+       down to being able to fill in huge blocks of this matrix with
+       each successful compilation."""
+
+    def __init__(self, headers, conform, thread):
+        self.debug = 0
+        self.conform = conform
+        self.thread = thread
+        self.header_object = {}
+        self.matrix = {}
+        for h in headers:
+            self.header_object[h.name] = h
+            self.matrix[h.name] = {}
+            for hh in headers:
+                self.matrix[h.name][hh.name] = int(hh is h)
+            self.note_dependencies(h, h)
+
+        self.all_headers = sorthdr(self.header_object.keys())
+
+    def note_dependencies(self, baseh, h):
+        for hh in h.deplist[self.conform][self.thread]:
+            # It is impossible to include baseh before hh, and it is
+            # mandatory to include hh before baseh.  Therefore there
+            # is no point testing either way.  Do not mark the
+            # impossible direction as a conflict, because that would
+            # be an asymmetric 2 and the assertions below might get
+            # confused.
+            self.matrix[baseh.name][hh.name] = 1
+            self.matrix[hh.name][baseh.name] = 1
+            # Consider transitive dependencies also.
+            self.note_dependencies(baseh, hh)
+
+    def log_matrix(self, cc, msg):
+        if not self.debug: return
+        # U+00A0 NO-BREAK SPACE, U+2592 MEDIUM SHADE, U+2588 FULL BLOCK
+        codes = [ "\xc2\xa0", "\xe2\x96\x92", "\xe2\x96\x88" ]
+        lines = []
+        for r in self.all_headers:
+            lines.append("".join([codes[self.matrix[r][c]]
+                                  for c in self.all_headers]))
+        cc.log(msg, lines)
+
+    def check_completely_done(self, cc):
+        # Determine whether we are completely done with any headers.
+        # If we are, remove them from the set of headers still of
+        # interest (but not the conflict matrix) and reset the
+        # divide-and-conquer queue.
+        dropped = 0
+        headers = self.header_object.keys()
+        for x in headers:
+            for y in headers:
+                if self.matrix[x][y] == 0 or self.matrix[y][x] == 0:
+                    break
+            else:
+                dropped = 1
+                cc.log("conflict test: done with %s\n" % x)
+                del self.header_object[x]
+        if dropped:
+            self.queue = []
+
+    def record_conflict(self, cc, x, y):
+        # We have identified a pairwise conflict.
+        assert 0 <= self.matrix[x][y] < 2
+        assert 0 <= self.matrix[y][x] < 2
+        self.matrix[x][y] = 2
+        self.matrix[y][x] = 2
+        self.log_matrix(cc, "conflict trial fail\n")
+
+        xx = self.header_object[x]
+        yy = self.header_object[y]
+        xx.record_conflict(yy, self.conform, self.thread)
+        yy.record_conflict(xx, self.conform, self.thread)
+        cc.progress_note("*** conflict identified: %s with %s\n"
+                         % (x, y))
+
+    def record_ok(self, cc, tested):
+        # For each header in the tested set, mark every header after
+        # that header as ok after that header.
+        for i in range(len(tested)):
+            x = tested[i]
+            for j in range(i+1, len(tested)):
+                y = tested[j]
+
+                assert self.matrix[x][y] != 2
+                assert self.matrix[y][x] != 2
+                self.matrix[x][y] = 1
+        self.log_matrix(cc, "conflict trial ok\n")
+
+    def test_conflict_set(self, cc, cand):
+        cc.log("conflict candidate set: %s\n" % " ".join(cand))
+        tset = []
+        for i in range(len(cand)):
+            # If there is a known conflict of cand[i] with
+            # cand[j] for any j < i, discard cand[i].
+            for j in range(i):
+                if self.matrix[cand[j]][cand[i]] == 2:
+                    break
+            else:
+                tset.append(cand[i])
+        if len(tset) < 2:
+            return (1, tset)
+
+        cc.log("conflict trial set: %s\n" % " ".join(tset))
+
+        eset = []
+        already = {}
+        for h in tset:
+            eset.extend(self.header_object[h]
+                        .gen_includes(self.conform, self.thread, already))
+
+        cc.log("conflict extended set: %s\n" % " ".join(eset))
+
+        includes = ["#include <%s>" % h for h in eset]
+        includes.append("int avoid_empty_translation_unit;")
+
+        (rc, msg) = cc.test_compile("\n".join(includes),
+                                    conform=self.conform,
+                                    thread=self.thread)
+        return (rc == 0, eset)
+
+    def find_single_conflict(self, cc, tset):
+        # Binary search the end of the list for the earliest position
+        # that has a conflict, filling in successes as we go.  Memoize
+        # (lo, hi) pairs we've already tested so we don't repeat work.
+        memo = { (0, len(tset)) : 0 }
+
+        hi = floordiv(len(tset), 2)
+        delta = hi
+        prev_conflict = 1
+        while 1:
+            prev_delta = delta
+            delta = max(1, floordiv(delta, 2))
+            try:
+                result = memo[(0, hi)]
+            except KeyError:
+                (result, tested) = self.test_conflict_set(cc, tset[:hi])
+                memo[(0, hi)] = result
+                if result:
+                    self.record_ok(cc, tested)
+                else:
+                    cc.log("conflict trial fail\n")
+            if result:
+                if prev_conflict and prev_delta == 1:
+                    hi += 1
+                    break
+
+                hi += delta
+                prev_conflict = 0
+            else:
+                if not prev_conflict and prev_delta == 1:
+                    break
+
+                hi -= delta
+                prev_conflict = 1
+
+        # Similarly, for the beginning of the list.  Note moving lo in the
+        # opposite direction from hi on success or failure.
+        lo = floordiv(hi, 2)
+        delta = lo
+        prev_conflict = 1
+        while 1:
+            prev_delta = delta
+            delta = max(1, floordiv(delta, 2))
+            try:
+                result = memo[(lo, hi)]
+            except KeyError:
+                (result, tested) = self.test_conflict_set(cc, tset[lo:hi])
+                memo[(lo, hi)] = result
+                if result:
+                    self.record_ok(cc, tested)
+                else:
+                    cc.log("conflict trial fail\n")
+            if result:
+                if prev_conflict and prev_delta == 1:
+                    lo -= 1
+                    break
+
+                lo -= delta
+                prev_conflict = 0
+            else:
+                if not prev_conflict and prev_delta == 1:
+                    break
+
+                lo += delta
+                prev_conflict = 1
+
+        # The test set cannot be made any shorter without eliminating
+        # the conflict.  We deduce that there is a conflict between
+        # tset[lo] and tset[hi-1].  Verify this.
+        (result, tested) = self.test_conflict_set(cc, [tset[lo], tset[hi-1]])
+        if not result:
+            self.record_conflict(cc, tset[lo], tset[hi-1])
+        else:
+            cc.fatal("No conflict between %s and %s, but "
+                     "conflict among [%s].  Please investigate."
+                     % (tset[lo], tset[hi-1], ", ".join(tset[lo:hi])))
+
+    def find_conflicts(self, cc):
+        cand = self.all_headers
+        while 1:
+            (result, tested) = self.test_conflict_set(cc, cand)
+            if result:
+                self.record_ok(cc, tested)
+                tested.reverse()
+                (result, tested) = self.test_conflict_set(cc, tested)
+                if result:
+                    self.record_ok(cc, tested)
+
+            if not result:
+                self.find_single_conflict(cc, tested)
+
+            self.check_completely_done(cc)
+            if len(self.header_object) < 2:
+                return None # done
+
+            # Sort headers in ascending order of number of headers
+            # already tested against.
+            hs = [(reduce(lambda x,y: x+y, self.matrix[h].values()), h)
+                  for h in self.header_object.keys()]
+            hs.sort()
+
+            # Then randomize the order within
+            # each contiguous range.  (N.B. sort() only became stable in
+            # 2.3, and key= was only added in 2.4.)
+            #hh = []
+            #run = []
+            #prev = None
+            #for h in hs:
+            #    if prev is None:
+            #        prev = h[0]
+            #    elif prev != h[0]:
+            #        random.shuffle(run)
+            #        hh.extend(run)
+            #        run = []
+            #        prev = h[0]
+            #    run.append(h[1])
+            #random.shuffle(run)
+            #hh.extend(run)
+            cand = [h[1] for h in hs]
 
 class Dataset:
     """A Dataset instance represents the totality of information known
@@ -2485,10 +2633,40 @@ class Dataset:
             return errs.values()
         return None
 
-    def conflict_test(self, cc):
-        sys.stderr.write("Testing for conflicts:\n")
+    def test_conflicts(self, cc):
+        """Conflict testing is done _en masse_ after all available
+           headers have been identified, for two reasons.  First, on
+           some systems conflicts between two headers are only evident
+           (provoke a compiler error) in one of the two possible #include
+           orders.  Second, conflict testing is more expensive than all the
+           rest of the tests put together.  We have gone to considerable
+           algorithmic effort to minimize the number of compiler invocations
+           required, and the algorithm is most efficient when operating on
+           large batches of headers (assuming conflicts are rare)."""
+
+        self.test_conflict_mode(cc, conform=0, thread=0)
+        self.test_conflict_mode(cc, conform=1, thread=0)
+        if cc.test_with_thread_opt:
+            self.test_conflict_mode(cc, conform=0, thread=1)
+            self.test_conflict_mode(cc, conform=1, thread=1)
+
+    def test_conflict_mode(self, cc, conform, thread):
+
+        cc.begin_test("conflict test mode " + ct(conform, thread))
+
+        # Construct a conflict matrix for every known header which is
+        # compatible with this compilation mode.
+        headers = []
         for h in self.headers.values():
-            h.test_conflict(cc)
+            if h.presence != h.PRESENT: continue
+            if h.caution[conform][thread]: continue
+            assert h.depends is not None
+            headers.append(h)
+
+        matrix = ConflictMatrix(headers, conform, thread)
+        matrix.find_conflicts(cc)
+
+        cc.end_test("done")
 
 if __name__ == '__main__':
     def usage(argv):
@@ -2527,7 +2705,7 @@ if __name__ == '__main__':
                 hh = dataset.get_header(h)
                 hh.test(cc)
 
-            dataset.conflict_test(cc)
+            dataset.test_conflicts(cc)
 
             if cc.error_occurred:
                 raise SystemExit(1)
