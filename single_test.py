@@ -2350,8 +2350,7 @@ class ConflictMatrix:
     def check_completely_done(self, cc):
         # Determine whether we are completely done with any headers.
         # If we are, remove them from the set of headers still of
-        # interest (but not the conflict matrix) and reset the
-        # divide-and-conquer queue.
+        # interest (but not the conflict matrix).
         dropped = 0
         headers = self.header_object.keys()
         for x in headers:
@@ -2362,8 +2361,6 @@ class ConflictMatrix:
                 dropped = 1
                 cc.log("conflict test: done with %s\n" % x)
                 del self.header_object[x]
-        if dropped:
-            self.queue = []
 
     def record_conflict(self, cc, x, y):
         # We have identified a pairwise conflict.
@@ -2496,55 +2493,91 @@ class ConflictMatrix:
         # the conflict.  We deduce that there is a conflict between
         # tset[lo] and tset[hi-1].  Verify this.
         (result, tested) = self.test_conflict_set(cc, [tset[lo], tset[hi-1]])
-        if not result:
-            self.record_conflict(cc, tset[lo], tset[hi-1])
-        else:
+        if result:
             cc.fatal("No conflict between %s and %s, but "
                      "conflict among [%s].  Please investigate."
                      % (tset[lo], tset[hi-1], ", ".join(tset[lo:hi])))
 
-    def find_conflicts(self, cc):
-        cand = self.all_headers
-        while 1:
-            (result, tested) = self.test_conflict_set(cc, cand)
-            if result:
-                self.record_ok(cc, tested)
-                tested.reverse()
-                (result, tested) = self.test_conflict_set(cc, tested)
-                if result:
-                    self.record_ok(cc, tested)
+        self.record_conflict(cc, tset[lo], tset[hi-1])
 
-            if not result:
-                self.find_single_conflict(cc, tested)
+        # Feed the test set back into the main loop twice, with
+        # tset[lo] and tset[hi-1] individually removed.  This is likely
+        # to either find more conflicts, or dispose of large gaps that
+        # would otherwise be hard to fill in.
+        tset2 = tset[:]
+        del tset[lo]
+        del tset2[hi-1]
+        return (tset, tset2)
+
+    def find_conflicts(self, cc):
+        # If there are no conflicts, testing all_headers in both
+        # forward and reverse order will completely fill the matrix in
+        # two compiler invocations.
+        hh = self.all_headers[:]
+        hh.reverse()
+        queue = [ hh, self.all_headers ]
+
+        # Make sure we don't repeat work (find_single_conflict can
+        # generate the same "try this next" set repeatedly).
+        already_tested = {}
+
+        while 1:
+            while len(queue) > 0:
+                cand = queue.pop()
+                tag = tuple(cand)
+                if not already_tested.has_key(tag):
+                    already_tested[tag] = 1
+                    (result, tested) = self.test_conflict_set(cc, cand)
+                    if result:
+                        self.record_ok(cc, tested)
+                    else:
+                        queue.extend(self.find_single_conflict(cc, tested))
 
             self.check_completely_done(cc)
             if len(self.header_object) < 2:
                 return None # done
 
-            # Sort headers in ascending order of number of headers
-            # already tested against.
-            hs = [(reduce(lambda x,y: x+y, self.matrix[h].values()), h)
-                  for h in self.header_object.keys()]
-            hs.sort()
+            # If we get here it is likely that only a few horizontal or
+            # vertical stripes of the conflict matrix remain to be filled
+            # in.  The most efficient way to do so is to find the header
+            # with the most gaps remaining in its row/column and queue
+            # it along with all of the gaps.  We need only consider the
+            # headers that have not been removed from header_object by
+            # check_completely_done.
 
-            # Then randomize the order within
-            # each contiguous range.  (N.B. sort() only became stable in
-            # 2.3, and key= was only added in 2.4.)
-            #hh = []
-            #run = []
-            #prev = None
-            #for h in hs:
-            #    if prev is None:
-            #        prev = h[0]
-            #    elif prev != h[0]:
-            #        random.shuffle(run)
-            #        hh.extend(run)
-            #        run = []
-            #        prev = h[0]
-            #    run.append(h[1])
-            #random.shuffle(run)
-            #hh.extend(run)
-            cand = [h[1] for h in hs]
+            headers = self.header_object.keys()
+            row_maxg = 0
+            row_argmg = None
+            col_maxg = 0
+            col_argmg = None
+            for x in headers:
+                rowg = 0
+                colg = 0
+                for y in headers:
+                    if not self.matrix[x][y]: colg += 1
+                    if not self.matrix[y][x]: rowg += 1
+
+                cc.log("conflict test: %s: todo before %d after %d\n"
+                       % (x, colg, rowg))
+                if rowg > row_maxg:
+                    row_maxg = rowg
+                    row_argmg = x
+                if colg > col_maxg:
+                    col_maxg = colg
+                    col_argmg = x
+
+            if row_argmg is not None:
+                row = []
+                for x in headers:
+                    if not self.matrix[x][row_argmg]: row.append(x)
+                row.append(row_argmg)
+                queue.append(row)
+
+            if col_argmg is not None:
+                col = [col_argmg]
+                for x in headers:
+                    if not self.matrix[col_argmg][x]: col.append(x)
+                queue.append(col)
 
 class Dataset:
     """A Dataset instance represents the totality of information known
