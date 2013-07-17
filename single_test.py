@@ -1741,8 +1741,9 @@ class SpecialDependency:
 
     def __init__(self, header, text):
         self.name = header
-        self.text = text
+        self.text = text.strip()
         self.presence = self.PRESENT
+        self.deplist = [ [ [], [] ], [ [], [] ] ]
 
     def gen_includes(self, conform, thread, already=None):
         return [self.text]
@@ -2114,11 +2115,17 @@ class Header:
                    (self.name, ct(conform, thread),
                     " ".join([h.name for h in candidate_set])))
 
-            includes = []
+            depends = []
             already = {}
             for h in candidate_set:
-                includes.extend(h.gen_includes(conform, thread, already))
-            includes = ["#include <%s>" % h for h in includes]
+                depends.extend(h.gen_includes(conform, thread, already))
+            # handling of specials
+            includes = []
+            for item in depends:
+                if item.startswith("/*"):
+                    includes.append(item)
+                else:
+                    includes.append("#include <%s>" % item)
 
             # As a sanity check, confirm that this header can be
             # included twice in a row.  Failures of this check are
@@ -2203,8 +2210,12 @@ class Header:
                (self.name, ct(conform, thread)))
 
         buf = LineCounter(StringIO.StringIO())
-        buf.writelines(["#include <%s>\n" % h
-                        for h in self.gen_includes(conform, thread)])
+        for item in self.gen_includes(conform, thread, {}):
+            if item.startswith("/*"):
+                buf.write(item)
+                buf.write("\n")
+            else:
+                buf.write("#include <%s>\n" % item)
         tester.generate(buf)
         (rc, base_msg) = cc.test_compile(buf.getvalue(),
                                          conform=conform, thread=thread)
@@ -2252,8 +2263,12 @@ class Header:
             prev_disabled_tags = disabled_tags
 
             buf = LineCounter(StringIO.StringIO())
-            buf.writelines(["#include <%s>\n" % h
-                            for h in self.gen_includes(conform, thread)])
+            for item in self.gen_includes(conform, thread, {}):
+                if item.startswith("/*"):
+                    buf.write(item)
+                    buf.write("\n")
+                else:
+                    buf.write("#include <%s>\n" % item)
             tester.generate(buf)
             cc.log("retry contents test for %s (mode %s)\n" %
                    (self.name, ct(conform, thread)))
@@ -2312,9 +2327,11 @@ class ConflictMatrix:
         self.thread = thread
         self.header_object = {}
         self.matrix = {}
+        self.rdeps = {}
         for h in headers:
             self.header_object[h.name] = h
             self.matrix[h.name] = {}
+            self.rdeps[h.name] = []
             for hh in headers:
                 self.matrix[h.name][hh.name] = int(hh is h)
         # This has to be done in a second pass so the table is
@@ -2326,6 +2343,14 @@ class ConflictMatrix:
 
     def note_dependencies(self, baseh, h):
         for hh in h.deplist[self.conform][self.thread]:
+            if isinstance(hh, SpecialDependency): continue
+            # Record h as a reverse dependency of hh.  When we
+            # identify that hh conflicts with X, we will also mark h
+            # as conflicting with X.  This is actually necessary for
+            # correctness -- otherwise we can miss certain asymmetric
+            # conflicts.
+            self.rdeps[hh.name].append(h.name)
+
             # It is impossible to include baseh before hh, and it is
             # mandatory to include hh before baseh.  Therefore there
             # is no point testing either way.  Do not mark the
@@ -2363,9 +2388,16 @@ class ConflictMatrix:
                 del self.header_object[x]
 
     def record_conflict(self, cc, x, y):
-        # We have identified a pairwise conflict.
-        assert 0 <= self.matrix[x][y] < 2
-        assert 0 <= self.matrix[y][x] < 2
+        # We have identified a pairwise conflict; record it.
+        self.record_conflict_1(cc, x, y)
+        # Also record conflicts of all x's reverse dependencies with y,
+        for xd in self.rdeps[x]:
+            self.record_conflict_1(cc, xd, y)
+        # and vice versa.
+        for yd in self.rdeps[y]:
+            self.record_conflict_1(cc, x, yd)
+
+    def record_conflict_1(self, cc, x, y):
         self.matrix[x][y] = 2
         self.matrix[y][x] = 2
         self.log_matrix(cc, "conflict trial fail\n")
@@ -2382,21 +2414,32 @@ class ConflictMatrix:
         # that header as ok after that header.
         for i in range(len(tested)):
             x = tested[i]
+            if x.startswith("/*"): continue
             for j in range(i+1, len(tested)):
                 y = tested[j]
+                if y.startswith("/*"): continue
 
-                assert self.matrix[x][y] != 2
-                assert self.matrix[y][x] != 2
-                self.matrix[x][y] = 1
+                if self.matrix[x][y] == 2 or self.matrix[y][x] == 2:
+                    cc.error("attempting to mark %s with %s as ok when "
+                             "already determined to conflict" % (x, y))
+                else:
+                    self.matrix[x][y] = 1
         self.log_matrix(cc, "conflict trial ok\n")
 
     def test_conflict_set(self, cc, cand):
         cc.log("conflict candidate set: %s\n" % " ".join(cand))
         tset = []
         for i in range(len(cand)):
+            # Pass specials through.
+            if cand[i].startswith("/*"):
+                tset.append(cand[i])
+                continue
+
             # If there is a known conflict of cand[i] with
             # cand[j] for any j < i, discard cand[i].
             for j in range(i):
+                if cand[j].startswith("/*"):
+                    continue
                 if self.matrix[cand[j]][cand[i]] == 2:
                     break
             else:
@@ -2415,7 +2458,13 @@ class ConflictMatrix:
 
         cc.log("conflict extended set: %s\n" % " ".join(eset))
 
-        includes = ["#include <%s>" % h for h in eset]
+        # handling of specials
+        includes = []
+        for item in eset:
+            if item.startswith("/*"):
+                includes.append(item)
+            else:
+                includes.append("#include <%s>" % item)
         includes.append("int avoid_empty_translation_unit;")
 
         (rc, msg) = cc.test_compile("\n".join(includes),
@@ -2494,11 +2543,14 @@ class ConflictMatrix:
         # tset[lo] and tset[hi-1].  Verify this.
         (result, tested) = self.test_conflict_set(cc, [tset[lo], tset[hi-1]])
         if result:
-            cc.fatal("No conflict between %s and %s, but "
-                     "conflict among [%s].  Please investigate."
-                     % (tset[lo], tset[hi-1], ", ".join(tset[lo:hi])))
-
-        self.record_conflict(cc, tset[lo], tset[hi-1])
+            # This can legitimately happen if both tset[lo] and tset[hi-1]
+            # conflict with something in the middle, but not with each other.
+            # Record the absence of a pairwise conflict and proceed; the
+            # logic below is equally sound if we did or didn't find the
+            # conflict pair.
+            self.record_ok(cc, [tset[lo], tset[hi-1]])
+        else:
+            self.record_conflict(cc, tset[lo], tset[hi-1])
 
         # Feed the test set back into the main loop twice, with
         # tset[lo] and tset[hi-1] individually removed.  This is likely
@@ -2741,6 +2793,9 @@ if __name__ == '__main__':
             for h in headers:
                 hh = dataset.get_header(h)
                 hh.test(cc)
+
+            if cc.error_occurred:
+                raise SystemExit(1)
 
             dataset.test_conflicts(cc)
 
