@@ -1844,12 +1844,11 @@ class Header:
     def __cmp__(self, other):
         return cmp(self.name, other.name)
 
-    def log_report(self, cc):
+    def log_tests(self, cc):
         outf = StringIO.StringIO()
         outf.write(" presence: " + self.STATE_LABELS[self.presence] + "\n")
         outf.write(" contents: " + self.STATE_LABELS[self.contents] + "\n")
         outf.write("  depends: " + repr(self.depends) + "\n")
-        outf.write(" conflict: " + repr(self.conflict) + "\n")
         outf.write("pref_mode: " + repr(self.pref_mode) + "\n")
         outf.write("  caution: [..]=%d [c.]=%d [.t]=%d [ct]=%d\n"
                    % (self.caution[0][0],
@@ -1866,18 +1865,6 @@ class Header:
                    % " ".join([h.name for h in self.deplist[0][1]]))
         outf.write("   [ct] = %s\n"
                    % " ".join([h.name for h in self.deplist[1][1]]))
-
-        outf.write("conflists:\n")
-        outf.write("   [..] = %s\n"
-                   % " ".join([h.name for h in self.conflist[0][0]]))
-        outf.write("   [c.] = %s\n"
-                   % " ".join([h.name for h in self.conflist[1][0]]))
-        if self.conflist[0][1] is not None:
-            outf.write("   [.t] = %s\n"
-                       % " ".join([h.name for h in self.conflist[0][1]]))
-        if self.conflist[1][1] is not None:
-            outf.write("   [ct] = %s\n"
-                       % " ".join([h.name for h in self.conflist[1][1]]))
 
         outf.write(" errlists:\n")
         outf.write("   [..] = %s\n"
@@ -1898,6 +1885,21 @@ class Header:
 
         cc.log("%s = %s\n" % (self.name, self.state_label()),
                outf.getvalue().split("\n"))
+
+    def log_conflicts(self, cc):
+        msg = [" conflict: " + repr(self.conflict),
+               "conflists:",
+               "   [..] = " + " ".join([h.name for h in self.conflist[0][0]]),
+               "   [c.] = " + " ".join([h.name for h in self.conflist[1][0]])]
+        if self.conflist[0][1] is not None:
+            msg.append("   [.t] = "
+                       + " ".join([h.name for h in self.conflist[0][1]]))
+        if self.conflist[1][1] is not None:
+            msg.append("   [ct] = "
+                       + " ".join([h.name for h in self.conflist[1][1]]))
+
+        cc.log("%s = %s\n" % (self.name, self.state_label()),
+               msg)
 
     def state_code(self):
         if self.presence != self.PRESENT:
@@ -2084,7 +2086,7 @@ class Header:
         self.test_presence(cc)
         self.test_depends(cc)
         self.test_contents(cc)
-        self.log_report(cc)
+        self.log_tests(cc)
 
         cc.end_test(self.state_label().lower())
 
@@ -2376,15 +2378,15 @@ class ConflictMatrix:
         # Determine whether we are completely done with any headers.
         # If we are, remove them from the set of headers still of
         # interest (but not the conflict matrix).
-        dropped = 0
         headers = self.header_object.keys()
         for x in headers:
             for y in headers:
                 if self.matrix[x][y] == 0 or self.matrix[y][x] == 0:
                     break
             else:
-                dropped = 1
                 cc.log("conflict test: done with %s\n" % x)
+                if self.header_object[x].conflict is None:
+                    self.header_object[x].conflict = 0
                 del self.header_object[x]
 
     def record_conflict(self, cc, x, y):
@@ -2552,14 +2554,23 @@ class ConflictMatrix:
         else:
             self.record_conflict(cc, tset[lo], tset[hi-1])
 
-        # Feed the test set back into the main loop twice, with
-        # tset[lo] and tset[hi-1] individually removed.  This is likely
-        # to either find more conflicts, or dispose of large gaps that
-        # would otherwise be hard to fill in.
-        tset2 = tset[:]
-        del tset[lo]
-        del tset2[hi-1]
-        return (tset, tset2)
+        # Headers with one conflict are likely to have more.
+        # Immediately retest tset[lo] and tset[hi-1] in first and last
+        # position, with all headers we don't already know about in
+        # that context.
+        next_tests = []
+        candidates = sorthdr(self.header_object.keys())
+        for x in tset[lo], tset[hi-1]:
+            before = [x]
+            after = []
+            for y in candidates:
+                if not self.matrix[x][y]: before.append(y)
+                if not self.matrix[y][x]: after.append(y)
+            after.append(x)
+            next_tests.append(before)
+            next_tests.append(after)
+
+        return next_tests
 
     def find_conflicts(self, cc):
         # If there are no conflicts, testing all_headers in both
@@ -2576,6 +2587,21 @@ class ConflictMatrix:
         while 1:
             while len(queue) > 0:
                 cand = queue.pop()
+
+                if len(cand) == 1:
+                    continue
+
+                # find_single_conflict can also generate closely-related
+                # test sets repeatedly.  Discard all headers which have
+                # already been tested with both the head and the tail.
+                hd = cand[0]
+                tl = cand[-1]
+                ncand = []
+                for c in cand:
+                    if not (self.matrix[hd][c] and self.matrix[c][tl]):
+                        ncand.append(c)
+                cand = ncand
+
                 tag = tuple(cand)
                 if not already_tested.has_key(tag):
                     already_tested[tag] = 1
@@ -2738,6 +2764,9 @@ class Dataset:
         if cc.test_with_thread_opt:
             self.test_conflict_mode(cc, conform=0, thread=1)
             self.test_conflict_mode(cc, conform=1, thread=1)
+
+        for h in sorthdr(self.headers.keys()):
+            self.headers[h].log_conflicts(cc)
 
     def test_conflict_mode(self, cc, conform, thread):
 
