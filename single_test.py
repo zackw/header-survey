@@ -227,6 +227,17 @@ def splitto(string, sep, fields):
         exploded.extend([""] * (fields - len(exploded)))
     return exploded
 
+def not_a_subset(l, m):
+    """Return true if L is nonempty and not a subset of M."""
+    if not l: return 0
+    if not m: return 1
+    for x in l:
+        for y in m:
+            if x is y: break
+        else:
+            return 1
+    return 0
+
 squishwhite_re = re.compile(r"\s+")
 def squishwhite(s):
     return squishwhite_re.sub(" ", s.strip())
@@ -1931,83 +1942,43 @@ class Header:
 
     def output(self, outf):
         outf.write("%s%s\n" % (self.state_code(), self.name))
-        self.output_depends(outf)
-        self.output_conflicts(outf)
-        self.output_errors(outf)
+        self.output_annotations(outf, self.deplist, self.output_one_deplist)
+        self.output_annotations(outf, self.conflist, self.output_one_conflist)
+        self.output_annotations(outf, self.errlist, self.output_one_errlist)
         if self.content_results is not None:
             self.content_results.output(outf)
 
-    def output_depends(self, outf):
-        if not self.depends: return
+    def output_one_deplist(self, outf, lst, tag=""):
+        if isinstance(lst[0], SpecialDependency):
+            assert len(lst) == 1
+            outf.write("  $S%s %s\n" % (tag, lst[0].name))
+        else:
+            outf.write("  $P%s %s\n" %
+                       (tag, " ".join([h.name for h in lst])))
 
-        def output_1(outf, lst, tag=""):
-            if tag != "":
-                tag = " [%s]" % tag
-            if len(lst) == 0: return
-            if isinstance(lst[0], SpecialDependency):
-                assert len(lst) == 1
-                outf.write("  $S%s %s\n" % (tag, lst[0].name))
-            else:
-                outf.write("  $P%s %s\n" %
-                           (tag, " ".join([h.name for h in lst])))
+    def output_one_conflist(self, outf, lst, tag=""):
+        outf.write("  $C%s %s\n" % (tag, " ".join([h.name for h in lst])))
 
-        output_1(outf, self.deplist[0][0])
+    def output_one_errlist(self, outf, lst, tag=""):
+        outf.write("  $E%s %s\n" % (tag, " ".join([h.name for h in lst])))
 
-        # output other dependency lists only if they are different
-        if self.deplist[1][0] != self.deplist[0][0]:
-            output_1(outf, self.deplist[1][0], "conform")
+    def output_annotations(self, outf, cluster, output_1):
 
-        if (self.deplist[0][1] is not None and
-            self.deplist[0][1] != self.deplist[0][0]):
-            output_1(outf, self.deplist[0][1], "thread")
+        # always output cluster[0][0] if nonempty
+        if cluster[0][0]:
+            output_1(outf, cluster[0][0])
 
-        if (self.deplist[1][1] is not None and
-            self.deplist[1][1] != self.deplist[0][0] and
-            self.deplist[1][1] != self.deplist[1][0]):
-            output_1(outf, self.deplist[1][1], "conform,thread")
+        # output other lists only if they are not a subset of
+        # the contents of a more generic list
+        if not_a_subset(cluster[1][0], cluster[0][0]):
+            output_1(outf, cluster[1][0], " [conform]")
 
-    def output_conflicts(self, outf):
-        def output_1(outf, lst, tag=""):
-            if tag != "":
-                tag = " [%s]" % tag
-            if len(lst) == 0: return
-            outf.write("  $C%s %s\n" % (tag, " ".join([h.name for h in lst])))
+        if not_a_subset(cluster[0][1], cluster[0][0]):
+            output_1(outf, cluster[0][1], " [thread]")
 
-        output_1(outf, self.conflist[0][0])
-
-        if self.conflist[1][0] != self.conflist[0][0]:
-            output_1(outf, self.conflist[1][0], "conform")
-
-        if (self.conflist[0][1] is not None and
-            self.conflist[0][1] != self.conflist[0][0]):
-            output_1(outf, self.conflist[0][1], "thread")
-
-        if (self.conflist[1][1] is not None and
-            self.conflist[1][1] != self.conflist[0][0] and
-            self.conflist[1][1] != self.conflist[1][0]):
-            output_1(outf, self.conflist[1][1], "conform,thread")
-
-    def output_errors(self, outf):
-        def output_1(outf, lst, tag=""):
-            if tag != "":
-                tag = " [%s]" % tag
-            if len(lst) == 0: return
-            outf.write("  $E%s %s\n" % (tag, " ".join([h.name for h in lst])))
-
-        output_1(outf, self.errlist[0][0])
-
-        if (self.errlist[1][0] is not None and
-            self.errlist[1][0] != self.errlist[0][0]):
-            output_1(outf, self.errlist[1][0], "conform")
-
-        if (self.errlist[0][1] is not None and
-            self.errlist[0][1] != self.errlist[0][0]):
-            output_1(outf, self.errlist[0][1], "thread")
-
-        if (self.errlist[1][1] is not None and
-            self.errlist[1][1] != self.errlist[0][0] and
-            self.errlist[1][1] != self.errlist[1][0]):
-            output_1(outf, self.errlist[1][1], "conform,thread")
+        if (not_a_subset(cluster[1][1], cluster[0][0]) and
+            not_a_subset(cluster[1][1], cluster[1][0])):
+            output_1(outf, cluster[1][1], " [conform,thread]")
 
     def extend_errlist(self, conform, thread, errs):
         if self.errlist[conform][thread] is None:
