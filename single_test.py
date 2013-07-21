@@ -22,12 +22,13 @@ import re
 import string
 import sys
 
-# "True" division only became available in Python 2.2.  Therefore, it
-# is a style violation to use bare / or // anywhere in this program
-# other than via these wrappers.  Note that "from __future__ import division"
-# cannot be written inside a try block.
+# "True" division only became available in Python 2.2.  Therefore, it is a
+# style violation to use bare / or // anywhere in this program other than
+# via these wrappers.  Note that "from __future__ import division" cannot
+# be written inside a try block, and that without the "exec", the
+# SyntaxError won't get caught.
 try:
-    def floordiv(n,d): return n // d
+    exec "def floordiv(n,d): return n // d"
 except SyntaxError:
     def floordiv(n,d): return n / d
 def truediv(n,d): return float(n) / float(d)
@@ -65,11 +66,13 @@ def maybe_fix_ConfigParser():
         p.readfp(test)
 maybe_fix_ConfigParser()
 
-# At some point in the 2.x series, match.group(N) changed from returning
-# -1 to returning None if the group was part of an unmatched alternative.
-# Also reject the empty string (this can be returned on a successful match,
-# but is never what we want in context).
 def group_matched(grp):
+    """True if 'grp', the return value of re.MatchObject.group(),
+       represents a successfully matched group.  At some point in the 2.x
+       series, match.group(N) changed from returning -1 to returning None
+       if the group was part of an unmatched alternative.  Also reject the
+       empty string (this can be returned on a successful match, but is
+       never what we want in context)."""
     return grp is not None and grp != -1 and grp != ""
 
 def delete_if_exists(fname):
@@ -84,23 +87,26 @@ def delete_if_exists(fname):
         if e.errno != errno.ENOENT:
             raise
 
-# opening a file in "rU" mode on a Python that doesn't support it
-# ... silently succeeds!  So we can't use it at all.  Regex time!
 _universal_readlines_re = re.compile("\r\n|\r|\n")
 def universal_readlines(fname):
+    """Replacement for the Python 2.3+ "universal newlines" feature in open().
+       Doesn't even try to use "rU" because opening a file in that mode
+       silently succeeds (but does not do what one wants) on older Pythons."""
     f = open(fname, "rb")
     s = f.read().strip()
     f.close()
     if s == "": return []
     return _universal_readlines_re.split(s)
 
-# Create a scratch file, with a unique name, in the current directory.
-# 2.0 `tempfile` does not have NamedTemporaryFile, and doesn't have
-# anything useful for defining it, either.  This is kinda sorta like
-# the code implementing 2.7's NamedTemporaryFile.  Caller is
-# responsible for cleaning up.  8.3 compliant if caller provides no
-# more than three-character prefixes and suffixes.
 def named_tmpfile(prefix="tmp", suffix="txt"):
+    """Create a scratch file, with a unique name, in the current directory.
+       Returns the name of the scratch file, which exists, but is not open.
+       Caller is responsible for cleaning up.  8.3 compliant if caller
+       provides no more than three-character prefixes and suffixes.
+
+       2.0 `tempfile` does not have NamedTemporaryFile, and doesn't have
+       anything useful for defining it, either.  This is kinda sorta like
+       the code implementing 2.7's NamedTemporaryFile."""
     symbols = "abcdefghijklmnopqrstuvwxyz01234567890"
     tries = 0
     while 1:
@@ -119,25 +125,29 @@ def named_tmpfile(prefix="tmp", suffix="txt"):
                 raise
             # otherwise loop
 
-# We can't use subprocess, it's too new.  We can't use os.popen*,
-# because they don't report the exit code.  So... os.system it is.
-# Which means we have to shell-quote, which is different on Windows.
-# It is convenient to express the platform-specific logic as a
-# function which quotes *one* argument; it then works on both Windows
-# and Unix to map this function over the argument list and join the
-# result list with spaces.
+# Process invocation helpers.
+# We can't use subprocess, it's too new.  We can't use os.popen*, because
+# they don't report the exit code.  So... os.system it is.  Which means we
+# have to shell-quote, which is different on Windows.  It is convenient to
+# express the platform-specific logic as a function which quotes *one*
+# argument; it then works on both Windows and Unix to map this function
+# over the argument list and join the result list with spaces.
+#
+# We don't use subprocess.list2cmdline for the Windows case because it only
+# quotes for [the MSVC runtime's] CommandLineToArgvW(), whereas what we need
+# is quoting for CommandLineToArgvW *plus* quoting for CMD.EXE, and it
+# turns out that it's easier to do both steps ourselves than to requote
+# what subprocess.list2cmdline returns, because we need to know the
+# boundaries between arguments for both steps.  Code borrowed with
+# extensive modification from Py2.7's subprocess.list2cmdline.  See also
+# http://msdn.microsoft.com/en-us/library/17w5ykft.aspx and
+# http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
+
 if sys.platform == "win32":
-    # We could look for subprocess.list2cmdline, but that only quotes
-    # for CreateProcess() [or, rather, the MSVC runtime's
-    # CommandLineToArgvW()] whereas what we need is quoting for
-    # CommandLineToArgvW *plus* quoting for CMD.EXE, and it turns out
-    # that it's easier to do both steps ourselves than to requote what
-    # subprocess.list2cmdline returns, because we need to know the
-    # boundaries between arguments for both steps.  Code borrowed with
-    # extensive modification from Py2.7's subprocess.list2cmdline.
-    # See also http://msdn.microsoft.com/en-us/library/17w5ykft.aspx and
-    # http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
     def shellquote1(arg):
+        """Quote one subprocess argument to survive passage through
+           CMD.EXE and CommandLineToArgvW (in that order)."""
+
         # Phase 1: quote for CommandLineToArgvW.  The only characters
         # that require quotation are space, tab, and double quote.  If
         # any of the above are present, then the whole argument must
@@ -191,29 +201,42 @@ if sys.platform == "win32":
             qqarg.append(c)
         return ''.join(qqarg)
 
-else: # not Windows; assume os.system is Bourne-shell-like
+else:
+    # not Windows; assume os.system is Bourne-shell-like
     try:
-        # shlex.quote is the documented API for Bourne-shell
-        # quotation, but was only added very recently.
+        # shlex.quote is the documented API for Bourne-shell quotation, but
+        # is only available in 3.3 and later.  We try to import it anyway,
+        # despite that this program has no hope of running correctly under
+        # 3.x; who knows, maybe there will be a 2.8 that has it.
         from shlex import quote as shellquote1
     except (ImportError, AttributeError):
         # pipes.quote is undocumented but has existed all the way back
         # to 2.0.  It is semantically identical to shlex.quote.
         from pipes import quote as shellquote1
 
-def list2shell(seq):
+def list2shell(argv):
+    """Given an arbitrary argument vector (including the command name)
+       return a string which can be passed to os.system to execute that
+       command as execvp() would have, i.e. all shell metacharacters are
+       neutralized."""
     # Square brackets here required for pre-Python 2.4 compatibility.
-    return " ".join([shellquote1(s) for s in seq])
+    return " ".join([shellquote1(arg) for arg in argv])
 
 #
 # utility routines that aren't workarounds for old Python
 #
 
 def plural(n):
+    """Return the appropriate English suffix for N items.
+       Use like so: "%d item%s" % (n, plural(n))."""
     if n == 1: return ""
     return "s"
 
 def ct(conform, thread):
+    """Subroutine of several class methods far below that need to be able
+       to print a code for a "compilation mode", which is ostensibly a pair
+       of booleans but has grown sufficient hair that it probably ought to
+       be refactored into its own class or summat."""
     c = "."
     t = "."
     if conform: c = "c"
@@ -240,6 +263,8 @@ def not_a_subset(l, m):
 
 squishwhite_re = re.compile(r"\s+")
 def squishwhite(s):
+    """Remove leading and trailing whitespace from S, and collapse each
+       segment of internal whitespace within S to a single space."""
     return squishwhite_re.sub(" ", s.strip())
 
 def hsortkey(h):
@@ -323,10 +348,12 @@ class LineCounter:
 # be a LineCounter instance.
 #
 
+idchars = string.letters + string.digits + "_"
 def mkdeclarator(dtype, name):
-    # If there is a dollar sign somewhere in dtype, the name goes there
-    # (this is mainly for function pointer declarations).  Otherwise it
-    # goes at the end.
+    """Construct a 'declarator' -- a C expression which declares NAME as an
+       object of type DTYPE.  Relies on manual annotation to know where to
+       put the name: if there is a dollar sign somewhere in DTYPE, that is
+       replaced with the name, otherwise the name is tacked on the end."""
     ds = splitto(dtype, "$", 2)
     if name == "": # for function prototypes with argument name omitted
         return ds[0] + ds[1]
@@ -336,8 +363,10 @@ def mkdeclarator(dtype, name):
         return ds[0] + name + ds[1]
 
 def mk_pointer_to(dtype):
-    # Similarly to the above, if there is a dollar sign somewhere in
-    # dtype, the star goes right before it; otherwise it goes at the end.
+    """Given a C type expression DTYPE, return the expression for a pointer
+       to that type.  Uses the same annotation convention as above: if there
+       is a dollar sign somewhere in DTYPE, a star is inserted immediately
+       before it, otherwise it is tacked on the end."""
     ds = splitto(dtype, "$", 2)
     if ds[0][-1] == "*" or ds[0][-1] == " ":
         rv = ds[0] + "*"
@@ -349,6 +378,25 @@ def mk_pointer_to(dtype):
         return rv + "$" + ds[1]
 
 def crunch_fncall(val):
+    """Given a function specification, VAL, of the form
+
+         RTYPE ":" ARGTYPE ["," ARGTYPE]... ["..." ARGTYPE ["," ARGTYPE]...]
+
+       extract and return, as a tuple, in this order, the variable parts
+       of the definition of a function that will call this function:
+
+         * the function's return type expression
+         * the function's prototype expression (that is, a list of argument
+           types -- without function-call parentheses)
+         * a prototype expression for the *definition* of a function that
+           will call the function (i.e. including the optional arguments
+           and giving formal parameter names)
+         * a call expression for the function (just the part that goes
+           inside the function-call parentheses)
+         * whether or not to put "return " before the function call.
+
+       See TestFunctions and TestFnMacros for usage."""
+
     (rtype, argtypes) = splitto(val, ":", 2)
     rtype = rtype.strip()
     argtypes = argtypes.strip()
@@ -386,17 +434,41 @@ def crunch_fncall(val):
     return (rtype, argtypes, argdecl, call, return_)
 
 class TestItem:
-    def __init__(self, infname, std, mod, tag, missing):
+    """Base class for individual content test cases.
+
+       Test items have a _tag_ which should correspond to the symbol being
+       tested, plus a _standard_ and _module_ which categorize the symbol
+       (see decltests/CATEGORIES.ini).  They all start out _enabled_, and
+       tests which fail are disabled until all remaining tests pass; the
+       set of disabled tests corresponds to the set of unavailable or
+       incorrectly defined symbols.  Finally, the _meaning_ may be one of
+       self.MISSING (if this test fails, the symbol is not defined at all);
+       self.INCORRECT (if this test fails, the symbol is defined
+       incorrectly); or self.AMBIGUOUS (if this test fails, the symbol is
+       either unavailable or incorrect; we can't tell which).
+
+       Each test is generated on exactly one line, so that we don't have
+       to understand compiler errors beyond the line they're on."""
+
+    MISSING   = 'M'
+    INCORRECT = 'W'
+    AMBIGUOUS = 'X'
+
+    def __init__(self, infname, std, mod, tag, meaning):
+        """Subclasses will need to extend this constructor to save
+           information about the specific thing being tested."""
         self.infname = infname
         self.std = std
         self.mod = mod
         self.tag = tag
-        self.missing = missing
+        self.meaning = meaning
         self.enabled = 1
         self.name = None
         self.lineno = None
 
     def generate(self, outf):
+        """Public interface to write the code for this test to OUTF.
+           Subclasses should not need to tamper with this method."""
         if not self.enabled: return
         if self.name is None:
             self.lineno = outf.lineno
@@ -412,13 +484,18 @@ class TestItem:
         self._generate(outf)
 
     def _generate(self, outf):
+        """Subclasses must override this stub method to emit the actual
+           code for their test case."""
         raise NotImplementedError
 
-idchars = string.letters + string.digits + "_"
 class TestDecl(TestItem):
-    def __init__(self, infname, std, mod, tag, missing,
+    """Test item which works by declaring a global variable with a
+       specific type, possibly with an initializer, possibly wrapped in an
+       #if or #ifdef conditional."""
+
+    def __init__(self, infname, std, mod, tag, meaning,
                  dtype, init="", cond=""):
-        TestItem.__init__(self, infname, std, mod, tag, missing)
+        TestItem.__init__(self, infname, std, mod, tag, meaning)
 
         self.dtype = squishwhite(dtype)
         self.init = squishwhite(init)
@@ -439,9 +516,16 @@ class TestDecl(TestItem):
             outf.write("#endif\n")
 
 class TestFn(TestItem):
-    def __init__(self, infname, std, mod, tag, missing,
+    """Test item which works by defining a function with a particular
+       return type, argument list, and body.  If the body is empty, the
+       function is just declared, not defined.
+
+       Note that if all three optional arguments are empty, what you get is
+       "void t_NNN(void);" which isn't particularly useful."""
+
+    def __init__(self, infname, std, mod, tag, meaning,
                  rtype="", argv="", body=""):
-        TestItem.__init__(self, infname, std, mod, tag, missing)
+        TestItem.__init__(self, infname, std, mod, tag, meaning)
 
         self.rtype = squishwhite(rtype)
         self.argv = squishwhite(argv)
@@ -466,9 +550,14 @@ class TestFn(TestItem):
             outf.write("%s { %s }\n" % (decl, self.body))
 
 class TestCondition(TestItem):
-    def __init__(self, infname, std, mod, tag, missing,
+    """Test item which verifies that an integer constant expression, EXPR,
+       evaluates to a nonzero value.  EXPR need not be valid in #if.
+       If COND is nonempty, the expression test is wrapped in an #if
+       or #ifdef conditional."""
+
+    def __init__(self, infname, std, mod, tag, meaning,
                  expr, cond=""):
-        TestItem.__init__(self, infname, std, mod, tag, missing)
+        TestItem.__init__(self, infname, std, mod, tag, meaning)
         self.expr = squishwhite(expr)
         self.cond = squishwhite(cond)
 
@@ -484,301 +573,327 @@ class TestCondition(TestItem):
             outf.write("#endif\n")
 
 class TestComponent:
+    """Base class for blocks of tests, all of the same general type
+       (test for functions, test for constants, etc).
+
+       Test components have a _standard_ and _module_ (same meaning as
+       for individual items) and a set of individual test _items_.  On
+       entry to the constructor, the ITEMS argument is simply a dictionary
+       of strings taken verbatim from the test definition; they will be
+       converted to appropriate subclasses of TestItem for storage in
+       self.items (which is *not* a dictionary)."""
+
     def __init__(self, infname, std, mod, items):
         self.infname = infname
         self.std = std
         self.mod = mod
+        self.items = []
         self.preprocess(items)
 
     def preprocess(self, items):
+        """Interpret the complete list of items.  Subclasses may override
+           this method if necessary."""
+        for k, v in items.items():
+            if len(k) >= 5 and k[:2] == "__" and k[-2:] == "__":
+                self.pp_special(k, v)
+            else:
+                self.pp_normal(k, v)
+
+    def pp_normal(self, k, v):
+        """Subclasses must override this method.  Interpret the key-value
+           pair (K, V) -- normally K will be the name of a symbol to test
+           for, and V will describe it somehow -- and add appropriate
+           TestItems to self.items."""
         raise NotImplementedError
 
-    def pp_special_key(self, k, v, reject_normal=0):
-        # currently there are no shared special keys
+    def pp_special(self, k, v):
+        """Keys which begin and end with `__` are reserved for special
+           purposes.  Subclasses may override this function if they define
+           their own special keys, but must in that case call this one on
+           any special key they don't define."""
 
-        # non-special key?
-        if len(k) < 2 or k[:2] != "__" or k[-2:] != "__":
-            if not reject_normal:
-                return 0
-
+        # currently there are no globally-meaningful special keys
         raise RuntimeError("%s [functions:%s:%s]: "
                            "invalid or misused key '%s'"
                            % (self.infname, self.std, self.mod, k))
 
     def generate(self, outf):
-        items = self.items
-        keys = items.keys()
-        keys.sort()
-        for k in keys:
-            items[k].generate(outf)
+        """Emit code for each test item."""
+        for item in self.items:
+            item.generate(outf)
         outf.write("\n")
 
     def disabled_items(self):
         rv = []
-        for item in self.items.values():
+        for item in self.items:
             if not item.enabled:
                 rv.append(item)
         return rv
 
 class TestTypes(TestComponent):
-    def preprocess(self, items):
-        pitems = {}
-        for k,v in items.items():
-            if self.pp_special_key(k, v): continue
+    """Test presence and correctness of type definitions."""
 
-            d = " ".join(k.split("."))
-            if v.endswith(" struct"):
-                d = "struct " + d
-                v = v[:-7]
+    def pp_normal(self, k, v):
+        d = " ".join(k.split("."))
+        if v.endswith(" struct"):
+            d = "struct " + d
+            v = v[:-7]
 
-            # To test for the basic presence of a type name, attempt
-            # to declare a function that takes a pointer to that type
-            # as part of its argument list.  Unlike most other
-            # constructs that depend only on the presence of a
-            # (possibly-incomplete) type name, this works even to
-            # detect undeclared struct tags.  (Anything you do with an
-            # undeclared struct tag will forward-declare it as a side
-            # effect, so it's basically impossible to get the compiler
-            # to error out by using one.  But if this happens inside a
-            # prototype argument list, the tag is scoped only to that
-            # declaration, so both gcc and clang issue a warning, which
-            # is good enough for our purposes.)
-            pitems[k+".M"] = TestFn(self.infname, self.std, self.mod,
-                                    tag=k, missing=1,
-                                    argv=mk_pointer_to(d))
+        # To test for the basic presence of a type name, attempt to declare
+        # a function that takes a pointer to that type as part of its
+        # argument list.  Unlike most other constructs that depend only on
+        # the presence of a (possibly-incomplete) type name, this works
+        # even to detect undeclared struct tags.  (Anything you do with an
+        # undeclared struct tag will forward-declare it as a side effect,
+        # so it's basically impossible to get the compiler to error out by
+        # using one.  But if this happens inside a prototype argument list,
+        # the tag is scoped only to that declaration, so both gcc and clang
+        # issue a warning, which is good enough for our purposes.)
+        self.items.append(TestFn(self.infname, self.std, self.mod,
+                                 tag=k, meaning=TestItem.MISSING,
+                                 argv=mk_pointer_to(d)))
 
-            # Test correctness by attempting to declare a variable
-            # of the specified type with an appropriate initializer.
-            # ??? Can we do better about enforcing scalar type categories
-            #     (signed/unsigned/integral/floating)?
+        # Test correctness by attempting to declare a variable of the
+        # specified type with an appropriate initializer.
+        #
+        # ??? Can we do better about enforcing scalar type categories
+        #     (signed/unsigned/integral/floating)?
 
-            if v == "opaque":
-                # Just test that a local variable of this type can be declared.
-                pitems[k+".W"] = TestDecl(self.infname, self.std, self.mod,
-                                          tag=k, missing=0, dtype=d)
-            elif v == "incomplete":
-                # We've already tested this as much as we can.
-                pass
+        if v == "opaque":
+            # Just test that a local variable of this type can be declared.
+            self.items.append(TestDecl(self.infname, self.std, self.mod,
+                                       tag=k, meaning=TestItem.INCORRECT,
+                                       dtype=d))
+        elif v == "incomplete":
+            # We've already tested this as much as we can.
+            pass
+        else:
+            if v == "signed":
+                init = "-1"
+            elif v == "unsigned" or v == "integral" or v == "arithmetic":
+                init = "1"
+            elif v == "floating":
+                init = "1.0f"
+            elif v == "scalar":
+                init = "0"
+            elif len(v) >= 7 and v[:5] == "expr(" and v[-1] == ")":
+                init = v[5:-1]
             else:
-                if v == "signed":
-                    init = "-1"
-                elif v == "unsigned" or v == "integral" or v == "arithmetic":
-                    init = "1"
-                elif v == "floating":
-                    init = "1.0f"
-                elif v == "scalar":
-                    init = "0"
-                elif len(v) >= 7 and v[:5] == "expr(" and v[-1] == ")":
-                    init = v[5:-1]
-                else:
-                    raise RuntimeError("%s [types:%s:%s]: %s: "
-                                       "unimplemented type category %s"
-                                       % (self.infname, self.std, self.mod,
-                                          k, v))
+                raise RuntimeError("%s [types:%s:%s]: %s: "
+                                   "unimplemented type category %s"
+                                   % (self.infname, self.std, self.mod,
+                                      k, v))
 
-                pitems[k+".W"] = TestDecl(self.infname, self.std, self.mod,
-                                          tag=k, missing=0,
-                                          dtype=d, init=init)
-
-        self.items = pitems
+            self.items.append(TestDecl(self.infname, self.std, self.mod,
+                                       tag=k, meaning=TestItem.INCORRECT,
+                                       dtype=d, init=init))
 
 class TestStructs(TestComponent):
-    def preprocess(self, items):
-        pitems = {}
-        for k,v in items.items():
-            if self.pp_special_key(k, v): continue
+    """Test presence and correctness of structure fields."""
 
-            (typ, field) = splitto(k, ".", 2)
-            if field == "":
-                raise RuntimeError("%s [structs:%s:%s]: %s: missing field name"
-                                   % (self.infname, self.std, self.mod, k))
-            # "s_TAG" is shorthand for "struct TAG", as "option" names
-            # cannot contain spaces; similarly, "u_TAG" for "union TAG"
-            if typ[:2] == "s_": typ = "struct " + typ[2:]
-            if typ[:2] == "u_": typ = "union " + typ[2:]
+    def pp_normal(self, k, v):
+        (typ, field) = splitto(k, ".", 2)
+        if field == "":
+            raise RuntimeError("%s [structs:%s:%s]: %s: missing field name"
+                               % (self.infname, self.std, self.mod, k))
+        # "s_TAG" is shorthand for "struct TAG", as "option" names
+        # cannot contain spaces; similarly, "u_TAG" for "union TAG"
+        if typ[:2] == "s_": typ = "struct " + typ[2:]
+        if typ[:2] == "u_": typ = "union " + typ[2:]
 
-            # To test whether a field exists, attempt to take a
-            # pointer to it.  To test whether the field has the
-            # correct type, attempt to return that pointer without
-            # casting it.
-            argv=mkdeclarator(mk_pointer_to(typ), "xx")
-            addressop = "&"
-            if v.endswith("[]"):
-                v = v[:-2]
-                addressop = ""
+        # To test whether a field exists, attempt to take a pointer to it.
+        # To test whether the field has the correct type, attempt to return
+        # that pointer without casting it.
+        argv=mkdeclarator(mk_pointer_to(typ), "xx")
+        addressop = "&"
+        if v.endswith("[]"):
+            v = v[:-2]
+            addressop = ""
 
-            # Explicitly cast to void to avoid warnings.
-            pitems[k+".M"] = TestFn(self.infname, self.std, self.mod,
-                                    tag=k, missing=1,
-                                    rtype="void *", argv=argv,
-                                    body="return (void *)%sxx->%s"
-                                    % (addressop, field))
+        # Explicitly cast to void to avoid warnings.
+        self.items.append(TestFn(self.infname, self.std, self.mod,
+                                 tag=k, meaning=TestItem.MISSING,
+                                 rtype="void *", argv=argv,
+                                 body="return (void *)%sxx->%s"
+                                 % (addressop, field)))
 
-            # If the type is not precisely specified, attempt to set the
-            # field to 0 instead of taking a pointer.
-            if v == "integral" or v == "arithmetic":
-                pitems[k+".W"] = TestFn(self.infname, self.std, self.mod,
-                                        tag=k, missing=0,
-                                        rtype="void", argv=argv,
-                                        body="xx->" + field + " = 0")
-            else:
-                pitems[k+".W"] = TestFn(self.infname, self.std, self.mod,
-                                        tag=k, missing=0,
-                                        rtype=mk_pointer_to(v), argv=argv,
-                                        body="return %sxx->%s"
-                                        % (addressop, field))
+        # If the type is not precisely specified, attempt to set the
+        # field to 0 instead of taking a pointer.
+        if v == "integral" or v == "arithmetic":
+            self.items.append(TestFn(self.infname, self.std, self.mod,
+                                     tag=k, meaning=TestItem.INCORRECT,
+                                     rtype="void", argv=argv,
+                                     body="xx->" + field + " = 0"))
+        else:
+            self.items.append(TestFn(self.infname, self.std, self.mod,
+                                     tag=k, meaning=TestItem.INCORRECT,
+                                     rtype=mk_pointer_to(v), argv=argv,
+                                     body="return %sxx->%s"
+                                     % (addressop, field)))
 
-        self.items = pitems
 
 dollar_re = re.compile(r"\$")
 class TestConstants(TestComponent):
-    def preprocess(self, items):
-        pitems = {}
-        for k,v in items.items():
-            if self.pp_special_key(k, v): continue
+    """Test presence and correctness of symbolic constants."""
 
-            # Constants may be conditionally defined; notably, X/Open
-            # specifies lots of these in limits.h and unistd.h.  To
-            # handle this, when the value starts with "ifdef:", we
-            # wrap #ifdef NAME ... #endif around each test.  It can
-            # also start with "if CONDITION:" which case we wrap
-            # #if CONDITION ... #endif around each test.  Note that in
-            # the latter case, CONDITION may not contain a colon.
-            cond = ""
-            if v.startswith("ifdef:"):
-                cond = k
-                v = v[6:]
-            elif v.startswith("if "):
-                colon = v.find(":")
-                if colon == -1:
-                    raise RuntimeError("%s [constants:%s:%s]: %s: "
-                                       "ill-formed #if expression"
-                                       % (self.infname, self.std, self.mod, k))
-                cond = '?'+v[3:colon]
-                v = v[(colon+1):]
+    def pp_normal(self, k, v):
+        # Constants may be conditionally defined; notably, X/Open
+        # specifies lots of these in limits.h and unistd.h.  To
+        # handle this, when the value starts with "ifdef:", we
+        # wrap #ifdef NAME ... #endif around each test.  It can
+        # also start with "if CONDITION:" which case we wrap
+        # #if CONDITION ... #endif around each test.  Note that in
+        # the latter case, CONDITION may not contain a colon.
+        cond = ""
+        if v.startswith("ifdef:"):
+            cond = k
+            v = v[6:]
+        elif v.startswith("if "):
+            colon = v.find(":")
+            if colon == -1:
+                raise RuntimeError("%s [constants:%s:%s]: %s: "
+                                   "ill-formed #if expression"
+                                   % (self.infname, self.std, self.mod, k))
+            cond = '?'+v[3:colon]
+            v = v[(colon+1):]
 
-            # If 'k' starts with a dollar sign, it is not a real
-            # constant name; 'v' is an expression to be tested
-            # literally.
-            if k.startswith("$"):
-                pitems[k] = TestCondition(self.infname, self.std, self.mod,
-                                          tag=k, missing=0, expr=v, cond=cond)
-            else:
-                # Optional test for correctness.
-                # 'v' may start with a type in square brackets.
-                if v.startswith("["):
-                    (t, v) = v.split("]", 1)
-                    t = t[1:]
-                    v = v.strip()
-                else:
-                    t = None
+        # If 'k' starts with a dollar sign, it is not a real
+        # constant name; 'v' is an expression to be tested
+        # literally.
+        if k.startswith("$"):
+            self.items.append(TestCondition(self.infname, self.std, self.mod,
+                                            tag=k, meaning=TestItem.INCORRECT,
+                                            expr=v, cond=cond))
+            return
 
-                # If 'v' contains dollar signs, each of them is replaced
-                # with 'k' (the constant name) to form the expression to
-                # test; or if it starts with a relational operator, 'k' is
-                # inserted before the operator.
-                if v.find("$") != -1:
-                    pitems[k+".W"] = TestCondition(self.infname, self.std,
-                                                   self.mod, tag=k, missing=0,
-                                                   expr=dollar_re.sub(k, v),
-                                                   cond=cond)
-                    if t is None: t = "int"
+        # Optional test for value correctness.  (We do this first as it
+        # works out how to do the presence test as a side-effect.)
+        # 'v' may start with a type in square brackets.
+        if v.startswith("["):
+            (t, v) = v.split("]", 1)
+            t = t[1:]
+            v = v.strip()
+        else:
+            t = None
 
-                elif (v.find(">") != -1 or v.find("<") != -1
-                      or v.find("=") != -1):
-                    pitems[k+".W"] = TestCondition(self.infname, self.std,
-                                                   self.mod, tag=k, missing=0,
-                                                   expr=k + " " + v,
-                                                   cond=cond)
-                    if t is None: t = "int"
+        # If 'v' contains dollar signs, each of them is replaced with 'k'
+        # (the constant name) to form the expression to test; or if it
+        # starts with a relational operator, 'k' is inserted before the
+        # operator.
+        if v.find("$") != -1:
+            self.items.append(TestCondition(self.infname, self.std,
+                                            self.mod, tag=k,
+                                            meaning=TestItem.INCORRECT,
+                                            expr=dollar_re.sub(k, v),
+                                            cond=cond))
+            if t is None: t = "int"
 
-                else:
-                    if t is None: t = v
-                    if t == "": t = "int"
+        elif (v.find(">") != -1 or v.find("<") != -1
+              or v.find("=") != -1):
+            self.items.append(TestCondition(self.infname, self.std,
+                                            self.mod, tag=k,
+                                            meaning=TestItem.INCORRECT,
+                                            expr=k + " " + v,
+                                            cond=cond))
+            if t is None: t = "int"
 
-                # Test for presence (with the correct type).
-                if t == "str":
-                    pitems[k+".M"] = TestDecl(self.infname, self.std, self.mod,
-                                              tag=k, missing=1,
-                                              dtype="const char $[]",
-                                              init = "\"\"" + k + "\"\"",
-                                              cond=cond)
-                else:
-                    pitems[k+".M"] = TestDecl(self.infname, self.std, self.mod,
-                                              tag=k, missing=1,
-                                              dtype=t, init=k,
-                                              cond=cond)
+        else:
+            if t is None: t = v
+            if t == "": t = "int"
 
-        self.items = pitems
+        # Test for presence (with the correct type).
+        if t == "str":
+            self.items.append(TestDecl(self.infname, self.std, self.mod,
+                                       tag=k, meaning=TestItem.MISSING,
+                                       dtype="const char $[]",
+                                       init = "\"\"" + k + "\"\"",
+                                       cond=cond))
+        else:
+            self.items.append(TestDecl(self.infname, self.std, self.mod,
+                                       tag=k, meaning=TestItem.MISSING,
+                                       dtype=t, init=k,
+                                       cond=cond))
 
 class TestGlobals(TestComponent):
-    def preprocess(self, items):
-        pitems = {}
-        for k,v in items.items():
-            if self.pp_special_key(k, v): continue
+    """Test presence and correctness of global variables."""
 
-            if v == "": v = "int"
-            # does it exist?
-            pitems[k+".M"] = TestDecl(self.infname, self.std, self.mod,
-                                      tag=k, missing=1,
-                                      dtype="extern const char "
-                                      "$[sizeof(%s)]" % k)
-            # does it have the correct type?
-            pitems[k+".W"] = TestFn(self.infname, self.std, self.mod,
-                                    tag=k, missing=0, rtype=v,
-                                    body="return " + k)
-        self.items = pitems
+    def pp_normal(self, k, v):
+        if v == "": v = "int"
+        # does it exist?
+        self.items.append(TestDecl(self.infname, self.std, self.mod,
+                                   tag=k, meaning=TestItem.MISSING,
+                                   dtype="extern const char "
+                                   "$[sizeof(%s)]" % k))
+        # does it have the correct type?
+        self.items.append(TestFn(self.infname, self.std, self.mod,
+                                 tag=k, meaning=TestItem.INCORRECT,
+                                 rtype=v, body="return " + k))
+
+class TestSpecialDecls(TestComponent):
+    """Test ability to make specific declarations; basically allows direct
+       use of TestDecl.  Intended for cases where the name of interest
+       isn't a typename or constant.  For instance: _Complex, _Alignas,
+       _Atomic, _Thread_local (type qualifiers); CMPLX, _Alignof
+       (initializer expressions)."""
+
+    def pp_normal(self, k, v):
+        (dtype, init) = splitto(v, "=", 2)
+        self.items.append(TestDecl(self.infname, self.std, self.mod,
+                                   tag=k, meaning=TestItem.AMBIGUOUS,
+                                   dtype=dtype, init=init))
 
 
 class TestFunctions(TestComponent):
-    def preprocess(self, items):
-        pitems = {}
-        for k, v in items.items():
-            if self.pp_special_key(k, v): continue
+    """Test presence and correctness of function declarations."""
 
-            (rtype, argtypes, argdecl, call, return_) = crunch_fncall(v)
+    def pp_normal(self, k, v):
+        (rtype, argtypes, argdecl, call, return_) = crunch_fncall(v)
 
-            # Each function is tested three ways.  The most stringent test is
-            # to declare a function pointer with its exact (should-be)
-            # prototype and set it equal to the function name.  This will
-            # sometimes fail because of acceptable variation between the
-            # standard and the system, so we also test that we can call the
-            # function passing arguments of the expected types.  That test is
-            # done twice, once suppressing any macro definition, once not.
-            pitems[k+".W1"] = TestDecl(self.infname, self.std, self.mod,
-                                       tag=k, missing=0,
-                                       dtype = rtype + " (*$)("+argtypes+")",
-                                       init = k)
-            pitems[k+".W2"] = TestFn(self.infname, self.std, self.mod,
-                                     tag=k, missing=0,
-                                     rtype = rtype,
-                                     argv  = argdecl,
-                                     body  = "%s(%s)(%s);" % (return_, k, call))
-            pitems[k+".M"] = TestFn(self.infname, self.std, self.mod,
-                                    tag=k, missing=1,
-                                    rtype = rtype,
-                                    argv  = argdecl,
-                                    body  = "%s%s(%s);" % (return_, k, call))
-        self.items = pitems
+        # Each function is tested three ways.  The most stringent test is
+        # to declare a function pointer with its exact (should-be)
+        # prototype and set it equal to the function name.  This will
+        # sometimes fail because of acceptable variation between the
+        # standard and the system, so we also test that we can call the
+        # function passing arguments of the expected types.  That test is
+        # done twice, once suppressing any macro definition, once not.
+        self.items.append(TestDecl(self.infname, self.std, self.mod,
+                                   tag=k, meaning=TestItem.INCORRECT,
+                                   dtype = rtype + " (*$)("+argtypes+")",
+                                   init = k))
+        self.items.append(TestFn(self.infname, self.std, self.mod,
+                                 tag=k, meaning=TestItem.INCORRECT,
+                                 rtype = rtype,
+                                 argv  = argdecl,
+                                 body  = "%s(%s)(%s);" % (return_, k, call)))
+        self.items.append(TestFn(self.infname, self.std, self.mod,
+                                 tag=k, meaning=TestItem.MISSING,
+                                 rtype = rtype,
+                                 argv  = argdecl,
+                                 body  = "%s%s(%s);" % (return_, k, call)))
 
 class TestFnMacros(TestComponent):
-    def preprocess(self, items):
-        pitems = {}
-        for k, v in items.items():
-            if self.pp_special_key(k, v): continue
+    """Test presence and correctness of function-like macros."""
+    def pp_normal(self, k, v):
+        (rtype, argtypes, argdecl, call, return_) = crunch_fncall(v)
 
-            (rtype, argtypes, argdecl, call, return_) = crunch_fncall(v)
-
-            # Function-like macros can only be tested by calling them in
-            # the usual way.
-            pitems[k] = TestFn(self.infname, self.std, self.mod,
-                               tag=k, missing=2,
-                               rtype = rtype,
-                               argv  = argdecl,
-                               body  = "%s%s(%s);" % (return_, k, call))
-        self.items = pitems
+        # Function-like macros can only be tested by calling them in
+        # the usual way.
+        self.items.append(TestFn(self.infname, self.std, self.mod,
+                                 tag=k, meaning=TestItem.AMBIGUOUS,
+                                 rtype = rtype,
+                                 argv  = argdecl,
+                                 body  = "%s%s(%s);" % (return_, k, call)))
 
 class TestSpecial(TestComponent):
+    """Test a special construct.  Use when you need precise control over
+       the entirety of a function definition in order to test something.
+       Can also test several things at once, which is useful when they
+       can only be used together.  This is what you want for e.g.
+       pthread_cleanup_push/pop, va_start/va_arg/va_end."""
+
+    # There are two usage patterns, both of which make extensive
+    # use of special keys; it is easier to override preprocess()
+    # and do all the work there.
     def preprocess(self, items):
         pitems = {}
         argv  = items.get("__args__", "")
@@ -793,75 +908,63 @@ class TestSpecial(TestComponent):
                     k != "__rtype__" and
                     k != "__tested__" and
                     k != "__body__"):
-                    self.pp_special_key(k, items[k], reject_normal=1)
+                    TestComponent.pp_special_key(self, k, items[k])
 
             tag = items["__tested__"]
             body = items["__body__"]
             tfn = TestFn(self.infname, self.std, self.mod,
-                         tag=tag, missing=2,
+                         tag=tag, meaning=TestItem.AMBIGUOUS,
                          rtype=rtype, argv=argv, body=body)
             for t in tag.split():
-                pitems[t] = tfn
+                self.items.append(tfn)
         else:
             for k,v in items.items():
                 if (k == "__args__" or k == "__rtype__"): continue
-                if self.pp_special_key(k, v): continue
-                vx = v.split(":", 1)
-                if len(vx) == 2:
-                    tfn = TestFn(self.infname, self.std, self.mod,
-                                 tag=k, missing=2,
-                                 rtype=vx[0], argv=argv, body=vx[1])
+                if len(k) > 5 and k[:2] == "__" and k[-2:] == "__":
+                    TestComponent.pp_special_key(self, k, v)
                 else:
-                    tfn = TestFn(self.infname, self.std, self.mod,
-                                 tag=k, missing=2,
-                                 rtype=rtype, argv=argv, body=v)
-                pitems[k] = tfn
+                    vx = v.split(":", 1)
+                    if len(vx) == 2:
+                        tfn = TestFn(self.infname, self.std, self.mod,
+                                     tag=k, meaning=TestItem.AMBIGUOUS,
+                                     rtype=vx[0], argv=argv, body=vx[1])
+                    else:
+                        tfn = TestFn(self.infname, self.std, self.mod,
+                                     tag=k, meaning=TestItem.AMBIGUOUS,
+                                     rtype=rtype, argv=argv, body=v)
+                    self.items.append(tfn)
 
-        self.items = pitems
-
+    # We also need to override generate() to handle a single TestFn
+    # object being in the list more than once.  (This _could_ be
+    # hoisted to the superclass, but it's only needed here.)
     def generate(self, outf):
         items = self.items
-        keys = items.keys()
-        keys.sort()
-        # the following dance with 'enabled' is necessary because if
-        # __tested__ had more than one entry, a single TestFn object
-        # will be in the list more than once
-        enabled = [items[k].enabled for k in keys]
-        for k in keys:
-            items[k].generate(outf)
-            items[k].enabled = 0
-        for k,e in zip(keys, enabled):
-            items[k].enabled = e
-
-# TestSpecialDecls is more-or-less a raw interface to TestDecl, and is
-# intended for cases where the name of interest isn't a type or
-# constant name (e.g. <stdalign.h>, where the name of interest is a
-# type specifier).
-class TestSpecialDecls(TestComponent):
-    def preprocess(self, items):
-        pitems = {}
-        for k, v in items.items():
-            if self.pp_special_key(k, v): continue
-
-            (dtype, init) = splitto(v, "=", 2)
-            pitems[k] = TestDecl(self.infname, self.std, self.mod,
-                                 tag=k, missing=2, dtype=dtype, init=init)
-
-        self.items = pitems
+        enabled = [item.enabled for item in items]
+        for item in items:
+            item.generate(outf)
+            item.enabled = 0
+        for item, e in zip(items, enabled):
+            item.enabled = e
 
 class TestProgram:
+    """A complete test program for a particular header.  Responsible for
+       top-level parsing of the .ini file, and for tracking tests that
+       have been disabled."""
+
+    # Map labels in the .ini file to TestComponent subclasses.
     COMPONENTS = {
-        "types"     : TestTypes,
-        "structs"   : TestStructs,
-        "constants" : TestConstants,
-        "globals"   : TestGlobals,
-        "functions" : TestFunctions,
-        "fn_macros" : TestFnMacros,
-        "special"   : TestSpecial,
+        "types"         : TestTypes,
+        "structs"       : TestStructs,
+        "constants"     : TestConstants,
+        "globals"       : TestGlobals,
+        "functions"     : TestFunctions,
+        "fn_macros"     : TestFnMacros,
+        "special"       : TestSpecial,
         "special_decls" : TestSpecialDecls,
     }
 
     def __init__(self, fname):
+        """Construct a TestProgram from an .ini file, FNAME."""
         self.header = None
         self.baseline = None
         self.global_decls = ""
@@ -874,22 +977,35 @@ class TestProgram:
         self.load(fname)
 
     def load(self, fname):
+        """Read FNAME and add its contents to self.  This is separate from
+           __init__ so it can be called recursively (see load_preamble)."""
+
         # We would like to use RawConfigParser but that wasn't available
         # in 2.0, so instead we always use get() with raw=1.
         spec = ConfigParser.ConfigParser()
         spec.optionxform = lambda x: x # make option names case sensitive
         spec.read(fname)
 
+        # Most section headers in the .ini file have internal structure:
+        # "[" COMPONENT ":" STANDARD [ ":" MODULE ] "]"
+        # where COMPONENT is one of the keys of self.COMPONENTS, above,
+        # and STANDARD and MODULE are defined in decltests/CATEGORIES.ini.
+        # (FIXME: Issue errors for unknown STANDARD and MODULE.)
+        # The exception is [preamble], which has no annotations.
+        # Parse all section headers and dispatch to the appropriate
+        # TestComponent constructor.
         for sect in spec.sections():
             what, std, mod = splitto(sect, ":", 3)
             items = {}
             for k in spec.options(sect):
                 items[k] = spec.get(sect, k, raw=1)
+
             if what == "preamble":
                 if std != "" or mod != "":
                     raise RuntimeError("%s: [preamble] section cannot be "
                                        "annotated" % fname)
                 self.load_preamble(fname, items)
+
             elif std == "":
                 raise RuntimeError("%s: [%s] section must be annotated "
                                    "with a standard"
@@ -905,6 +1021,7 @@ class TestProgram:
                 self.std_index[std][mod].append(component)
 
     def load_preamble(self, fname, items):
+        """Parse the special [preamble] section."""
         if self.header is None:
             self.header = items["header"]
         del items["header"]
@@ -935,9 +1052,11 @@ class TestProgram:
             raise RuntimeError("%s: unrecognized [preamble] items: %s"
                                % (fname, ", ".join(items.keys())))
 
-    # WARNING: The next four methods can only be used after generate() has
+    # WARNING: The next three methods can only be used after generate() has
     # been called at least once.
     def disable_line(self, line):
+        """Disable the test case at line LINE (or just before it -- necessary
+           for #if(def)-wrapped test cases)."""
         while line > 0 and not self.line_index.has_key(line):
             line -= 1
         assert line > 0
@@ -947,16 +1066,15 @@ class TestProgram:
         item.enabled = 0
         return item.tag
 
-    def enable_line(self, line):
-        self.line_index[line].enabled = 1
-
     def all_disabled(self):
+        """True if every test case in this program has been disabled."""
         for item in self.line_index.values():
             if item.enabled:
                 return 0
         return 1
 
     def disabled_tags(self):
+        """Return a list of all the tags for disabled test cases."""
         tags = []
         for item in self.line_index.values():
             if not item.enabled:
@@ -964,45 +1082,53 @@ class TestProgram:
         return tags
 
     def generate(self, outf):
-        self.gen_preamble(outf)
-        outf.write("int avoid_empty_translation_unit;")
+        """Write the test program to OUTF.
+           WARNING: Caller is responsible for emitting an #include of the
+           header under test (and all its dependencies) *before* calling
+           this function."""
 
-        for c in self.types:     c.generate(outf)
-        for c in self.structs:   c.generate(outf)
-        for c in self.constants: c.generate(outf)
-        for c in self.globals:   c.generate(outf)
+        # If all tests are disabled, and the header under test contains
+        # nothing but macros, we could trip over the requirement that a
+        # translation unit contain at least one top-level definition or
+        # declaration (C99 6.9 -- implicit in the grammar; the
+        # "translation-unit" production does not accept an empty token
+        # sequence).
+        outf.write("int avoid_empty_translation_unit;\n")
+
+        if self.global_decls != "":
+            outf.write(self.global_decls)
+            outf.write("\n\n")
+
+        # We have to list each category explicitly because they need to
+        # happen in a particular order.
+        for c in self.types:         c.generate(outf)
+        for c in self.structs:       c.generate(outf)
+        for c in self.constants:     c.generate(outf)
+        for c in self.globals:       c.generate(outf)
         for c in self.special_decls: c.generate(outf)
 
-        # extra includes are to provide any types that are necessary
+        # Extra includes are to provide any types that are necessary
         # to formulate function calls: e.g. stdio.h declares functions
         # that take a va_list argument, but doesn't declare va_list
-        # itself.  they happen at this point because they can spoil
+        # itself.  They happen at this point because they can spoil
         # tests for types, structs, constants, and globals.
-        self.gen_extra_includes(outf)
+        if self.extra_includes:
+            for h in self.extra_includes:
+                outf.write("#include <%s>\n" % h)
+            outf.write("\n")
 
         for c in self.functions: c.generate(outf)
         for c in self.fn_macros: c.generate(outf)
         for c in self.special:   c.generate(outf)
 
-        # Now that we've generated the entire file, construct an index of what's
-        # at what line.
+        # Now that we've generated the entire file, construct an index of
+        # what's at what line.  This is what enables use of the three
+        # methods above (disable_line, all_disabled, disabled_tags).
         self.line_index = {}
         for bloc in self.COMPONENTS.keys():
             for group in getattr(self, bloc):
-                for item in group.items.values():
+                for item in group.items:
                     self.line_index[item.lineno] = item
-
-    def gen_preamble(self, outf):
-        # Note: caller of generate() is responsible for #includes.
-        if self.global_decls != "":
-            outf.write(self.global_decls)
-            outf.write("\n\n")
-
-    def gen_extra_includes(self, outf):
-        if len(self.extra_includes) == 0: return
-        for h in self.extra_includes:
-            outf.write("#include <%s>\n" % h)
-        outf.write("\n")
 
 #
 # Compilation
@@ -1043,15 +1169,17 @@ class Compiler:
         try:
             devnull = os.devnull
         except AttributeError:
-            if os.platform == 'nt':
+            if sys.platform == "win32":
                 devnull = "nul:"
             else:
                 devnull = "/dev/null"
-        fd = os.open(os.devnull, os.O_RDONLY)
+        fd = os.open(devnull, os.O_RDONLY)
         os.dup2(fd, 0)
         os.close(fd)
 
     def __init__(self, base_cmd, logf, ccenv={}, cfg_fname="compilers.ini"):
+        """Identify the compiler that is invoked by BASE_CMD, and initialize
+           internal state accordingly."""
         self.base_cmd = base_cmd
         self.logf = logf
         self.error_occurred = 0
@@ -1103,59 +1231,87 @@ class Compiler:
                     nopts.append(opt)
             return nopts
 
+    # N.B. logging methods will be moved somewhere else Real Soon Now.
+
     def log(self, msg, output=[]):
-        self.logf.write(msg)
+        """Write MSG to the log file, followed by OUTPUT if any.
+           Expected use pattern is for OUTPUT to be the contents of a file
+           as returned by universal_readlines(), e.g. code about to be
+           compiled, or error messages coming back.  Forces a carriage
+           return after MSG and after each element of OUTPUT."""
+        self.logf.write(msg.rstrip())
+        self.logf.write('\n')
         for line in output:
-            self.logf.write("| %s\n" % line)
+            self.logf.write(("| %s" % line).rstrip())
+            self.logf.write('\n')
         self.logf.flush()
 
     def begin_test(self, msg):
-        self.log("Begin test: %s\n" % msg)
+        """Announce the commencement of a test, both in the log file and
+           on stderr."""
+        msg = msg.strip()
+        self.log("Begin test: %s" % msg)
         sys.stderr.write(msg)
         sys.stderr.write("..")
         sys.stderr.flush()
         self.need_cr = 1
 
     def progress_tick(self):
+        """Indicate on stderr that forward progress is being made.
+           Should normally be paired with one or more calls to log()."""
         sys.stderr.write(".")
         sys.stderr.flush()
         self.need_cr = 1
 
     def progress_note(self, msg):
+        """Indicate status in the middle of an ongoing test.
+           MSG is sent both to stderr and to the logfile, and a carriage
+           return is forced before and after MSG if necessary."""
+        msg = msg.strip()
         self.log(msg)
         if self.need_cr:
             sys.stderr.write("\n")
-        sys.stderr.write(msg)
-        sys.stderr.flush()
-        self.need_cr = (msg[-1] != '\n')
-
-    def end_test(self, msg):
-        self.log("Test complete: %s\n" % msg)
-        sys.stderr.write(" ")
         sys.stderr.write(msg)
         sys.stderr.write("\n")
         sys.stderr.flush()
         self.need_cr = 0
 
+    def end_test(self, msg):
+        """Announce the completion of a test, both in the log file
+           and on stderr."""
+        msg = msg.strip()
+        self.log("Test complete: %s" % msg)
+        sys.stderr.write(" %s\n" % msg)
+        sys.stderr.flush()
+        self.need_cr = 0
+
     def error(self, msg):
-        msg = "Error: %s\n" % msg
+        """Announce an error severe enough that we cannot produce
+           meaningful output, but not so severe that we must abandon
+           the test run immediately."""
+        msg = "Error: %s" % msg
         self.log(msg)
         if self.need_cr:
             sys.stderr.write("\n")
         sys.stderr.write(msg)
+        sys.stderr.write("\n")
         self.need_cr = 0
         self.error_occurred = 1
 
     def fatal(self, msg):
-        msg = "Fatal error: %s\n" % msg
+        """Announce an error severe enough that the test run should
+           be aborted immediately.  Does not return."""
+        msg = "Fatal error: %s" % msg
         self.log(msg)
         if self.need_cr:
             sys.stderr.write("\n")
         sys.stderr.write(msg)
+        sys.stderr.write("\n")
         raise SystemExit(1)
 
     def invoke(self, argv):
-        """Invoke the command in 'argv' and capture its output."""
+        """Invoke the command in ARGV, capturing all its output and its
+           exit code."""
         # For a wonder, the incantation to redirect both stdout and
         # stderr to a file is exactly the same on Windows as on Unix!
         # We put the redirections first on the command line because
@@ -1192,7 +1348,7 @@ class Compiler:
         finally:
             delete_if_exists(result)
 
-        self.log(msg[0]+"\n", msg[1:])
+        self.log(msg[0], msg[1:])
         return (rc, msg)
 
     #
@@ -1259,13 +1415,19 @@ class Compiler:
         return "unidentified"
 
     def failure_due_to_nonexistence(self, msg, header):
+        """True if MSG contains an error message indicating that HEADER
+           does not exist."""
         for m in msg:
             if self.notfound_re.search(m) and m.find(header) != -1:
                 return 1
         return 0
 
-    def test_invoke(self, code, suffix, action, outname,
+    def test_invoke(self, code, action, outname,
                     conform=0, thread=0, opts=[], defines=[]):
+        """Invoke the compiler on CODE, in the compilation mode indicated
+           by ACTION, CONFORM, THREAD, and OPTS, defining preprocessor
+           macros as given by DEFINES.  Return the exit code and the
+           error messages, after cleaning up temporary files."""
         cmd = self.base_cmd[:]
         if conform:
             cmd.extend(self.conform_opt)
@@ -1279,7 +1441,7 @@ class Compiler:
         test_c = None
         test_s = None
         try:
-            test_c = named_tmpfile(prefix="cct", suffix=suffix)
+            test_c = named_tmpfile(prefix="cct", suffix="c")
             test_s = self.subst_filename(test_c, outname)
             cmd.extend(self.subst_filename(test_c, action))
             cmd.append(test_c)
@@ -1290,20 +1452,23 @@ class Compiler:
             f.close()
 
             self.progress_tick()
-            self.log("Compiling:\n", code.split("\n"))
+            self.log("compiling:", code.split("\n"))
             return self.invoke(cmd)
         finally:
             delete_if_exists(test_c)
             delete_if_exists(test_s)
 
     def test_compile(self, code, conform=0, thread=0, opts=[], defines=[]):
-        return self.test_invoke(code, "c",
+        """Convenience function for requesting compilation at least up to
+           and including semantic validation."""
+        return self.test_invoke(code,
                                 self.compile_cmd,
                                 self.compile_out,
                                 conform, thread, opts, defines)
 
     def test_preproc(self, code, conform=0, thread=0, opts=[], defines=[]):
-        return self.test_invoke(code, "c",
+        """Convenience function for requesting preprocessing only."""
+        return self.test_invoke(code,
                                 self.preproc_cmd,
                                 self.preproc_out,
                                 conform, thread, opts, defines)
@@ -1349,7 +1514,7 @@ class Compiler:
             f.write("#else\n#error UNKNOWN\n#endif")
             f.close()
 
-            self.log("Probing compiler identity:\n", universal_readlines(test1))
+            self.log("probing compiler identity:", universal_readlines(test1))
             (rc, msg) = self.invoke(self.base_cmd + [test1])
             compiler = parse_output(msg, compilers)
 
@@ -1423,9 +1588,10 @@ class Compiler:
 
 
     def smoke_test(self, cfg, cfgf):
-        """Tests which, if they fail, indicate something horribly
-           wrong with the compiler and/or our usage of it.
-           Either returns successfully, or issues a fatal error."""
+        """Perform tests which, if they fail, indicate something horribly
+           wrong with the compiler and/or our usage of it (so there is no
+           point in continuing with the test run).  Either returns
+           successfully, or issues a fatal error."""
 
         self.begin_test("smoke test")
 
@@ -1438,7 +1604,7 @@ class Compiler:
 
         # This code should compile without complaint.
         for (action, conform, tag) in test_modes:
-            self.log("smoke test: %s, should succeed\n" % tag)
+            self.log("smoke test: %s, should succeed" % tag)
             (rc, msg) = action("#include <stdarg.h>\nint dummy;",
                                conform)
             if rc != 0:
@@ -1449,7 +1615,7 @@ class Compiler:
         # This code should _not_ compile, in any mode, nor should it
         # preprocess.
         for (action, conform, tag) in test_modes:
-            self.log("smoke test: %s, should fail due to nonexistence\n" % tag)
+            self.log("smoke test: %s, should fail due to nonexistence" % tag)
             (rc, msg) = action("#include <nonexistent.h>\nint dummy;", conform)
             if rc == 0 or not self.failure_due_to_nonexistence(msg,
                                                                "nonexistent.h"):
@@ -1459,7 +1625,7 @@ class Compiler:
 
         # We should be able to tell that the error in this code is on line 3.
         for conform in (0,1):
-            self.log("smoke test: error on specific line (conform=%d)\n"
+            self.log("smoke test: error on specific line (conform=%d)"
                      % conform)
             (rc, msg) = self.test_compile("int main(void)\n"
                                           "{\n"
@@ -1505,7 +1671,7 @@ class Compiler:
             if defines != "":
                 opts.extend([self.define_opt + d for d in defines.split()])
 
-            self.log("conformance test: trying for %s %s\n"
+            self.log("conformance test: trying for %s %s"
                      % (label, expected))
             (rc, msg) = self.test_preproc(testcode, conform=1, opts=opts,
                                           defines=["EXPECTED="+expected])
@@ -1601,6 +1767,8 @@ class Compiler:
                            % (self.compiler, cfgf))
 
     def report(self, outf):
+        """Report the identity of the compiler and how we're going to
+           use it."""
         outf.write("old: %s\n" % self.old_compiler_id(self.base_cmd))
         outf.write("new: %s\n" % self.label)
         outf.write("conformance options: %s\n" % " ".join(self.conform_opt))
@@ -1612,7 +1780,14 @@ class Compiler:
 #
 
 class KnownError:
-    """One potential failure mode for a header file."""
+    """A known way in which a header (or headers) can fail to compile
+       successfully.  NAME is a mnemonic label for this failure case;
+       HEADERS are the headers it applies to ("*" for potentially all of
+       them); REGEXP is a regular expression that will match error messages
+       indicating this failure mode; DESC is a human-readable description
+       of the problem; and CAUTION is true if this problem is not so severe
+       that the header can't be used at all.  These correspond precisely to
+       the fields of each stanza of errors.ini."""
     def __init__(self, name, headers, regexp, desc, caution):
         self.name = name
         self.headers = headers
@@ -1621,13 +1796,11 @@ class KnownError:
         self.caution = caution
 
     def search(self, msg):
+        """True if the error message MSG indicates this known error."""
         return self.regexp.search(msg)
 
-    def output(self, outf):
-        outf.write("  $E %s\n" % self.name)
-
 # Stopgap value used to preserve data structure consistency when we
-# hit a failure mode that isn't recognized (e.g. via errors.ini).
+# hit a failure mode that isn't coded into errors.ini yet.
 UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0)
 
 class ContentTestResultCluster:
@@ -1681,18 +1854,18 @@ class ContentTestResult:
                 all_symbols = {}
 
                 for comp in components:
-                    for item in comp.items.values():
+                    for item in comp.items:
                         all_symbols[item.tag] = 1
 
                     disabled = comp.disabled_items()
 
                     for item in disabled:
-                        if item.missing == 0:
+                        if item.meaning == TestItem.INCORRECT:
                             wrong[item.tag] = 1
-                        elif item.missing == 1:
+                        elif item.meaning == TestItem.MISSING:
                             missing[item.tag] = 1
                         else:
-                            assert item.missing == 2
+                            assert item.meaning == TestItem.AMBIGUOUS
                             uncertain[item.tag] = 1
 
                 # A 'missing' item trumps a 'wrong' or 'uncertain' item
@@ -1894,7 +2067,7 @@ class Header:
             outf.write(" contents:\n")
             self.content_results.output(outf)
 
-        cc.log("%s = %s\n" % (self.name, self.state_label()),
+        cc.log("%s = %s" % (self.name, self.state_label()),
                outf.getvalue().split("\n"))
 
     def log_conflicts(self, cc):
@@ -1909,7 +2082,7 @@ class Header:
             msg.append("   [ct] = "
                        + " ".join([h.name for h in self.conflist[1][1]]))
 
-        cc.log("%s = %s\n" % (self.name, self.state_label()),
+        cc.log("%s = %s" % (self.name, self.state_label()),
                msg)
 
     def state_code(self):
@@ -2008,8 +2181,8 @@ class Header:
     def record_errors(self, cc, msg, conform, thread, ignore_unknown=0):
         errs = self.dataset.is_known_error(msg, self.name)
         if errs is not None:
-            cc.log("*** errors detected: %s\n"
-                   % " ".join([err.name for err in errs]))
+            cc.progress_note("*** errors detected: %s"
+                             % " ".join([err.name for err in errs]))
             self.extend_errlist(conform, thread, errs)
         else:
             if ignore_unknown: return
@@ -2064,7 +2237,7 @@ class Header:
     def test_presence(self, cc):
         if self.presence != self.UNKNOWN: return
 
-        cc.log("testing presence of %s\n" % self.name)
+        cc.log("testing presence of %s" % self.name)
         (rc, msg) = cc.test_preproc("#include <%s>" % self.name)
         if rc == 0:
             self.presence = self.PRESENT
@@ -2084,7 +2257,7 @@ class Header:
         # dependency_combs is guaranteed to produce an empty set as the first
         # item in its returned list, and the complete set as the last item.
         for candidate_set in dependency_combs(possible_deps):
-            cc.log("dependency test %s mode %s candidates: [%s]\n" %
+            cc.log("dependency test %s mode %s candidates: [%s]" %
                    (self.name, ct(conform, thread),
                     " ".join([h.name for h in candidate_set])))
 
@@ -2171,7 +2344,7 @@ class Header:
         if self.contents != self.UNKNOWN: return
 
         if not self.dataset.decltests.has_key(self.name):
-            cc.log("no contents test available for %s\n" % self.name)
+            cc.log("no contents test available for %s" % self.name)
             self.contents = self.PRESENT
             return
 
@@ -2179,7 +2352,7 @@ class Header:
 
         # Contents tests are done only in the preferred mode.
         (conform, thread) = self.pref_mode
-        cc.log("contents test for %s in mode %s\n" %
+        cc.log("contents test for %s in mode %s" %
                (self.name, ct(conform, thread)))
 
         buf = LineCounter(StringIO.StringIO())
@@ -2227,10 +2400,12 @@ class Header:
                     # which line it's on.
                     tag = tester.disable_line(int(m.group("line")))
                     if tag:
-                        cc.log("disabled %s\n" % tag)
+                        cc.log("disabled %s" % tag)
 
             disabled_tags = tester.disabled_tags()
             if disabled_tags == prev_disabled_tags:
+                # Nothing changed, so the compiler is complaining about
+                # something we don't know how to turn off.
                 cc.error("unrecognized failure mode for <%s> (contents tests)."
                          % self.name)
             prev_disabled_tags = disabled_tags
@@ -2243,7 +2418,7 @@ class Header:
                 else:
                     buf.write("#include <%s>\n" % item)
             tester.generate(buf)
-            cc.log("retry contents test for %s (mode %s)\n" %
+            cc.log("retry contents test for %s (mode %s)" %
                    (self.name, ct(conform, thread)))
             (rc, msg) = cc.test_compile(buf.getvalue(),
                                         conform=conform, thread=thread)
@@ -2252,14 +2427,14 @@ class Header:
         # least some items disabled.  Annotate accordingly.
         result = ContentTestResult(tester)
         if result.badness == 0:
-            # Only optional items are missing.
+            # Only optional items failed the tests.
             self.contents = self.INCOMPLETE
         elif result.badness == 1:
-            # Some required items are missing.
+            # Some required items failed the tests.
             self.contents = self.INCOMPLETE
             self.caution[conform][thread] = 2
         else:
-            # _All_ items are missing.
+            # _All_ items failed the tests.
             assert result.badness == 2
             self.presence = self.BUGGY
 
@@ -2336,7 +2511,9 @@ class ConflictMatrix:
             self.note_dependencies(baseh, hh)
 
     def log_matrix(self, cc, msg):
-        if not self.debug: return
+        if not self.debug:
+            cc.log(msg)
+            return
         # U+00A0 NO-BREAK SPACE, U+2592 MEDIUM SHADE, U+2588 FULL BLOCK
         codes = [ "\xc2\xa0", "\xe2\x96\x92", "\xe2\x96\x88" ]
         lines = []
@@ -2355,7 +2532,7 @@ class ConflictMatrix:
                 if self.matrix[x][y] == 0 or self.matrix[y][x] == 0:
                     break
             else:
-                cc.log("conflict test: done with %s\n" % x)
+                cc.log("conflict test: done with %s" % x)
                 if self.header_object[x].conflict is None:
                     self.header_object[x].conflict = 0
                 del self.header_object[x]
@@ -2373,13 +2550,13 @@ class ConflictMatrix:
     def record_conflict_1(self, cc, x, y):
         self.matrix[x][y] = 2
         self.matrix[y][x] = 2
-        self.log_matrix(cc, "conflict trial fail\n")
+        self.log_matrix(cc, "conflict trial fail")
 
         xx = self.header_object[x]
         yy = self.header_object[y]
         xx.record_conflict(yy, self.conform, self.thread)
         yy.record_conflict(xx, self.conform, self.thread)
-        cc.progress_note("*** conflict identified: %s with %s\n"
+        cc.progress_note("*** conflict identified: %s with %s"
                          % (x, y))
 
     def record_ok(self, cc, tested):
@@ -2397,10 +2574,10 @@ class ConflictMatrix:
                              "already determined to conflict" % (x, y))
                 else:
                     self.matrix[x][y] = 1
-        self.log_matrix(cc, "conflict trial ok\n")
+        self.log_matrix(cc, "conflict trial ok")
 
     def test_conflict_set(self, cc, cand):
-        cc.log("conflict candidate set: %s\n" % " ".join(cand))
+        cc.log("conflict candidate set: %s" % " ".join(cand))
         tset = []
         for i in range(len(cand)):
             # Pass specials through.
@@ -2420,7 +2597,7 @@ class ConflictMatrix:
         if len(tset) < 2:
             return (1, tset)
 
-        cc.log("conflict trial set: %s\n" % " ".join(tset))
+        cc.log("conflict trial set: %s" % " ".join(tset))
 
         eset = []
         already = {}
@@ -2429,7 +2606,7 @@ class ConflictMatrix:
                 eset.extend(self.header_object[h]
                             .gen_includes(self.conform, self.thread, already))
 
-        cc.log("conflict extended set: %s\n" % " ".join(eset))
+        cc.log("conflict extended set: %s" % " ".join(eset))
 
         # handling of specials
         includes = []
@@ -2465,7 +2642,7 @@ class ConflictMatrix:
                 if result:
                     self.record_ok(cc, tested)
                 else:
-                    cc.log("conflict trial fail\n")
+                    cc.log("conflict trial fail")
             if result:
                 if prev_conflict and prev_delta == 1:
                     hi += 1
@@ -2496,7 +2673,7 @@ class ConflictMatrix:
                 if result:
                     self.record_ok(cc, tested)
                 else:
-                    cc.log("conflict trial fail\n")
+                    cc.log("conflict trial fail")
             if result:
                 if prev_conflict and prev_delta == 1:
                     lo -= 1
@@ -2606,7 +2783,7 @@ class ConflictMatrix:
                     if not self.matrix[x][y]: colg += 1
                     if not self.matrix[y][x]: rowg += 1
 
-                cc.log("conflict test: %s: todo before %d after %d\n"
+                cc.log("conflict test: %s: todo before %d after %d"
                        % (x, colg, rowg))
                 if rowg > row_maxg:
                     row_maxg = rowg
