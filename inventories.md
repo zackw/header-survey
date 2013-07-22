@@ -247,36 +247,45 @@ and `$X` annotations don't have a mode tag.
   This annotation should only appear on a header whose state code
   indicates either CAUTION or BUGGY.
 
-* `$M` `:`<i>category</i>`:` *space-separated list of symbols*
+* `$M` <i>type</i>`:`<i>category</i>`:` *space-separated list of symbols*
 
   Indicates that this header fails to declare the symbols in the list.
   (M is for “missing.”)
 
-  The category tag is mandatory, and applies to all the symbols in the
-  list; if symbols from multiple categories are missing, there will be
-  multiple `$M` lines.  If there is nothing after the category tag,
-  that means *none* of the symbols belonging to that category were
-  declared.  Category tags are defined and given human-readable names
-  in [`decltests/CATEGORIES.ini`](decltests/CATEGORIES.ini).
+  Type tags indicate what sort of symbol these are: types, (aggregate)
+  fields, constants, globals, functions, function-like macros, or
+  special.  (What makes a symbol "special" has more to do with how we
+  test for its presence than its actual nature.)
+
+  Category tags indicate which standard, and possibly which optional
+  module of that standard, specifies the symbols.  They are defined
+  and given human-readable names in
+  [`decltests/CATEGORIES.ini`](decltests/CATEGORIES.ini).
+
+  The type and category tags are mandatory, and apply to all the
+  symbols in the list; if symbols of multiple types / from multiple
+  categories are missing, there will be multiple `$M` lines.  If there
+  is nothing after the tag, that means *none* of the symbols of that
+  type belonging to that category were declared.
 
   This annotation should only appear on a header whose state code
   indicates either INCOMPLETE or BUGGY.
 
-* `$W` `:`<i>category</i>`:` *space-separated list of symbols*
+* `$W` <i>type</i>`:`<i>category</i>`:` *space-separated list of symbols*
 
   Indicates that this header does declare the symbols in the list, but
-  incorrectly. (W is for “wrong.”)  Category tags work the same way as
-  for `$M`.
+  incorrectly. (W is for “wrong.”)  Type and category tags work the
+  same way as for `$M`.
 
   This annotation should only appear on a header whose state code
   indicates either INCOMPLETE or BUGGY.
 
-* `$X` `:`<i>category</i>`:` *space-separated list of symbols*
+* `$X` <i>type</i>`:`<i>category</i>`:` *space-separated list of symbols*
 
   Indicates that the symbols in the list are either missing or
   incorrect, but we can't tell which.  (X looks kind of like an M and
-  a W stacked on top of each other if you squint.) Category tags work
-  the same way as for `$M`.
+  a W stacked on top of each other if you squint.)  Type and category
+  tags work the same way as for `$M`.
 
   This annotation should only appear on a header whose state code
   indicates either INCOMPLETE or BUGGY.

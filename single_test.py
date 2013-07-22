@@ -633,6 +633,8 @@ class TestComponent:
 class TestTypes(TestComponent):
     """Test presence and correctness of type definitions."""
 
+    label = "types"
+
     def pp_normal(self, k, v):
         d = " ".join(k.split("."))
         if v.endswith(" struct"):
@@ -691,6 +693,8 @@ class TestTypes(TestComponent):
 class TestStructs(TestComponent):
     """Test presence and correctness of structure fields."""
 
+    label = "fields"
+
     def pp_normal(self, k, v):
         (typ, field) = splitto(k, ".", 2)
         if field == "":
@@ -735,6 +739,8 @@ class TestStructs(TestComponent):
 dollar_re = re.compile(r"\$")
 class TestConstants(TestComponent):
     """Test presence and correctness of symbolic constants."""
+
+    label = "constants"
 
     def pp_normal(self, k, v):
         # Constants may be conditionally defined; notably, X/Open
@@ -817,6 +823,8 @@ class TestConstants(TestComponent):
 class TestGlobals(TestComponent):
     """Test presence and correctness of global variables."""
 
+    label = "globals"
+
     def pp_normal(self, k, v):
         if v == "": v = "int"
         # does it exist?
@@ -836,6 +844,8 @@ class TestSpecialDecls(TestComponent):
        _Atomic, _Thread_local (type qualifiers); CMPLX, _Alignof
        (initializer expressions)."""
 
+    label = "special"
+
     def pp_normal(self, k, v):
         (dtype, init) = splitto(v, "=", 2)
         self.items.append(TestDecl(self.infname, self.std, self.mod,
@@ -845,6 +855,8 @@ class TestSpecialDecls(TestComponent):
 
 class TestFunctions(TestComponent):
     """Test presence and correctness of function declarations."""
+
+    label = "functions"
 
     def pp_normal(self, k, v):
         (rtype, argtypes, argdecl, call, return_) = crunch_fncall(v)
@@ -873,6 +885,9 @@ class TestFunctions(TestComponent):
 
 class TestFnMacros(TestComponent):
     """Test presence and correctness of function-like macros."""
+
+    label = "fn_macros"
+
     def pp_normal(self, k, v):
         (rtype, argtypes, argdecl, call, return_) = crunch_fncall(v)
 
@@ -890,6 +905,8 @@ class TestSpecial(TestComponent):
        Can also test several things at once, which is useful when they
        can only be used together.  This is what you want for e.g.
        pthread_cleanup_push/pop, va_start/va_arg/va_end."""
+
+    label = "special"
 
     # There are two usage patterns, both of which make extensive
     # use of special keys; it is easier to override preprocess()
@@ -1805,7 +1822,8 @@ UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0)
 
 class ContentTestResultCluster:
     """Data structure object used by ContentTestResult."""
-    def __init__(self, std, mod, symbols):
+    def __init__(self, std, mod, stype, symbols):
+        self.stype = stype
         if mod == "":
             self.category = std
         else:
@@ -1813,10 +1831,12 @@ class ContentTestResultCluster:
         self.symbols = symbols
         self.symbols.sort()
 
-    def symbol_list(self):
+    def __str__(self):
         if not self.symbols:
-            return ""
-        return " " + " ".join(self.symbols)
+            return "%s:%s:" % (self.stype, self.category)
+        else:
+            return "%s:%s: %s" % (self.stype, self.category,
+                                  " ".join(self.symbols))
 
 class ContentTestResult:
     """Results of a test for contents.  Instantiate from a TestProgram
@@ -1847,13 +1867,13 @@ class ContentTestResult:
 
         for std, mods in tester.std_index.items():
             for mod, components in mods.items():
-
-                missing = {}
-                wrong = {}
-                uncertain = {}
-                all_symbols = {}
-
                 for comp in components:
+
+                    missing = {}
+                    wrong = {}
+                    uncertain = {}
+                    all_symbols = {}
+
                     for item in comp.items:
                         all_symbols[item.tag] = 1
 
@@ -1868,53 +1888,53 @@ class ContentTestResult:
                             assert item.meaning == TestItem.AMBIGUOUS
                             uncertain[item.tag] = 1
 
-                # A 'missing' item trumps a 'wrong' or 'uncertain' item
-                # with the same tag.
-                for tag in missing.keys():
-                    if wrong.has_key(tag): del wrong[tag]
-                    if uncertain.has_key(tag): del uncertain[tag]
+                    # A 'missing' item trumps a 'wrong' or 'uncertain' item
+                    # with the same tag.
+                    for tag in missing.keys():
+                        if wrong.has_key(tag): del wrong[tag]
+                        if uncertain.has_key(tag): del uncertain[tag]
 
-                if (std == tester.baseline and
-                    (missing or wrong or uncertain) and
-                    self.required_modules.has_key(mod)):
-                    self.badness = 1
+                    if (std == tester.baseline and
+                        (missing or wrong or uncertain) and
+                        self.required_modules.has_key(mod)):
+                        self.badness = 1
 
-                if (len(missing) + len(wrong) + len(uncertain)
-                    == len(all_symbols)):
-                    # All the symbols in this module are busted
-                    # somehow.  Treat "missing" as collectively
-                    # trumping "wrong" and "uncertain", and "wrong" as
-                    # trumping "uncertain", for compactness' sake.
-                    if missing:
-                        self.missing_items.append(CTRC(std, mod, []))
-                    elif wrong:
-                        self.wrong_items.append(CTRC(std, mod, []))
-                    elif uncertain:
-                        self.uncertain_items.append(CTRC(std, mod, []))
-                else:
-                    if missing:
-                        self.missing_items.append(CTRC(std, mod,
-                                                       missing.keys()))
-                    if wrong:
-                        self.wrong_items.append(CTRC(std, mod,
-                                                     wrong.keys()))
-                    if uncertain:
-                        self.uncertain_items.append(CTRC(std, mod,
-                                                         uncertain.keys()))
+                    if (len(missing) + len(wrong) + len(uncertain)
+                        == len(all_symbols)):
+                        # All the symbols in this module are busted
+                        # somehow.  Treat "uncertain" as collectively
+                        # trumping "wrong" and "missing", and
+                        # "missing" as collectively trumping "wrong",
+                        # for compactness' sake.
+                        cluster = CTRC(std, mod, comp.label, [])
+                        if uncertain:
+                            self.uncertain_items.append(cluster)
+                        elif missing:
+                            self.missing_items.append(cluster)
+                        else:
+                            assert wrong
+                            self.wrong_items.append(cluster)
+                    else:
+                        if missing:
+                            self.missing_items.append(
+                                CTRC(std, mod, comp.label, missing.keys()))
+                        if wrong:
+                            self.wrong_items.append(
+                                CTRC(std, mod, comp.label, wrong.keys()))
+                        if uncertain:
+                            self.uncertain_items.append(
+                                CTRC(std, mod, comp.label, uncertain.keys()))
 
         if tester.all_disabled():
             self.badness = 2
 
     def output(self, outf):
         for cluster in self.missing_items:
-            outf.write("  $M :%s:%s\n" % (cluster.category,
-                                          cluster.symbol_list()))
+            outf.write("  $M %s\n" % cluster)
         for cluster in self.wrong_items:
-            outf.write("  $W :%s:%s\n" % (cluster.category,
-                                          cluster.symbol_list()))
+            outf.write("  $W %s\n" % cluster)
         for cluster in self.uncertain_items:
-            outf.write("  $X :%s:%s\n" % (cluster.category,
-                                           cluster.symbol_list()))
+            outf.write("  $X %s\n" % cluster)
 
 class SpecialDependency:
     """Used to represent [special] dependencies from prereqs.ini.
