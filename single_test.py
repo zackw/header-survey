@@ -690,7 +690,7 @@ class TestTypes(TestComponent):
                                        tag=k, meaning=TestItem.INCORRECT,
                                        dtype=d, init=init))
 
-class TestStructs(TestComponent):
+class TestFields(TestComponent):
     """Test presence and correctness of structure fields."""
 
     label = "fields"
@@ -698,7 +698,7 @@ class TestStructs(TestComponent):
     def pp_normal(self, k, v):
         (typ, field) = splitto(k, ".", 2)
         if field == "":
-            raise RuntimeError("%s [structs:%s:%s]: %s: missing field name"
+            raise RuntimeError("%s [fields:%s:%s]: %s: missing field name"
                                % (self.infname, self.std, self.mod, k))
         # "s_TAG" is shorthand for "struct TAG", as "option" names
         # cannot contain spaces; similarly, "u_TAG" for "union TAG"
@@ -971,7 +971,7 @@ class TestProgram:
     # Map labels in the .ini file to TestComponent subclasses.
     COMPONENTS = {
         "types"         : TestTypes,
-        "structs"       : TestStructs,
+        "fields"        : TestFields,
         "constants"     : TestConstants,
         "globals"       : TestGlobals,
         "functions"     : TestFunctions,
@@ -1119,7 +1119,7 @@ class TestProgram:
         # We have to list each category explicitly because they need to
         # happen in a particular order.
         for c in self.types:         c.generate(outf)
-        for c in self.structs:       c.generate(outf)
+        for c in self.fields:        c.generate(outf)
         for c in self.constants:     c.generate(outf)
         for c in self.globals:       c.generate(outf)
         for c in self.special_decls: c.generate(outf)
@@ -1128,7 +1128,7 @@ class TestProgram:
         # to formulate function calls: e.g. stdio.h declares functions
         # that take a va_list argument, but doesn't declare va_list
         # itself.  They happen at this point because they can spoil
-        # tests for types, structs, constants, and globals.
+        # tests for types, fields, constants, and globals.
         if self.extra_includes:
             for h in self.extra_includes:
                 outf.write("#include <%s>\n" % h)
