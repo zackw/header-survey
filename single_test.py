@@ -121,6 +121,7 @@ def named_tmpfile(prefix="tmp", suffix="txt"):
             # The code above can generate 60,466,176 different names,
             # but give up after ten thousand iterations; we don't want
             # to spend hours looping if something is genuinely wrong.
+            tries += 1
             if tries == 10000:
                 raise
             # otherwise loop
@@ -2485,9 +2486,9 @@ class ConflictMatrix:
        include the same header twice) have been dealt with already and
        we don't need to track them.  (They're vanishingly rare, anyway.)
 
-       Much of the algorithmic complexity of the conflict tester boils
-       down to being able to fill in huge blocks of this matrix with
-       each successful compilation."""
+       Much of the algorithmic complexity of the conflict tester is in
+       the service of filling in huge blocks of this matrix with each
+       successful compilation."""
 
     def __init__(self, headers, conform, thread):
         self.debug = 0
@@ -2512,12 +2513,12 @@ class ConflictMatrix:
     def note_dependencies(self, baseh, h):
         for hh in h.deplist[self.conform][self.thread]:
             if isinstance(hh, SpecialDependency): continue
-            # Record h as a reverse dependency of hh.  When we
-            # identify that hh conflicts with X, we will also mark h
-            # as conflicting with X.  This is actually necessary for
-            # correctness -- otherwise we can miss certain asymmetric
-            # conflicts.
-            self.rdeps[hh.name].append(h.name)
+            # Record baseh as depending on hh (perhaps transitively).
+            # If hh conflicts with X, all the headers it depends on
+            # will also be considered to conflict with X.  This is
+            # necessary for correctness -- otherwise we can miss
+            # certain asymmetric conflicts.
+            self.rdeps[hh.name].append(baseh.name)
 
             # It is impossible to include baseh before hh, and it is
             # mandatory to include hh before baseh.  Therefore there
