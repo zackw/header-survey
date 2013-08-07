@@ -2577,7 +2577,8 @@ class ConflictMatrix:
         self.log_matrix(cc, "conflict trial ok")
 
     def test_conflict_set(self, cc, cand):
-        cc.log("conflict candidate set: %s" % " ".join(cand))
+        if self.debug:
+            cc.log("conflict candidate set: %s" % " ".join(cand))
         tset = []
         for i in range(len(cand)):
             # Pass specials through.
@@ -2597,7 +2598,8 @@ class ConflictMatrix:
         if len(tset) < 2:
             return (1, tset)
 
-        cc.log("conflict trial set: %s" % " ".join(tset))
+        if self.debug:
+            cc.log("conflict trial set: %s" % " ".join(tset))
 
         eset = []
         already = {}
@@ -2606,7 +2608,8 @@ class ConflictMatrix:
                 eset.extend(self.header_object[h]
                             .gen_includes(self.conform, self.thread, already))
 
-        cc.log("conflict extended set: %s" % " ".join(eset))
+        if self.debug:
+            cc.log("conflict extended set: %s" % " ".join(eset))
 
         # handling of specials
         includes = []
@@ -2742,13 +2745,15 @@ class ConflictMatrix:
                 # find_single_conflict can also generate closely-related
                 # test sets repeatedly.  Discard all headers which have
                 # already been tested with both the head and the tail.
-                hd = cand[0]
-                tl = cand[-1]
-                ncand = []
-                for c in cand:
-                    if not (self.matrix[hd][c] and self.matrix[c][tl]):
-                        ncand.append(c)
-                cand = ncand
+                if len(cand) > 2:
+                    hd = cand[0]
+                    tl = cand[-1]
+                    ncand = [hd]
+                    for c in cand[1:-1]:
+                        if not (self.matrix[hd][c] and self.matrix[c][tl]):
+                            ncand.append(c)
+                    ncand.append(tl)
+                    cand = ncand
 
                 tag = tuple(cand)
                 if not already_tested.has_key(tag):
@@ -2792,14 +2797,21 @@ class ConflictMatrix:
                     col_maxg = colg
                     col_argmg = x
 
-            if row_argmg is not None:
+            # Only take the longest stripe, whichever dimension it's
+            # in; toward the end of the process, we may have only
+            # degenerate (length-1 / 2 headers) stripes in one
+            # dimension, testing which is wholly redundant with
+            # testing a long stripe in the other dimension.
+            if row_maxg > col_maxg:
+                assert row_argmg is not None
                 row = []
                 for x in headers:
                     if not self.matrix[x][row_argmg]: row.append(x)
                 row.append(row_argmg)
                 queue.append(row)
 
-            if col_argmg is not None:
+            if col_maxg >= row_maxg > 0:
+                assert col_argmg is not None
                 col = [col_argmg]
                 for x in headers:
                     if not self.matrix[col_argmg][x]: col.append(x)
