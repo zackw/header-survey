@@ -323,30 +323,8 @@ def dependency_combs(deps):
         dependency_combs_r(0, i, deps, work, rv)
     return rv
 
-class LineCounter:
-    """Wrap a file-like object open for writing, and keep track of the
-       current line within that file.  It is assumed that the file is
-       initially empty, and that you never change the file position."""
-    def __init__(self, fh):
-        self.fh = fh
-        self.lineno = 1
-
-    def write(self, text):
-        self.fh.write(text)
-        self.lineno = self.lineno + text.count("\n")
-
-    def writelines(self, strings):
-        for s in strings: self.write(s)
-
-    def flush(self): self.fh.flush()
-    def close(self): self.fh.close()
-
-    def getvalue(self): return self.fh.getvalue()
-
 #
 # Code generation for decltests (used by Header.test_contents, far below)
-# Note: all of this code requires that the file-like passed to generate()
-# be a LineCounter instance.
 #
 
 idchars = string.letters + string.digits + "_"
@@ -467,24 +445,24 @@ class TestItem:
         self.name = None
         self.lineno = None
 
-    def generate(self, outf):
-        """Public interface to write the code for this test to OUTF.
+    def generate(self, out):
+        """Public interface to append the code for this test to OUT.
            Subclasses should not need to tamper with this method."""
         if not self.enabled: return
+        lineno = len(out) + 1
         if self.name is None:
-            self.lineno = outf.lineno
+            self.lineno = lineno
             self.name = "t_" + str(self.lineno)
         else:
-            if self.lineno < outf.lineno:
+            if self.lineno < lineno:
                 raise RuntimeError("%s (%s:%s): line numbers out of sync "
                                    " (want %d, already at %d)"
                                    % (self.tag, self.std, self.mod,
-                                      self.lineno, outf.lineno))
-            while outf.lineno < self.lineno:
-                outf.write("\n")
-        self._generate(outf)
+                                      self.lineno, lineno))
+            out.extend([""] * (self.lineno - lineno))
+        self._generate(out)
 
-    def _generate(self, outf):
+    def _generate(self, out):
         """Subclasses must override this stub method to emit the actual
            code for their test case."""
         raise NotImplementedError
@@ -502,19 +480,19 @@ class TestDecl(TestItem):
         self.init = squishwhite(init)
         self.cond = squishwhite(cond)
 
-    def _generate(self, outf):
+    def _generate(self, out):
         decl = mkdeclarator(self.dtype, self.name)
         if self.cond != "":
             if self.cond[0] == '?':
-                outf.write("#if %s\n" % self.cond[1:])
+                out.append("#if %s" % self.cond[1:])
             else:
-                outf.write("#ifdef %s\n" % self.cond)
+                out.append("#ifdef %s" % self.cond)
         if self.init == "":
-            outf.write(decl + ";\n")
+            out.append(decl + ";")
         else:
-            outf.write("%s = %s;\n" % (decl, self.init))
+            out.append("%s = %s;" % (decl, self.init))
         if self.cond != "":
-            outf.write("#endif\n")
+            out.append("#endif")
 
 class TestFn(TestItem):
     """Test item which works by defining a function with a particular
@@ -537,7 +515,7 @@ class TestFn(TestItem):
         if self.body != "" and self.body[-1] != ";":
             self.body = self.body + ";"
 
-    def _generate(self, outf):
+    def _generate(self, out):
         # To declare a function that returns a function pointer without
         # benefit of typedefs, you write
         #   T (*fn(ARGS))(PROTO) { ... }
@@ -546,9 +524,9 @@ class TestFn(TestItem):
         name = "%s(%s)" % (self.name, self.argv)
         decl = mkdeclarator(self.rtype, name)
         if self.body == "":
-            outf.write(decl + ";\n")
+            out.append(decl + ";")
         else:
-            outf.write("%s { %s }\n" % (decl, self.body))
+            out.append("%s { %s }" % (decl, self.body))
 
 class TestCondition(TestItem):
     """Test item which verifies that an integer constant expression, EXPR,
@@ -562,16 +540,16 @@ class TestCondition(TestItem):
         self.expr = squishwhite(expr)
         self.cond = squishwhite(cond)
 
-    def _generate(self, outf):
+    def _generate(self, out):
         if self.cond != "":
             if self.cond[0] == '?':
-                outf.write("#if %s\n" % self.cond[1:])
+                out.append("#if %s" % self.cond[1:])
             else:
-                outf.write("#ifdef %s\n" % self.cond)
-        outf.write("extern char %s[(%s) ? 1 : -1];\n"
+                out.append("#ifdef %s" % self.cond)
+        out.append("extern char %s[(%s) ? 1 : -1];"
                    % (self.name, self.expr))
         if self.cond != "":
-            outf.write("#endif\n")
+            out.append("#endif")
 
 class TestComponent:
     """Base class for blocks of tests, all of the same general type
@@ -618,11 +596,11 @@ class TestComponent:
                            "invalid or misused key '%s'"
                            % (self.infname, self.std, self.mod, k))
 
-    def generate(self, outf):
+    def generate(self, out):
         """Emit code for each test item."""
         for item in self.items:
-            item.generate(outf)
-        outf.write("\n")
+            item.generate(out)
+        out.append("")
 
     def disabled_items(self):
         rv = []
@@ -955,11 +933,11 @@ class TestSpecial(TestComponent):
     # We also need to override generate() to handle a single TestFn
     # object being in the list more than once.  (This _could_ be
     # hoisted to the superclass, but it's only needed here.)
-    def generate(self, outf):
+    def generate(self, out):
         items = self.items
         enabled = [item.enabled for item in items]
         for item in items:
-            item.generate(outf)
+            item.generate(out)
             item.enabled = 0
         for item, e in zip(items, enabled):
             item.enabled = e
@@ -1099,8 +1077,8 @@ class TestProgram:
                 tags.append(item.tag)
         return tags
 
-    def generate(self, outf):
-        """Write the test program to OUTF.
+    def generate(self, out):
+        """Append the test program to OUT.
            WARNING: Caller is responsible for emitting an #include of the
            header under test (and all its dependencies) *before* calling
            this function."""
@@ -1111,19 +1089,19 @@ class TestProgram:
         # declaration (C99 6.9 -- implicit in the grammar; the
         # "translation-unit" production does not accept an empty token
         # sequence).
-        outf.write("int avoid_empty_translation_unit;\n")
+        out.append("int avoid_empty_translation_unit;")
 
         if self.global_decls != "":
-            outf.write(self.global_decls)
-            outf.write("\n\n")
+            out.extend(self.global_decls.split("\n"))
+            out.append("")
 
         # We have to list each category explicitly because they need to
         # happen in a particular order.
-        for c in self.types:         c.generate(outf)
-        for c in self.fields:        c.generate(outf)
-        for c in self.constants:     c.generate(outf)
-        for c in self.globals:       c.generate(outf)
-        for c in self.special_decls: c.generate(outf)
+        for c in self.types:         c.generate(out)
+        for c in self.fields:        c.generate(out)
+        for c in self.constants:     c.generate(out)
+        for c in self.globals:       c.generate(out)
+        for c in self.special_decls: c.generate(out)
 
         # Extra includes are to provide any types that are necessary
         # to formulate function calls: e.g. stdio.h declares functions
@@ -1132,12 +1110,12 @@ class TestProgram:
         # tests for types, fields, constants, and globals.
         if self.extra_includes:
             for h in self.extra_includes:
-                outf.write("#include <%s>\n" % h)
-            outf.write("\n")
+                out.append("#include <%s>" % h)
+            out.append("")
 
-        for c in self.functions: c.generate(outf)
-        for c in self.fn_macros: c.generate(outf)
-        for c in self.special:   c.generate(outf)
+        for c in self.functions: c.generate(out)
+        for c in self.fn_macros: c.generate(out)
+        for c in self.special:   c.generate(out)
 
         # Now that we've generated the entire file, construct an index of
         # what's at what line.  This is what enables use of the three
@@ -2376,15 +2354,15 @@ class Header:
         cc.log("contents test for %s in mode %s" %
                (self.name, ct(conform, thread)))
 
-        buf = LineCounter(StringIO.StringIO())
+        buf = []
         for item in self.gen_includes(conform, thread, {}):
             if item.startswith("/*"):
-                buf.write(item)
-                buf.write("\n")
+                buf.extend(item.split("\n"))
             else:
-                buf.write("#include <%s>\n" % item)
+                buf.append("#include <%s>" % item)
+        buf.append("")
         tester.generate(buf)
-        (rc, base_msg) = cc.test_compile(buf.getvalue(),
+        (rc, base_msg) = cc.test_compile("\n".join(buf),
                                          conform=conform, thread=thread)
         if rc == 0:
             self.contents = self.CORRECT
@@ -2429,19 +2407,20 @@ class Header:
                 # something we don't know how to turn off.
                 cc.error("unrecognized failure mode for <%s> (contents tests)."
                          % self.name)
+                break
             prev_disabled_tags = disabled_tags
 
-            buf = LineCounter(StringIO.StringIO())
+            buf = []
             for item in self.gen_includes(conform, thread, {}):
                 if item.startswith("/*"):
-                    buf.write(item)
-                    buf.write("\n")
+                    buf.extend(item.split("\n"))
                 else:
-                    buf.write("#include <%s>\n" % item)
+                    buf.append("#include <%s>" % item)
+            buf.append("")
             tester.generate(buf)
             cc.log("retry contents test for %s (mode %s)" %
                    (self.name, ct(conform, thread)))
-            (rc, msg) = cc.test_compile(buf.getvalue(),
+            (rc, msg) = cc.test_compile("\n".join(buf),
                                         conform=conform, thread=thread)
 
         # If we get here, we just had a successful compilation with at
