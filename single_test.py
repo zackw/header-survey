@@ -1484,6 +1484,8 @@ class Compiler:
                         return "UNKNOWN"
             return "FAIL"
 
+        self.begin_test("identifying compiler")
+
         # Construct a source file that will fail to compile with
         # exactly one #error directive, identifying the compiler in
         # use.  We do it this way because at this point we have no
@@ -1510,6 +1512,7 @@ class Compiler:
             f.write("#else\n#error UNKNOWN\n#endif")
             f.close()
 
+            self.progress_tick()
             self.log("probing compiler identity:", universal_readlines(test1))
             (rc, msg) = self.invoke(self.base_cmd + [test1])
             compiler = parse_output(msg, compilers)
@@ -1535,6 +1538,7 @@ class Compiler:
                     version_argv = self.subst_filename(test2, version_argv)
                     break
 
+            self.progress_tick()
             (rc, msg) = self.invoke(self.base_cmd + version_argv)
             if rc != 0:
                 self.fatal("detailed version request failed")
@@ -1573,9 +1577,11 @@ class Compiler:
                     pass
 
             if details != -1:
-                return (compiler, "%s %s (%s)" % (compiler, version, details))
+                ident = "%s %s (%s)" % (compiler, version, details)
             else:
-                return (compiler, "%s %s" % (compiler, version))
+                ident = "%s %s" % (compiler, version)
+            self.end_test(ident)
+            return (compiler, ident)
 
         finally:
             if test1   is not None: delete_if_exists(test1)
