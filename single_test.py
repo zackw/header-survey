@@ -417,7 +417,7 @@ class TestItem:
 
        Test items have a _tag_ which should correspond to the symbol being
        tested, plus a _standard_ and _module_ which categorize the symbol
-       (see decltests/CATEGORIES.ini).  They all start out _enabled_, and
+       (see content_tests/CATEGORIES.ini).  They all start out _enabled_, and
        tests which fail are disabled until all remaining tests pass; the
        set of disabled tests corresponds to the set of unavailable or
        incorrectly defined symbols.  Finally, the _meaning_ may be one of
@@ -985,7 +985,7 @@ class TestProgram:
         # Most section headers in the .ini file have internal structure:
         # "[" COMPONENT ":" STANDARD [ ":" MODULE ] "]"
         # where COMPONENT is one of the keys of self.COMPONENTS, above,
-        # and STANDARD and MODULE are defined in decltests/CATEGORIES.ini.
+        # and STANDARD and MODULE are defined in content_tests/CATEGORIES.ini.
         # (FIXME: Issue errors for unknown STANDARD and MODULE.)
         # The exception is [preamble], which has no annotations.
         # Parse all section headers and dispatch to the appropriate
@@ -1141,8 +1141,8 @@ class Compiler:
        Compiler instance per process.  Thus, Compiler is also
        responsible for logging and progress reports.
 
-       Uses a config file (defaulting to 'compilers.ini') to track the
-       idiosyncracies of various compilers."""
+       Uses a config file (defaulting to 'config/compilers.ini') to
+       track the idiosyncracies of various compilers."""
 
     #@staticmethod
     def prepare_environment(self, ccenv):
@@ -1173,7 +1173,8 @@ class Compiler:
         os.dup2(fd, 0)
         os.close(fd)
 
-    def __init__(self, base_cmd, logf, ccenv={}, cfg_fname="compilers.ini"):
+    def __init__(self, base_cmd, logf, ccenv={},
+                 cfg_fname="config/compilers.ini"):
         """Identify the compiler that is invoked by BASE_CMD, and initialize
            internal state accordingly."""
         self.base_cmd = base_cmd
@@ -1789,7 +1790,7 @@ class KnownError:
        indicating this failure mode; DESC is a human-readable description
        of the problem; and CAUTION is true if this problem is not so severe
        that the header can't be used at all.  These correspond precisely to
-       the fields of each stanza of errors.ini."""
+       the fields of each stanza of config/errors.ini."""
     def __init__(self, name, headers, regexp, desc, caution):
         self.name = name
         self.headers = headers
@@ -1802,7 +1803,7 @@ class KnownError:
         return self.regexp.search(msg)
 
 # Stopgap value used to preserve data structure consistency when we
-# hit a failure mode that isn't coded into errors.ini yet.
+# hit a failure mode that isn't coded into config/errors.ini yet.
 UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0)
 
 class ContentTestResultCluster:
@@ -1833,7 +1834,7 @@ class ContentTestResult:
         self.required_modules = {"": 1}
 
         parser = ConfigParser.ConfigParser()
-        parser.read("decltests/CATEGORIES.ini")
+        parser.read("content_tests/CATEGORIES.ini")
         if parser.has_section("required_modules"):
             for m in parser.options("required_modules"):
                 self.required_modules[m] = 1
@@ -1922,7 +1923,7 @@ class ContentTestResult:
             outf.write("  $X %s\n" % cluster)
 
 class Dependency:
-    """Either a header, or a [special] dependency from prereqs.ini.
+    """Either a header, or a [special] dependency from config/prereqs.ini.
        These are treated interchangeably in some contexts.  Dependency
        objects are usable as dictionary keys."""
 
@@ -1984,7 +1985,7 @@ class Dependency:
         raise NotImplementedError
 
 class SpecialDependency(Dependency):
-    """Used to represent [special] dependencies from prereqs.ini.
+    """Used to represent [special] dependencies from config/prereqs.ini.
        Stubs some Header methods and properties so it can be treated
        like one when convenient."""
 
@@ -2014,7 +2015,7 @@ class Header(Dependency):
            other headers first
 
        Information about other headers to try including first is stored
-       in the configuration file 'prereqs.ini', q.v."""
+       in the configuration file 'config/prereqs.ini', q.v."""
 
     # State codes as written to the file.  Some of these are also used
     # for internal flags.  UNKNOWN, ABSENT, and PRESENT must match the
@@ -2324,7 +2325,7 @@ class Header(Dependency):
 
             # As a sanity check, confirm that this header can be
             # included twice in a row.  Failures of this check are
-            # rare and handled via errors.ini.
+            # rare and handled via config/errors.ini.
             self.generate(includes)
 
             # If the headers under test contain nothing but macros, we
@@ -2399,12 +2400,12 @@ class Header(Dependency):
         if self.presence != self.PRESENT: return
         if self.contents != self.UNKNOWN: return
 
-        if not self.dataset.decltests.has_key(self.name):
+        if not self.dataset.content_tests.has_key(self.name):
             cc.log("no contents test available for %s" % self.name)
             self.contents = self.PRESENT
             return
 
-        tester = self.dataset.decltests[self.name]
+        tester = self.dataset.content_tests[self.name]
 
         # Contents tests are done only in the preferred mode.
         (conform, thread) = self.pref_mode
@@ -2873,12 +2874,12 @@ class Dataset:
 
     def __init__(self):
         self.headers = {}
-        self.deplist_fname = "prereqs.ini"
-        self.errors_fname = "errors.ini"
-        self.decltests_dname = "decltests"
+        self.deplist_fname = "config/prereqs.ini"
+        self.errors_fname = "config/errors.ini"
+        self.content_tests_dname = "content_tests"
         self.load_deplist(self.deplist_fname)
         self.load_errors(self.errors_fname)
-        self.load_decltests(self.decltests_dname)
+        self.load_content_tests(self.content_tests_dname)
 
     def get_header(self, name):
         if self.headers.has_key(name):
@@ -2931,16 +2932,16 @@ class Dataset:
         self.errors_by_tag = errors_by_tag
         self.errors_by_header = errors_by_header
 
-    def load_decltests(self, dname):
-        decltests = {}
+    def load_content_tests(self, dname):
+        content_tests = {}
         for f in glob.glob(os.path.join(dname, "*.ini")):
             if f.endswith("CATEGORIES.ini"): continue
             dt = TestProgram(f)
-            if decltests.has_key(dt.header):
+            if content_tests.has_key(dt.header):
                 sys.stderr.write("%s: skipping extra test for %s\n"
                                  % (f, dt.header))
-            decltests[dt.header] = dt
-        self.decltests = decltests
+            content_tests[dt.header] = dt
+        self.content_tests = content_tests
 
     def is_known_error(self, msg, header):
         errs = {}

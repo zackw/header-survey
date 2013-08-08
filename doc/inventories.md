@@ -1,15 +1,15 @@
 # Inventory File Format
 
-Header inventories (the files in [`data/`](data)) are in an ad-hoc
-format which started out straightforward but has grown progressively
-more cryptic as additional tests were added to
-[`scansys.py`](scansys.py).
+Header inventories (the files in [`inventories/`](../inventories)) are in
+an ad-hoc format which started out straightforward but has grown
+progressively more cryptic as additional tests were added to
+[`scansys.py`](../scansys.py).
 
 If you are submitting an inventory, you need to understand the file
 format well enough to check it over for problems. It is especially
 important that you check the initial block of metadata, which cannot
 be wholly machine-generated. Errors elsewhere in the file indicate
-bugs in [`scansys.py`](scansys.py), which you should also be on the
+bugs in [`scansys.py`](../scansys.py), which you should also be on the
 lookout for.
 
 ## Overall File Structure
@@ -18,9 +18,9 @@ Inventory files are line-oriented ASCII text. There are four kinds of
 lines, distinguished by the first non-whitespace character on the line:
 
 * Comments begin with a `#` and extend to the end of the line.
-  [`scansys.py`](scansys.py) writes comments to inventories sometimes,
+  [`scansys.py`](../scansys.py) writes comments to inventories sometimes,
   and you are free to add your own. Comments are completely ignored by
-  [`tblgen.py`](tblgen.py) and by [`scansys.py`](scansys.py) in
+  [`tblgen.py`](../tblgen.py) and by [`scansys.py`](../scansys.py) in
   `--recheck` mode.
 
   Comments can only be lines of their own; `#` has no special
@@ -29,7 +29,7 @@ lines, distinguished by the first non-whitespace character on the line:
 
 * Metadata tags record information about the system on which the
   inventory was taken. They are meaningful to both
-  [`tblgen.py`](tblgen.py) and [`scansys.py`](scansys.py) in
+  [`tblgen.py`](../tblgen.py) and [`scansys.py`](../scansys.py) in
   `--recheck` mode.
 
   Metadata lines begin with a `:`, immediately followed by a keyword
@@ -92,7 +92,7 @@ the file. It’s very important that you make sure these are accurate.
   compiler, which is often too generic.
 
 * `:gen` (short for “generation”) is a version number for the
-  inventory format itself. [`scansys.py`](scansys.py) sets it
+  inventory format itself. [`scansys.py`](../scansys.py) sets it
   automatically.  Do not change this line.
 
 In inventories that have been edited by a human, you may also see
@@ -102,7 +102,7 @@ In inventories that have been edited by a human, you may also see
 
 ## Trailing Metadata
 
-[`scansys.py`](scansys.py) writes a few more metadata tags at the
+[`scansys.py`](../scansys.py) writes a few more metadata tags at the
 *end* of the file. These are required to make `--recheck` mode work
 reliably. They should only be modified if you notice that they contain
 pathnames which are specific to your computer (not just to your
@@ -260,7 +260,7 @@ and `$X` annotations don't have a mode tag.
   Category tags indicate which standard, and possibly which optional
   module of that standard, specifies the symbols.  They are defined
   and given human-readable names in
-  [`decltests/CATEGORIES.ini`](decltests/CATEGORIES.ini).
+  [`content_tests/CATEGORIES.ini`](../content_tests/CATEGORIES.ini).
 
   The type and category tags are mandatory, and apply to all the
   symbols in the list; if symbols of multiple types / from multiple
