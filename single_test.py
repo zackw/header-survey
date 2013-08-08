@@ -270,7 +270,7 @@ def squishwhite(s):
 
 def hsortkey(h):
     """Sort key generator for sorthdr."""
-    segs = h.lower().replace("\\", "/").split("/")
+    segs = str(h).lower().replace("\\", "/").split("/")
     key = []
     for s in segs:
         key.extend((1, s))
@@ -1921,26 +1921,84 @@ class ContentTestResult:
         for cluster in self.uncertain_items:
             outf.write("  $X %s\n" % cluster)
 
-class SpecialDependency:
+class Dependency:
+    """Either a header, or a [special] dependency from prereqs.ini.
+       These are treated interchangeably in some contexts.  Dependency
+       objects are usable as dictionary keys."""
+
+    # A dependency may or may not be "present" on a given system.
+    UNKNOWN = '?'
+    ABSENT  = '-'
+    PRESENT = ' '
+
+    def __init__(self, name):
+        self.what = self.__class__.__name__
+        self.name = name
+
+        # These are here only for interchangeability's sake.
+        self.presence = self.UNKNOWN
+        self.deplist = [ [ [], [] ], [ [], [] ] ]
+
+    def __hash__(self):
+        return hash(self.what) ^ hash(self.name)
+
+    def __cmp__(self, other):
+        return cmp(self.what, other.what) or cmp(self.name, other.name)
+
+    def __str__(self):
+        return self.name
+
+    def with_dependencies(self, conform, thread, already=None):
+        """Return a list containing all of this dependency's own
+           dependencies (in the appropriate order) and then the
+           dependency itself.  Duplicates are filtered out."""
+
+        assert self.presence != self.UNKNOWN
+        if self.presence != self.PRESENT:
+            return []
+
+        if already is None:
+            already = {}
+        else:
+            if already.has_key(self):
+                return []
+
+        already[self] = 1
+
+        rv = []
+        for dep in self.deplist[conform][thread]:
+            rv.extend(dep.with_dependencies(conform, thread, already))
+        rv.append(self)
+        return rv
+
+    def test(self, cc):
+        """Test whether this dependency is present and usable; set
+           self.presence accordingly.  Subclasses may need to override
+           this method."""
+        self.presence = self.PRESENT
+
+    def generate(self, out):
+        """Append code for this dependency to OUT (which is a list of strings).
+           Only append code for this dependency itself; not for its transitive
+           dependencies (if any).  Subclasses must override this method."""
+        raise NotImplementedError
+
+class SpecialDependency(Dependency):
     """Used to represent [special] dependencies from prereqs.ini.
        Stubs some Header methods and properties so it can be treated
        like one when convenient."""
 
-    PRESENT = ' '
-
     def __init__(self, header, text):
-        self.name = header
-        self.text = text.strip()
-        self.presence = self.PRESENT
-        self.deplist = [ [ [], [] ], [ [], [] ] ]
+        Dependency.__init__(self, header)
+        self.text = text.strip().split("\n")
 
-    def gen_includes(self, conform, thread, already=None):
-        return [self.text]
+    def __str__(self):
+        return "[S:%s]" % self.name
 
-    def test(self, cc):
-        pass
+    def generate(self, out):
+        out.extend(self.text)
 
-class Header:
+class Header(Dependency):
     """A Header instance represents everything that is currently known
        about a single header file, and knows how to carry out a sequence
        of tests of the header:
@@ -1959,7 +2017,9 @@ class Header:
        in the configuration file 'prereqs.ini', q.v."""
 
     # State codes as written to the file.  Some of these are also used
-    # for internal flags.
+    # for internal flags.  UNKNOWN, ABSENT, and PRESENT must match the
+    # definitions in Dependency; they are redefined here because of
+    # Python's scoping rules.
     UNKNOWN    = '?'
     ABSENT     = '-'
     BUGGY      = '!'
@@ -1999,10 +2059,11 @@ class Header:
     }
 
     def __init__(self, name, dataset):
-        self.name = name
+        Dependency.__init__(self, name)
+
         self.dataset = dataset
 
-        self.presence  = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
+        #self.presence  = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
         self.contents  = self.UNKNOWN # can be PRESENT, INCOMPLETE, CORRECT
         self.depends   = None # None=unknown, 0=no, 1=yes
         self.conflict  = None # None=unknown, 0=no, 1=yes
@@ -2010,8 +2071,9 @@ class Header:
 
         # dependency lists form a 2x2 matrix indexed by [conform][thread].
         # initially all are empty.
-        self.deplist = [ [ [], [] ],
-                         [ [], [] ] ]
+        # done in Dependency.__init__, preserved here for documentation
+        #self.deplist = [ [ [], [] ],
+        #                 [ [], [] ] ]
 
         # conflict lists likewise. The Nones are so output_* can tell the
         # difference between "empty set" and "we never scanned this because
@@ -2029,9 +2091,6 @@ class Header:
                          [ 0, 0 ] ]
 
         self.content_results = None
-
-    def __cmp__(self, other):
-        return cmp(self.name, other.name)
 
     def log_tests(self, cc):
         outf = StringIO.StringIO()
@@ -2205,17 +2264,8 @@ class Header:
         else:
             self.conflist[conform][thread].append(other)
 
-    def gen_includes(self, conform, thread, already=None):
-        if self.presence != self.PRESENT: return []
-        if already is not None:
-            if already.has_key(self.name): return []
-            already[self.name] = 1
-
-        rv = []
-        for h in self.deplist[conform][thread]:
-            rv.extend(h.gen_includes(conform, thread, already))
-        rv.append(self.name)
-        return rv
+    def generate(self, out):
+        out.append("#include <%s>" % self.name)
 
     def test(self, cc):
         """Perform all checks on this header in isolation (up to
@@ -2266,22 +2316,23 @@ class Header:
                    (self.name, ct(conform, thread),
                     " ".join([h.name for h in candidate_set])))
 
-            depends = []
+            includes = []
             already = {}
             for h in candidate_set:
-                depends.extend(h.gen_includes(conform, thread, already))
-            # handling of specials
-            includes = []
-            for item in depends:
-                if item.startswith("/*"):
-                    includes.append(item)
-                else:
-                    includes.append("#include <%s>" % item)
+                for hh in h.with_dependencies(conform, thread, already):
+                    hh.generate(includes)
 
             # As a sanity check, confirm that this header can be
             # included twice in a row.  Failures of this check are
             # rare and handled via errors.ini.
-            includes.append("#include <%s>\n" % self.name)
+            self.generate(includes)
+
+            # If the headers under test contain nothing but macros, we
+            # could trip over the requirement that a translation unit
+            # contain at least one top-level definition or declaration
+            # (C99 6.9 -- implicit in the grammar; the
+            # "translation-unit" production does not accept an empty
+            # token sequence).
             includes.append("int avoid_empty_translation_unit;")
 
             (rc, msg) = cc.test_compile("\n".join(includes),
@@ -2361,11 +2412,8 @@ class Header:
                (self.name, ct(conform, thread)))
 
         buf = []
-        for item in self.gen_includes(conform, thread, {}):
-            if item.startswith("/*"):
-                buf.extend(item.split("\n"))
-            else:
-                buf.append("#include <%s>" % item)
+        for item in self.with_dependencies(conform, thread):
+            item.generate(buf)
         buf.append("")
         tester.generate(buf)
         (rc, base_msg) = cc.test_compile("\n".join(buf),
@@ -2417,11 +2465,8 @@ class Header:
             prev_disabled_tags = disabled_tags
 
             buf = []
-            for item in self.gen_includes(conform, thread, {}):
-                if item.startswith("/*"):
-                    buf.extend(item.split("\n"))
-                else:
-                    buf.append("#include <%s>" % item)
+            for item in self.with_dependencies(conform, thread):
+                item.generate(buf)
             buf.append("")
             tester.generate(buf)
             cc.log("retry contents test for %s (mode %s)" %
@@ -2479,42 +2524,38 @@ class ConflictMatrix:
         self.debug = 0
         self.conform = conform
         self.thread = thread
-        self.header_object = {}
         self.matrix = {}
         self.rdeps = {}
-        for h in headers:
-            self.header_object[h.name] = h
-            self.matrix[h.name] = {}
-            self.rdeps[h.name] = []
-            for hh in headers:
-                self.matrix[h.name][hh.name] = int(hh is h)
-        # This has to be done in a second pass so the table is
-        # fully constructed.
-        for h in headers:
-            self.note_dependencies(h, h)
+        self.live_headers = {}
+        self.all_headers = sorthdr(headers)
+        for x in headers:
+            self.live_headers[x] = 1
+            self.matrix[x] = {}
+            self.rdeps[x] = []
+            for y in headers:
+                self.matrix[x][y] = int(x is y)
 
-        self.all_headers = sorthdr(self.header_object.keys())
+        # Take note of dependencies.  This has to be done in a second
+        # pass so the matrix is fully constructed.
+        for x in headers:
+            for y in x.with_dependencies(conform, thread):
+                if y is x or not isinstance(y, Header): continue
 
-    def note_dependencies(self, baseh, h):
-        for hh in h.deplist[self.conform][self.thread]:
-            if isinstance(hh, SpecialDependency): continue
-            # Record baseh as depending on hh (perhaps transitively).
-            # If hh conflicts with X, all the headers it depends on
-            # will also be considered to conflict with X.  This is
-            # necessary for correctness -- otherwise we can miss
-            # certain asymmetric conflicts.
-            self.rdeps[hh.name].append(baseh.name)
+                # It is impossible to include x before y, and it is
+                # mandatory to include y before x.  Therefore there
+                # is no point testing either way.  Do not mark the
+                # impossible direction as a conflict, because that would
+                # be an asymmetric 2 and the assertions below might get
+                # confused.
+                self.matrix[x][y] = 1
+                self.matrix[y][x] = 1
 
-            # It is impossible to include baseh before hh, and it is
-            # mandatory to include hh before baseh.  Therefore there
-            # is no point testing either way.  Do not mark the
-            # impossible direction as a conflict, because that would
-            # be an asymmetric 2 and the assertions below might get
-            # confused.
-            self.matrix[baseh.name][hh.name] = 1
-            self.matrix[hh.name][baseh.name] = 1
-            # Consider transitive dependencies also.
-            self.note_dependencies(baseh, hh)
+                # Add x to the list of things that depend on y. If y
+                # conflicts with z, all the headers that depend on y
+                # will also be considered to conflict with z.  This is
+                # necessary for correctness -- otherwise we can miss
+                # certain asymmetric conflicts.
+                self.rdeps[y].append(x)
 
     def log_matrix(self, cc, msg):
         if not self.debug:
@@ -2523,25 +2564,25 @@ class ConflictMatrix:
         # U+00A0 NO-BREAK SPACE, U+2592 MEDIUM SHADE, U+2588 FULL BLOCK
         codes = [ "\xc2\xa0", "\xe2\x96\x92", "\xe2\x96\x88" ]
         lines = []
-        for r in self.all_headers:
-            lines.append("".join([codes[self.matrix[r][c]]
-                                  for c in self.all_headers]))
+        for x in self.all_headers:
+            lines.append("".join([codes[self.matrix[x][y]]
+                                  for y in self.all_headers]))
         cc.log(msg, lines)
 
     def check_completely_done(self, cc):
         # Determine whether we are completely done with any headers.
         # If we are, remove them from the set of headers still of
         # interest (but not the conflict matrix).
-        headers = self.header_object.keys()
+        headers = self.live_headers.keys()
         for x in headers:
             for y in headers:
                 if self.matrix[x][y] == 0 or self.matrix[y][x] == 0:
                     break
             else:
                 cc.log("conflict test: done with %s" % x)
-                if self.header_object[x].conflict is None:
-                    self.header_object[x].conflict = 0
-                del self.header_object[x]
+                if x.conflict is None:
+                    x.conflict = 0
+                del self.live_headers[x]
 
     def record_conflict(self, cc, x, y):
         # We have identified a pairwise conflict; record it.
@@ -2558,22 +2599,19 @@ class ConflictMatrix:
         self.matrix[y][x] = 2
         self.log_matrix(cc, "conflict trial fail")
 
-        xx = self.header_object[x]
-        yy = self.header_object[y]
-        xx.record_conflict(yy, self.conform, self.thread)
-        yy.record_conflict(xx, self.conform, self.thread)
-        cc.progress_note("*** conflict identified: %s with %s"
-                         % (x, y))
+        x.record_conflict(y, self.conform, self.thread)
+        y.record_conflict(x, self.conform, self.thread)
+        cc.progress_note("*** conflict identified: %s with %s" % (x, y))
 
     def record_ok(self, cc, tested):
         # For each header in the tested set, mark every header after
         # that header as ok after that header.
         for i in range(len(tested)):
             x = tested[i]
-            if x.startswith("/*"): continue
+            if not isinstance(x, Header): continue
             for j in range(i+1, len(tested)):
                 y = tested[j]
-                if y.startswith("/*"): continue
+                if not isinstance(y, Header): continue
 
                 if self.matrix[x][y] == 2 or self.matrix[y][x] == 2:
                     cc.error("attempting to mark %s with %s as ok when "
@@ -2588,14 +2626,14 @@ class ConflictMatrix:
         tset = []
         for i in range(len(cand)):
             # Pass specials through.
-            if cand[i].startswith("/*"):
+            if not isinstance(cand[i], Header):
                 tset.append(cand[i])
                 continue
 
             # If there is a known conflict of cand[i] with
             # cand[j] for any j < i, discard cand[i].
             for j in range(i):
-                if cand[j].startswith("/*"):
+                if not isinstance(cand[j], Header):
                     continue
                 if self.matrix[cand[j]][cand[i]] == 2:
                     break
@@ -2610,9 +2648,9 @@ class ConflictMatrix:
         eset = []
         already = {}
         for h in tset:
-            if self.header_object.has_key(h):
-                eset.extend(self.header_object[h]
-                            .gen_includes(self.conform, self.thread, already))
+            if self.live_headers.has_key(h):
+                eset.extend(h.with_dependencies(self.conform, self.thread,
+                                                already))
 
         if self.debug:
             cc.log("conflict extended set: %s" % " ".join(eset))
@@ -2620,10 +2658,13 @@ class ConflictMatrix:
         # handling of specials
         includes = []
         for item in eset:
-            if item.startswith("/*"):
-                includes.append(item)
-            else:
-                includes.append("#include <%s>" % item)
+            item.generate(includes)
+
+        # If the headers under test contain nothing but macros, we
+        # could trip over the requirement that a translation unit
+        # contain at least one top-level definition or declaration
+        # (C99 6.9 -- implicit in the grammar; the "translation-unit"
+        # production does not accept an empty token sequence).
         includes.append("int avoid_empty_translation_unit;")
 
         (rc, msg) = cc.test_compile("\n".join(includes),
@@ -2716,7 +2757,7 @@ class ConflictMatrix:
         # position, with all headers we don't already know about in
         # that context.
         next_tests = []
-        candidates = sorthdr(self.header_object.keys())
+        candidates = sorthdr(self.live_headers.keys())
         for x in tset[lo], tset[hi-1]:
             before = [x]
             after = []
@@ -2771,18 +2812,19 @@ class ConflictMatrix:
                         queue.extend(self.find_single_conflict(cc, tested))
 
             self.check_completely_done(cc)
-            if len(self.header_object) < 2:
-                return None # done
+            if len(self.live_headers) < 2:
+                assert len(self.live_headers) == 0
+                return # done
 
             # If we get here it is likely that only a few horizontal or
             # vertical stripes of the conflict matrix remain to be filled
             # in.  The most efficient way to do so is to find the header
             # with the most gaps remaining in its row/column and queue
             # it along with all of the gaps.  We need only consider the
-            # headers that have not been removed from header_object by
+            # headers that have not been removed from live_headers by
             # check_completely_done.
 
-            headers = self.header_object.keys()
+            headers = self.live_headers.keys()
             row_maxg = 0
             row_argmg = None
             col_maxg = 0
