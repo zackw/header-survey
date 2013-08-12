@@ -2295,17 +2295,13 @@ class Header(Dependency):
 
         cc.log("testing presence of %s" % self.name)
         (rc, msg) = cc.test_preproc("#include <%s>" % self.name)
-        if rc == 0:
-            self.presence = self.PRESENT
-            return
-        if cc.failure_due_to_nonexistence(msg, self.name):
+        if rc != 0 and cc.failure_due_to_nonexistence(msg, self.name):
             self.presence = self.ABSENT
-            return
-
-        # caution vs error is ignored at this point; all failures are
-        # treated as catastrophic.
-        self.record_errors(cc, msg, conform=0, thread=0)
-        self.presence = self.BUGGY
+        else:
+            # Ignore failures which are not due to nonexistence at this
+            # point.  Some systems (e.g. IRIX6) have headers that require
+            # their dependencies in order to _preprocess_ correctly.
+            self.presence = self.PRESENT
 
     def test_depends_1(self, cc, possible_deps, conform, thread):
         failures = []
