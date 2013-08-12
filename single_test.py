@@ -233,6 +233,14 @@ def plural(n):
     if n == 1: return ""
     return "s"
 
+def english_boolean(s):
+    s = s.strip().lower()
+    if s == "yes" or s == "on" or s == "true" or s == "1":
+        return 1
+    if s == "no" or s == "off" or s == "false" or s == "0":
+        return 0
+    raise RuntimeError("'%s' is not recognized as true or false" % s)
+
 def ct(conform, thread):
     """Subroutine of several class methods far below that need to be able
        to print a code for a "compilation mode", which is ostensibly a pair
@@ -1173,8 +1181,7 @@ class Compiler:
         os.dup2(fd, 0)
         os.close(fd)
 
-    def __init__(self, base_cmd, logf, ccenv={},
-                 cfg_fname="config/compilers.ini"):
+    def __init__(self, base_cmd, cfg, logf, ccenv={}):
         """Identify the compiler that is invoked by BASE_CMD, and initialize
            internal state accordingly."""
         self.base_cmd = base_cmd
@@ -1184,30 +1191,28 @@ class Compiler:
 
         self.prepare_environment(ccenv)
 
-        cfg = ConfigParser.ConfigParser()
-        cfg.read(cfg_fname)
-
-        (compiler, label) = self.identify(cfg, cfg_fname)
+        (compiler, label) = self.identify(cfg.compilers,
+                                          cfg.compiler_cfg_fname)
         self.compiler = compiler
         self.label = label
 
-        self.notfound_re = re.compile(cfg.get(compiler, "notfound_re"),
-                                      re.VERBOSE)
-        self.errloc_re   = re.compile(cfg.get(compiler, "errloc_re"),
-                                      re.VERBOSE)
+        cc = cfg.compilers[compiler]
 
-        self.preproc_cmd = cfg.get(compiler, "preproc").split()
-        self.preproc_out = cfg.get(compiler, "preproc_out")
-        self.compile_cmd = cfg.get(compiler, "compile").split()
-        self.compile_out = cfg.get(compiler, "compile_out")
+        self.notfound_re = re.compile(cc.notfound_re, re.VERBOSE)
+        self.errloc_re   = re.compile(cc.errloc_re, re.VERBOSE)
 
-        self.define_opt  = cfg.get(compiler, "define")
-        self.conform_opt = cfg.get(compiler, "conform").split()
-        self.thread_opt = cfg.get(self.compiler, "threads").split()
+        self.preproc_cmd = cc.preproc.split()
+        self.preproc_out = cc.preproc_out
+        self.compile_cmd = cc.compile.split()
+        self.compile_out = cc.compile_out
+
+        self.define_opt  = cc.define
+        self.conform_opt = cc.conform.split()
+        self.thread_opt  = cc.threads.split()
         self.test_with_thread_opt = 0
 
-        self.smoke_test(cfg, cfg_fname)
-        self.conformance_test(cfg, cfg_fname)
+        self.smoke_test(cfg.compiler_cfg_fname)
+        self.conformance_test(cc, cfg.compiler_cfg_fname)
 
     def subst_filename(self, fname, opts):
         """If any of OPTS is of the form '$.extension', replace the
@@ -1470,7 +1475,7 @@ class Compiler:
                                 self.preproc_out,
                                 conform, thread, opts, defines)
 
-    def identify(self, cfg, cfgf):
+    def identify(self, ccs, ccs_f):
         """Identify the compiler in use."""
 
         def parse_output(msg, compilers):
@@ -1493,12 +1498,11 @@ class Compiler:
         # control over compilation mode or output; an #error will
         # reliably produce an error message that invoke() knows how
         # to capture, and no output file.
-        compilers = []
-        for sect in cfg.sections():
-            # Some compilers are imitated - their identifying macros are
-            # also defined by other compilers.  Sort these to the end.
-            imitated = cfg.has_option(sect, "imitated")
-            compilers.append((imitated, cfg.get(sect, "id_macro"), sect))
+
+        # Some compilers are imitated - their identifying macros are
+        # also defined by other compilers.  Sort these to the end.
+        compilers = [(cc.imitated, cc.id_macro, name)
+                     for (name, cc) in ccs.items()]
         compilers.sort()
 
         test1 = None
@@ -1523,11 +1527,12 @@ class Compiler:
             if compiler == "UNKNOWN":
                 self.fatal("no configuration available for this "
                            "compiler.  Please add appropriate settings "
-                           "to " + repr(cfgf) + ".")
+                           "to " + repr(ccs_f) + ".")
 
             # Confirm the identification.
-            version_argv = cfg.get(compiler, "version").split()
-            version_out = cfg.get(compiler, "version_out")
+            cc = ccs[compiler]
+            version_argv = cc.version.split()
+            version_out = cc.version_out
 
             for arg in version_argv:
                 if arg.startswith("$."):
@@ -1544,8 +1549,7 @@ class Compiler:
             if rc != 0:
                 self.fatal("detailed version request failed")
             mm = "\n".join(msg[1:]) # throw away the command line
-            version_re = re.compile(cfg.get(compiler, "id_regexp"),
-                                    re.VERBOSE|re.DOTALL)
+            version_re = re.compile(cc.id_regexp, re.VERBOSE|re.DOTALL)
             match = version_re.search(mm)
             if not match:
                 self.fatal("version information not as expected: "
@@ -1590,7 +1594,7 @@ class Compiler:
             if test2_o is not None: delete_if_exists(test2_o)
 
 
-    def smoke_test(self, cfg, cfgf):
+    def smoke_test(self, ccs_f):
         """Perform tests which, if they fail, indicate something horribly
            wrong with the compiler and/or our usage of it (so there is no
            point in continuing with the test run).  Either returns
@@ -1613,7 +1617,7 @@ class Compiler:
             if rc != 0:
                 self.fatal("failed to %s simple test program. "
                            "Check configuration for %s in %s."
-                           % (tag, self.compiler, cfgf))
+                           % (tag, self.compiler, ccs_f))
 
         # This code should _not_ compile, in any mode, nor should it
         # preprocess.
@@ -1624,7 +1628,7 @@ class Compiler:
                                                                "nonexistent.h"):
                 self.fatal("failed to detect nonexistence of <nonexistent.h>"
                            " (%s). Check configuration for %s in %s."
-                           % (tag, self.compiler, cfgf))
+                           % (tag, self.compiler, ccs_f))
 
         # We should be able to tell that the error in this code is on line 3.
         for conform in (0,1):
@@ -1648,11 +1652,11 @@ class Compiler:
                     else:
                         self.fatal("error on unexpected line %s. "
                                    "Check configuration for %s in %s."
-                                   % (m.group(line), self.compiler, cfgf))
+                                   % (m.group(line), self.compiler, ccs_f))
             else:
                 self.fatal("failed to detect error on line 3. "
                            "Check configuration for %s in %s."
-                           % (self.compiler, cfgf))
+                           % (self.compiler, ccs_f))
 
         self.end_test("ok")
 
@@ -1686,7 +1690,7 @@ class Compiler:
 
         self.fatal("all %s version tests failed." % label)
 
-    def conformance_test(self, cfg, cfgf):
+    def conformance_test(self, cc, ccs_f):
         """Determine the levels of the C, POSIX, and XSI standards to
            which this compiler + target OS claim to conform; adjust
            'conform_opt' accordingly.  Also figure out whether
@@ -1695,10 +1699,10 @@ class Compiler:
         # First find and activate the newest supported C standard.
         self.begin_test("determining ISO C conformance level")
         (opts, result) = self.probe_max_std("C", [
-                (cfg.get(self.compiler, "c2011"), "", "201112L"),
-                (cfg.get(self.compiler, "c1999"), "", "199901L"),
+                (cc.c2011, "", "201112L"),
+                (cc.c1999, "", "199901L"),
                 # There are two possible values of __STDC_VERSION__ for C1989.
-                (cfg.get(self.compiler, "c1989"), "EXPECTED2=1", "199401L")
+                (cc.c1989, "EXPECTED2=1", "199401L")
                 ], """\
 #if __STDC_VERSION__ != EXPECTED && \\
     (!defined EXPECTED2 || __STDC_VERSION__ != EXPECTED2)
@@ -1715,7 +1719,7 @@ class Compiler:
             if not self.failure_due_to_nonexistence(msg, "unistd.h"):
                 self.fatal("failed to determine presence of <unistd.h>. "
                            "Check configuration for %s in %s."
-                           % (self.compiler, cfgf))
+                           % (self.compiler, ccs_f))
             else:
                 self.end_test("none")
         else:
@@ -1767,7 +1771,7 @@ class Compiler:
             else:
                 self.fatal("pthread.h exists but cannot be compiled? "
                            "Check thread configuration for %s in %s."
-                           % (self.compiler, cfgf))
+                           % (self.compiler, ccs_f))
 
     def report(self, outf):
         """Report the identity of the compiler and how we're going to
@@ -1829,23 +1833,10 @@ class ContentTestResult:
        instance; walks the data structure and computes the appropriate
        set of annotations."""
 
-    required_modules = None
-    def init_required_modules(self):
-        self.required_modules = {"": 1}
-
-        parser = ConfigParser.ConfigParser()
-        parser.read("content_tests/CATEGORIES.ini")
-        if parser.has_section("required_modules"):
-            for m in parser.options("required_modules"):
-                self.required_modules[m] = 1
-
-    def __init__(self, tester):
+    def __init__(self, tester, cfg):
         self.missing_items = []
         self.wrong_items = []
         self.uncertain_items = []
-
-        if self.required_modules is None:
-            self.init_required_modules()
 
         self.badness = 0
 
@@ -1882,7 +1873,7 @@ class ContentTestResult:
 
                     if (std == tester.baseline and
                         (missing or wrong or uncertain) and
-                        self.required_modules.has_key(mod)):
+                        cfg.required_modules.has_key(mod)):
                         self.badness = 1
 
                     if (len(missing) + len(wrong) + len(uncertain)
@@ -2059,9 +2050,10 @@ class Header(Dependency):
         CORR_CAU   : "CORRECT (CAUTION)",
     }
 
-    def __init__(self, name, dataset):
+    def __init__(self, name, cfg, dataset):
         Dependency.__init__(self, name)
 
+        self.cfg     = cfg
         self.dataset = dataset
 
         #self.presence  = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
@@ -2244,7 +2236,7 @@ class Header(Dependency):
                 ll.append(e)
 
     def record_errors(self, cc, msg, conform, thread, ignore_unknown=0):
-        errs = self.dataset.is_known_error(msg, self.name)
+        errs = self.cfg.is_known_error(msg, self.name)
         if errs is not None:
             cc.progress_note("*** errors detected: %s"
                              % " ".join([err.name for err in errs]))
@@ -2254,7 +2246,7 @@ class Header(Dependency):
 
             cc.error("unrecognized failure mode for <%s>. "
                      "Please investigate and add an entry to %s."
-                     % (self.name, self.dataset.errors_fname))
+                     % (self.name, self.cfg.errors_fname))
             self.extend_errlist(0, 0, [UnrecognizedError])
 
     def record_conflict(self, other, conform, thread):
@@ -2278,7 +2270,7 @@ class Header(Dependency):
         if self.presence != self.UNKNOWN: return
 
         # Test dependencies first so the logs are not jumbled.
-        for h in self.dataset.deps.get(self.name, []):
+        for h in self.dataset.deps.get(self, []):
             h.test(cc)
 
         cc.begin_test(self.name)
@@ -2353,7 +2345,7 @@ class Header(Dependency):
         if self.presence != self.PRESENT: return
 
         possible_deps = []
-        for h in self.dataset.deps.get(self.name, []):
+        for h in self.dataset.deps.get(self, []):
             h.test(cc)
             if h.presence == h.PRESENT:
                 possible_deps.append(h)
@@ -2396,12 +2388,12 @@ class Header(Dependency):
         if self.presence != self.PRESENT: return
         if self.contents != self.UNKNOWN: return
 
-        if not self.dataset.content_tests.has_key(self.name):
+        if not self.cfg.content_tests.has_key(self.name):
             cc.log("no contents test available for %s" % self.name)
             self.contents = self.PRESENT
             return
 
-        tester = self.dataset.content_tests[self.name]
+        tester = self.cfg.content_tests[self.name]
 
         # Contents tests are done only in the preferred mode.
         (conform, thread) = self.pref_mode
@@ -2473,7 +2465,7 @@ class Header(Dependency):
 
         # If we get here, we just had a successful compilation with at
         # least some items disabled.  Annotate accordingly.
-        result = ContentTestResult(tester)
+        result = ContentTestResult(tester, self.cfg)
         if result.badness == 0:
             # Only optional items failed the tests.
             self.contents = self.INCOMPLETE
@@ -2862,45 +2854,107 @@ class ConflictMatrix:
                     if not self.matrix[col_argmg][x]: col.append(x)
                 queue.append(col)
 
-class Dataset:
-    """A Dataset instance represents the totality of information known
-       about header files on this platform.  It is primarily a dictionary
-       of { filename : Header instance } mappings, but also stores shared
-       configuration data and some utility methods."""
+class CompilerSpec:
+    """Data carrier used by Configuration."""
+    def __init__(self, cfg, sect, fname):
+        for opt in cfg.options(sect):
+            setattr(self, opt, cfg.get(sect, opt, raw=1).strip())
 
-    def __init__(self):
-        self.headers = {}
-        self.deplist_fname = "config/prereqs.ini"
-        self.errors_fname = "config/errors.ini"
-        self.content_tests_dname = "content_tests"
-        self.load_deplist(self.deplist_fname)
-        self.load_errors(self.errors_fname)
-        self.load_content_tests(self.content_tests_dname)
+        for mopt in ["id_macro", "id_regexp", "define",
+                     "compile", "preproc", "version",
+                     "compile_out", "preproc_out", "version_out",
+                     "conform", "c1989", "c1999", "c2011", "threads",
+                     "notfound_re", "errloc_re"]:
+            if not hasattr(self, mopt):
+                raise RuntimeError("%s: incomplete configuration for %s "
+                                   "(key '%s' missing)"
+                                   % (fname, sect, mopt))
 
-    def get_header(self, name):
-        if self.headers.has_key(name):
-            return self.headers[name]
-        h = Header(name, self)
-        self.headers[name] = h
-        return h
+        if hasattr(self, 'imitated'):
+            self.imitated = english_boolean(self.imitated)
+        else:
+            self.imitated = 0
 
-    def load_deplist(self, fname):
+class Configuration:
+    """All static configuration data (config/*.ini, content_tests/*.ini) is
+       loaded into an instance of this class at startup."""
+
+    def __init__(self, cfgdir, ctdir):
+        self.cfgdir = cfgdir
+        self.ctdir = ctdir
+        self.load_compilers(os.path.join(cfgdir, "compilers.ini"))
+        self.load_known_errors(os.path.join(cfgdir, "errors.ini"))
+        self.load_headers(os.path.join(cfgdir, "headers.ini"))
+        self.load_deps(os.path.join(cfgdir, "prereqs.ini"))
+        self.load_content_tests(ctdir)
+
+    def load_compilers(self, fname):
+        """Load information about known compilers.  This is left in a relatively
+           'uncooked' format because all but one of the compiler specifications
+           will be unused on any given invocation; see Compiler.__init__ for
+           how it will be processed."""
+        self.compiler_cfg_fname = fname
+
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
-        deps = {}
-        for h in cfg.options("prerequisites"):
-            deps[h] = [self.get_header(p)
-                       for p in cfg.get("prerequisites", h).split()]
 
+        self.compilers = {}
+        for sect in cfg.sections():
+            self.compilers[sect] = CompilerSpec(cfg, sect, fname)
+
+    def load_headers(self, fname):
+        """Load the complete set of headers to process.  We do not
+           instantiate Header objects at this time, because each Dataset
+           object (of which there are potentially two on any given run)
+           needs its own set of them."""
+        cfg = ConfigParser.ConfigParser()
+        cfg.read(fname)
+
+        # This program doesn't need to know the labels for each standard,
+        # but it does need to know the sort order, since we can't count on
+        # ConfigParser preserving file order.  Since we're looking anyway,
+        # make sure every section has an entry in the [standards] block.
+        sections = {}
+        for s in cfg.sections():
+            if s != "standards":
+                sections[s] = 1
+
+        standards = [(splitto(cfg.get("standards", o), ".", 2)[0], o)
+                     for o in cfg.options("standards")]
+        standards.sort()
+
+        headers = []
+        for _, s in standards:
+            headers.extend(sorthdr(cfg.options(s)))
+            del sections[s]
+
+        if sections:
+            raise RuntimeError("%s: sections without standards tags: %s"
+                               % (fname, " ".join(sections.keys())))
+
+        self.headers = headers
+
+    def load_deps(self, fname):
+        """Load the header-header and header-special dependency lists
+           from config/prereqs.ini.  Like load_headers, we do not
+           instantiate Header or SpecialDependency objects at this time."""
+        cfg = ConfigParser.ConfigParser()
+        cfg.read(fname)
+
+        self.normal_deps = {}
+        for h in cfg.options("prerequisites"):
+            self.normal_deps[h] = cfg.get("prerequisites", h, raw=1).split()
+
+        self.special_deps = {}
         for h in cfg.options("special"):
-            if deps.has_key(h):
+            if self.normal_deps.has_key(h):
                 raise RuntimeError("%s: %s appears in both [prerequisites] "
                                    "and [special]" % (fname, h))
-            deps[h] = [SpecialDependency(h, cfg.get("special", h))]
+            self.special_deps[h] = cfg.get("special", h, raw=1)
 
-        self.deps = deps
-
-    def load_errors(self, fname):
+    def load_known_errors(self, fname):
+        """Load the specifications of all known errors from config/errors.ini."""
+        self.errors_fname = fname
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
 
@@ -2928,18 +2982,9 @@ class Dataset:
         self.errors_by_tag = errors_by_tag
         self.errors_by_header = errors_by_header
 
-    def load_content_tests(self, dname):
-        content_tests = {}
-        for f in glob.glob(os.path.join(dname, "*.ini")):
-            if f.endswith("CATEGORIES.ini"): continue
-            dt = TestProgram(f)
-            if content_tests.has_key(dt.header):
-                sys.stderr.write("%s: skipping extra test for %s\n"
-                                 % (f, dt.header))
-            content_tests[dt.header] = dt
-        self.content_tests = content_tests
-
     def is_known_error(self, msg, header):
+        """If MSG contains known error(s) for HEADER, return the tag(s) for
+           those error(s), otherwise return None."""
         errs = {}
         candidates = (self.errors_by_header.get(header, []) +
                       self.errors_by_header.get("*", []))
@@ -2952,6 +2997,52 @@ class Dataset:
         if len(errs) > 0:
             return errs.values()
         return None
+
+    def load_content_tests(self, dname):
+        """Load the specifications of all content tests."""
+        content_tests = {}
+        for f in glob.glob(os.path.join(dname, "*.ini")):
+            if f.endswith("CATEGORIES.ini"): continue
+            dt = TestProgram(f)
+            if content_tests.has_key(dt.header):
+                sys.stderr.write("%s: skipping extra test for %s\n"
+                                 % (f, dt.header))
+            content_tests[dt.header] = dt
+        self.content_tests = content_tests
+
+        self.required_modules = {"": 1}
+        parser = ConfigParser.ConfigParser()
+        parser.read(os.path.join(dname, "CATEGORIES.ini"))
+        if parser.has_section("required_modules"):
+            for m in parser.options("required_modules"):
+                self.required_modules[m] = 1
+
+
+class Dataset:
+    """A Dataset instance represents the totality of information known
+       about header files on this platform.  It is primarily a dictionary
+       of { filename : Header instance } mappings, but also handles certain
+       whole-dataset operations."""
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+
+        self.headers = {}
+        for h in cfg.headers:
+            self.headers[h] = Header(h, self.cfg, self)
+
+        self.deps = {}
+        for name, deplist in cfg.normal_deps.items():
+            self.deps[self.headers[name]] = [self.headers[d] for d in deplist]
+        for name, text in cfg.special_deps.items():
+            h = self.headers[name]
+            assert not self.deps.has_key(h)
+            self.deps[h] = [SpecialDependency(name, text)]
+
+    def get_header(self, name):
+        if self.headers.has_key(name):
+            return self.headers[name]
+        raise RuntimeError("unknown header %s, check headers.ini" % name)
 
     def test_conflicts(self, cc):
         """Conflict testing is done _en masse_ after all available
@@ -2992,38 +3083,37 @@ class Dataset:
         cc.end_test("done")
 
 if __name__ == '__main__':
-    def usage(argv):
-        raise SystemExit("usage: %s (compiler_id|header.h...) "
-                         "[-- cc [ccargs...]]"
-                         % argv[0])
-
     def main(argv, stdout):
-        if len(argv) < 2: usage()
-
         logf = open("st.log", "w")
+        cfg = Configuration("config", "content_tests")
 
-        if argv[1] == "compiler_id":
+        if len(argv) >= 2 and argv[1] == "compiler_id":
             if len(argv) == 2:
-                cc = Compiler(["cc"], logf)
+                cc = Compiler(["cc"], cfg, logf)
             elif argv[2] == "--":
-                cc = Compiler(argv[3:], logf)
+                cc = Compiler(argv[3:], cfg, logf)
             else:
-                cc = Compiler(argv[2:], logf)
+                cc = Compiler(argv[2:], cfg, logf)
             cc.report(stdout)
         else:
-            headers = None
+
+            headers = []
             for i in range(len(argv)):
                 if argv[i] == "--":
-                    if i == 1 or i == len(argv)-1:
+                    if i == len(argv)-1:
                         usage()
                     headers = argv[1:i]
-                    cc = Compiler(argv[i+1:], logf)
+                    cc = Compiler(argv[i+1:], cfg, logf)
                     break
-            if headers == None:
-                headers = argv[1:]
-                cc = Compiler(["cc"], logf)
+            else:
+                if len(argv) > 1:
+                    headers = argv[1:]
+                cc = Compiler(["cc"], cfg, logf)
 
-            dataset = Dataset()
+            if not headers:
+                headers = cfg.headers
+
+            dataset = Dataset(cfg)
             for h in headers:
                 hh = dataset.get_header(h)
                 hh.test(cc)
