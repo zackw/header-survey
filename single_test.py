@@ -1800,7 +1800,7 @@ class Compiler:
 
         macros = []
         for line in output:
-            m = macro_name_extraoctor.match(line)
+            m = macro_name_extractor.match(line)
             if m:
                 name = m.group(1)
                 if not not_system_id_macros.match(name):
@@ -3177,7 +3177,7 @@ class Metadata:
             return "FAIL"
 
         cc.begin_test("identifying C runtime")
-        idcode = ["#if 0"]
+        idcode = ["#include <errno.h>", "#if 0"]
         for (name, os) in self.cfg.oses.items():
             idcode.append("#elif " + os.id_expr)
             idcode.append("#error " + name)
