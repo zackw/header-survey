@@ -1185,6 +1185,7 @@ class Compiler:
         """Identify the compiler that is invoked by BASE_CMD, and initialize
            internal state accordingly."""
         self.base_cmd = base_cmd
+        self.cfg = cfg
         self.logf = logf
         self.error_occurred = 0
         self.need_cr = 0
@@ -1209,6 +1210,7 @@ class Compiler:
         self.define_opt  = cc.define
         self.conform_opt = cc.conform.split()
         self.thread_opt  = cc.threads.split()
+        self.dump_macros = cc.dump_macros.split()
         self.test_with_thread_opt = 0
 
         self.smoke_test(cfg.compiler_cfg_fname)
@@ -1425,7 +1427,9 @@ class Compiler:
         return 0
 
     def test_invoke(self, code, action, outname,
-                    conform=0, thread=0, opts=[], defines=[]):
+                    conform=0, thread=0, opts=[], defines=[],
+                    suppress_progress_tick=0,
+                    want_output=0):
         """Invoke the compiler on CODE, in the compilation mode indicated
            by ACTION, CONFORM, THREAD, and OPTS, defining preprocessor
            macros as given by DEFINES.  Return the exit code and the
@@ -1453,9 +1457,13 @@ class Compiler:
             f.write("\n")
             f.close()
 
-            self.progress_tick()
+            if not suppress_progress_tick:
+                self.progress_tick()
             self.log("compiling:", code.split("\n"))
-            return self.invoke(cmd)
+            (rc, output) = self.invoke(cmd)
+            if rc == 0 and want_output:
+                output.extend(universal_readlines(test_s))
+            return (rc, output)
         finally:
             delete_if_exists(test_c)
             delete_if_exists(test_s)
@@ -1468,12 +1476,14 @@ class Compiler:
                                 self.compile_out,
                                 conform, thread, opts, defines)
 
-    def test_preproc(self, code, conform=0, thread=0, opts=[], defines=[]):
+    def test_preproc(self, code, conform=0, thread=0, opts=[], defines=[],
+                     want_output=0):
         """Convenience function for requesting preprocessing only."""
         return self.test_invoke(code,
                                 self.preproc_cmd,
                                 self.preproc_out,
-                                conform, thread, opts, defines)
+                                conform, thread, opts, defines,
+                                want_output=want_output)
 
     def identify(self, ccs, ccs_f):
         """Identify the compiler in use."""
@@ -1592,7 +1602,6 @@ class Compiler:
             if test1   is not None: delete_if_exists(test1)
             if test2   is not None: delete_if_exists(test2)
             if test2_o is not None: delete_if_exists(test2_o)
-
 
     def smoke_test(self, ccs_f):
         """Perform tests which, if they fail, indicate something horribly
@@ -1772,6 +1781,34 @@ class Compiler:
                 self.fatal("pthread.h exists but cannot be compiled? "
                            "Check thread configuration for %s in %s."
                            % (self.compiler, ccs_f))
+
+    def dump_potential_system_id_macros(self):
+        macro_name_extractor = re.compile(
+            r"^#define\s+([A-Za-z_][A-Za-z0-9_]*)\b")
+        not_system_id_macros = re.compile(self.cfg.not_system_id_macros,
+                                          re.VERBOSE)
+        # we use errno.h for this because it's universal, reasonably likely
+        # to expose library-identification macros, and doesn't have a ton of
+        # other junk in it.
+        (rc, output) = self.test_invoke("#include <errno.h>",
+                                        self.preproc_cmd + self.dump_macros,
+                                        self.preproc_out,
+                                        suppress_progress_tick=1,
+                                        want_output=1)
+        if rc != 0:
+            self.fatal("failed to dump predefined macros")
+
+        macros = []
+        for line in output:
+            m = macro_name_extraoctor.match(line)
+            if m:
+                name = m.group(1)
+                if not not_system_id_macros.match(name):
+                    macros.append(name)
+        macros.sort()
+        sys.stderr.write("Potential system-identifying macros:\n")
+        for m in macros:
+            sys.stderr.write("  %s\n" % m)
 
     def report(self, outf):
         """Report the identity of the compiler and how we're going to
@@ -2855,7 +2892,7 @@ class ConflictMatrix:
                 queue.append(col)
 
 class CompilerSpec:
-    """Data carrier used by Configuration."""
+    """Data carrier for compiler information, used by Configuration."""
     def __init__(self, cfg, sect, fname):
         for opt in cfg.options(sect):
             setattr(self, opt, cfg.get(sect, opt, raw=1).strip())
@@ -2875,6 +2912,22 @@ class CompilerSpec:
         else:
             self.imitated = 0
 
+class OsSpec:
+    """Data carrier for OS information, used by Configuration."""
+    def __init__(self, cfg, sect, fname):
+        for opt in cfg.options(sect):
+            setattr(self, opt, cfg.get(sect, opt, raw=1))
+
+        for mopt in ["category", "label", "id_expr"]:
+            if not hasattr(self, mopt):
+                raise RuntimeError("%s: incomplate configuration for %s "
+                                   "(key '%s' missing)"
+                                   % (fname, sect, mopt))
+        for oopt in ["version_detector", "version_adjust",
+                     "max_features_macros"]:
+            if not hasattr(self, oopt):
+                setattr(self, oopt, None)
+
 class Configuration:
     """All static configuration data (config/*.ini, content_tests/*.ini) is
        loaded into an instance of this class at startup."""
@@ -2883,6 +2936,7 @@ class Configuration:
         self.cfgdir = cfgdir
         self.ctdir = ctdir
         self.load_compilers(os.path.join(cfgdir, "compilers.ini"))
+        self.load_oses(os.path.join(cfgdir, "os.ini"))
         self.load_known_errors(os.path.join(cfgdir, "errors.ini"))
         self.load_headers(os.path.join(cfgdir, "headers.ini"))
         self.load_deps(os.path.join(cfgdir, "prereqs.ini"))
@@ -2901,6 +2955,20 @@ class Configuration:
         self.compilers = {}
         for sect in cfg.sections():
             self.compilers[sect] = CompilerSpec(cfg, sect, fname)
+
+    def load_oses(self, fname):
+        self.os_cfg_fname = fname
+
+        cfg = ConfigParser.ConfigParser()
+        cfg.read(fname)
+
+        self.oses = {}
+        for sect in cfg.sections():
+            if sect != "META":
+                self.oses[sect] = OsSpec(cfg, sect, fname)
+
+        self.not_system_id_macros = cfg.get("META", "not_system_id_macros",
+                                            raw=1)
 
     def load_headers(self, fname):
         """Load the complete set of headers to process.  We do not
@@ -3082,6 +3150,79 @@ class Dataset:
 
         cc.end_test("done")
 
+class Metadata:
+    """Records all the metadata associated with an inventory.
+       Responsible for identifying the OS, once the compiler has been
+       identified and configured."""
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+
+    def probe_os(self, cc):
+        self.cc = cc
+
+        # Probing the OS uses the same technique as Compiler.identify,
+        # because it's convenient.
+
+        def parse_output(msg, osnames):
+            # This is a nested routine so we can use "return" to break
+            # out of two loops at once.
+            for line in msg:
+                if line.find("error") != -1:
+                    for name in osnames:
+                        if re.search(r'\b' + name + r'\b', line):
+                            return name
+                    if re.search(r'\bUNKNOWN\b', line):
+                        return "UNKNOWN"
+            return "FAIL"
+
+        cc.begin_test("identifying C runtime")
+        idcode = ["#if 0"]
+        for (name, os) in self.cfg.oses.items():
+            idcode.append("#elif " + os.id_expr)
+            idcode.append("#error " + name)
+        idcode.extend(("#else", "#error UNKNOWN", "#endif"))
+
+        (rc, msg) = cc.test_preproc("\n".join(idcode))
+        runtime = parse_output(msg, self.cfg.oses.keys())
+        if runtime == "FAIL":
+            cc.fatal("unable to parse compiler output.")
+        if runtime == "UNKNOWN":
+            cc.error("no configuration available for this C runtime.  "
+                     "Please add appropriate settings to " +
+                     repr(self.cfg.os_cfg_fname) + ".")
+            cc.dump_potential_system_id_macros()
+            raise SystemExit(1)
+
+        os = self.cfg.oses[runtime]
+
+        if os.version_detector is None:
+            cc.fatal("No version detector available")
+        else:
+            (rc, out) = cc.test_preproc("#include <errno.h>\n" +
+                                        os.version_detector,
+                                        want_output=1)
+            if rc != 0:
+                cc.fatal("failed to probe C runtime version")
+            squishre = re.compile("[ \t\r\n\v\f\"\']+")
+            for line in out:
+                line = squishre.sub("", line)
+                if line[:8] == "VERSION=":
+                    version = line[8:]
+                    break
+            else:
+                cc.fatal("failed to parse version detector output")
+
+            if os.version_adjust is not None:
+                d = {}
+                exec re.sub("(?m)^\s*\|", "", os.version_adjust) in globals(), d
+                version = d["version_adjust"](version)
+
+            self.osid = runtime
+            self.version = version
+
+        cc.end_test("%s %s" % (os.label, version))
+
 if __name__ == '__main__':
     def main(argv, stdout):
         logf = open("st.log", "w")
@@ -3095,6 +3236,8 @@ if __name__ == '__main__':
             else:
                 cc = Compiler(argv[2:], cfg, logf)
             cc.report(stdout)
+            md = Metadata(cfg)
+            md.probe_os(cc)
         else:
 
             headers = []
