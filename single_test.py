@@ -3267,11 +3267,11 @@ class Metadata:
             else:
                 cc.fatal("failed to parse version detector output")
 
-            if osspec.version_adjust is not None:
-                d = {}
-                exec re.sub("(?m)^\s*\|", "", osspec.version_adjust) \
-                    in globals(), d
-                version = d["version_adjust"](version)
+        if osspec.version_adjust is not None:
+            d = {}
+            exec re.sub("(?m)^\s*\|", "", osspec.version_adjust) \
+                in globals(), d
+            version = d["version_adjust"](version)
 
         self.osid = runtime
         self.version = version
