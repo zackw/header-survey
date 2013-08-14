@@ -1748,7 +1748,7 @@ int main(void)
 
     def conformance_test(self, cc, ccs_f):
         """Determine the levels of the C, POSIX, and XSI standards to
-           which this compiler + target OS claim to conform; adjust
+           which this compiler + target runtime claim to conform; adjust
            'conform_opt' accordingly.  Also figure out whether
            threaded code must be compiled in a special mode."""
 
@@ -2959,8 +2959,8 @@ class CompilerSpec:
         else:
             self.imitated = 0
 
-class OsSpec:
-    """Data carrier for OS information, used by Configuration."""
+class RtSpec:
+    """Data carrier for C runtime information, used by Configuration."""
     def __init__(self, cfg, sect, fname):
         for opt in cfg.options(sect):
             setattr(self, opt, cfg.get(sect, opt, raw=1))
@@ -2983,7 +2983,7 @@ class Configuration:
         self.cfgdir = cfgdir
         self.ctdir = ctdir
         self.load_compilers(os.path.join(cfgdir, "compilers.ini"))
-        self.load_oses(os.path.join(cfgdir, "os.ini"))
+        self.load_runtimes(os.path.join(cfgdir, "runtimes.ini"))
         self.load_known_errors(os.path.join(cfgdir, "errors.ini"))
         self.load_headers(os.path.join(cfgdir, "headers.ini"))
         self.load_deps(os.path.join(cfgdir, "prereqs.ini"))
@@ -3003,16 +3003,16 @@ class Configuration:
         for sect in cfg.sections():
             self.compilers[sect] = CompilerSpec(cfg, sect, fname)
 
-    def load_oses(self, fname):
-        self.os_cfg_fname = fname
+    def load_runtimes(self, fname):
+        self.runtimes_cfg_fname = fname
 
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
 
-        self.oses = {}
+        self.runtimes = {}
         for sect in cfg.sections():
             if sect != "META":
-                self.oses[sect] = OsSpec(cfg, sect, fname)
+                self.runtimes[sect] = RtSpec(cfg, sect, fname)
 
         self.not_system_id_macros = cfg.get("META", "not_system_id_macros",
                                             raw=1)
@@ -3199,24 +3199,24 @@ class Dataset:
 
 class Metadata:
     """Records all the metadata associated with an inventory.
-       Responsible for identifying the OS, once the compiler has been
-       identified and configured."""
+       Responsible for identifying the C runtime, once the compiler
+       has been identified and configured."""
 
     def __init__(self, cfg):
         self.cfg = cfg
 
-    def probe_os(self, cc):
+    def probe_runtime(self, cc):
         self.cc = cc
 
-        # Probing the OS uses the same technique as Compiler.identify,
-        # because it's convenient.
+        # Probing the runtime uses the same technique as
+        # Compiler.identify, because it's convenient.
 
-        def parse_output(msg, osnames):
+        def parse_output(msg, rtnames):
             # This is a nested routine so we can use "return" to break
             # out of two loops at once.
             for line in msg:
                 if line.find("error") != -1:
-                    for name in osnames:
+                    for name in rtnames:
                         if re.search(r'\b' + name + r'\b', line):
                             return name
                     if re.search(r'\bUNKNOWN\b', line):
@@ -3225,36 +3225,36 @@ class Metadata:
 
         cc.begin_test("identifying C runtime")
         idcode = ["#include <errno.h>", "#if 0"]
-        for (name, osspec) in self.cfg.oses.items():
-            idcode.append("#elif " + osspec.id_expr)
+        for (name, rtspec) in self.cfg.runtimes.items():
+            idcode.append("#elif " + rtspec.id_expr)
             idcode.append("#error " + name)
         idcode.extend(("#else", "#error UNKNOWN", "#endif"))
 
         (rc, msg) = cc.test_preproc("\n".join(idcode))
-        runtime = parse_output(msg, self.cfg.oses.keys())
+        runtime = parse_output(msg, self.cfg.runtimes.keys())
         if runtime == "FAIL":
             cc.fatal("unable to parse compiler output.")
         if runtime == "UNKNOWN":
             cc.error("no configuration available for this C runtime.  "
                      "Please add appropriate settings to " +
-                     repr(self.cfg.os_cfg_fname) + ".")
+                     repr(self.cfg.runtimes_cfg_fname) + ".")
             cc.dump_potential_system_id_macros()
             raise SystemExit(1)
 
-        osspec = self.cfg.oses[runtime]
+        rtspec = self.cfg.runtimes[runtime]
 
-        if osspec.version_detector is None:
+        if rtspec.version_detector is None:
             if cc.is_cross_compiler():
                 cc.fatal("Cross compiling to target that does not reveal "
-                         "version of C runtime.")
+                         "version of C runtime to preprocessor.")
 
             # If we are not cross compiling, we can probably trust
-            # os.uname()[2] == `uname -r` to tell us something reasonable.
+            # os.uname()[2] == `uname -r` to tell us a useful number.
             version = os.uname()[2]
 
         else:
             (rc, out) = cc.test_preproc("#include <errno.h>\n" +
-                                        osspec.version_detector,
+                                        rtspec.version_detector,
                                         want_output=1)
             if rc != 0:
                 cc.fatal("failed to probe C runtime version")
@@ -3267,15 +3267,15 @@ class Metadata:
             else:
                 cc.fatal("failed to parse version detector output")
 
-        if osspec.version_adjust is not None:
+        if rtspec.version_adjust is not None:
             d = {}
-            exec re.sub("(?m)^\s*\|", "", osspec.version_adjust) \
+            exec re.sub("(?m)^\s*\|", "", rtspec.version_adjust) \
                 in globals(), d
             version = d["version_adjust"](version)
 
-        self.osid = runtime
-        self.version = version
-        cc.end_test("%s %s" % (osspec.label, version))
+        self.runtime_id = runtime
+        self.runtime_version = version
+        cc.end_test("%s %s" % (rtspec.label, version))
 
 if __name__ == '__main__':
     def main(argv, stdout):
@@ -3290,7 +3290,7 @@ if __name__ == '__main__':
             else:
                 cc = Compiler(argv[2:], cfg, logf)
             md = Metadata(cfg)
-            md.probe_os(cc)
+            md.probe_runtime(cc)
             cc.report(stdout)
         else:
 
