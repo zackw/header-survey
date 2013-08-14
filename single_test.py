@@ -1603,6 +1603,53 @@ class Compiler:
             if test2   is not None: delete_if_exists(test2)
             if test2_o is not None: delete_if_exists(test2_o)
 
+    def is_cross_compiler(self):
+        """True if we are a cross compiler.  Primarily used to decide
+           whether `uname -r` is likely to tell us something useful."""
+
+        # This logic for detecting a cross compiler borrowed from
+        # autoconf 2.61's _AC_COMPILER_EXEEXT_CROSS.  Note in
+        # particular that (according to the comments in that code)
+        # attempting to compile and execute a no-op program is
+        # insufficient.
+
+        test_c = None
+        try:
+            test_c = named_tmpfile(prefix="cci", suffix="c")
+            f = open(test_c, "w")
+            f.write("""\
+#include <stdio.h>
+int main(void)
+{
+  FILE *f = tmpfile();
+  fputs("blort", f);
+  return ferror(f) || fclose(f) != 0;
+}
+""")
+            f.close()
+            self.progress_tick()
+            self.log("attempting to create an executable:",
+                     universal_readlines(test_c))
+            # We gonna just assume invoking the compiler without any
+            # options produces an executable named 'a.out', at least till
+            # I get back to my Windows VM.
+            (rc, msg) = self.invoke(self.base_cmd + [test_c])
+            if rc != 0:
+                self.fatal("failed to create a test executable")
+            self.progress_tick()
+            self.log("running said executable")
+            (rc, msg) = self.invoke(["./a.out"])
+            if rc != 0:
+                self.log("execution failed, assuming a cross compiler")
+                return 1
+            else:
+                self.log("execution succeeded, assuming a native compiler")
+                return 0
+
+        finally:
+            delete_if_exists("a.out")
+            if test_c is not None: delete_if_exists(test_c)
+
     def smoke_test(self, ccs_f):
         """Perform tests which, if they fail, indicate something horribly
            wrong with the compiler and/or our usage of it (so there is no
@@ -3178,8 +3225,8 @@ class Metadata:
 
         cc.begin_test("identifying C runtime")
         idcode = ["#include <errno.h>", "#if 0"]
-        for (name, os) in self.cfg.oses.items():
-            idcode.append("#elif " + os.id_expr)
+        for (name, osspec) in self.cfg.oses.items():
+            idcode.append("#elif " + osspec.id_expr)
             idcode.append("#error " + name)
         idcode.extend(("#else", "#error UNKNOWN", "#endif"))
 
@@ -3194,13 +3241,20 @@ class Metadata:
             cc.dump_potential_system_id_macros()
             raise SystemExit(1)
 
-        os = self.cfg.oses[runtime]
+        osspec = self.cfg.oses[runtime]
 
-        if os.version_detector is None:
-            cc.fatal("No version detector available")
+        if osspec.version_detector is None:
+            if cc.is_cross_compiler():
+                cc.fatal("Cross compiling to target that does not reveal "
+                         "version of C runtime.")
+
+            # If we are not cross compiling, we can probably trust
+            # os.uname()[2] == `uname -r` to tell us something reasonable.
+            version = os.uname()[2]
+
         else:
             (rc, out) = cc.test_preproc("#include <errno.h>\n" +
-                                        os.version_detector,
+                                        osspec.version_detector,
                                         want_output=1)
             if rc != 0:
                 cc.fatal("failed to probe C runtime version")
@@ -3213,15 +3267,15 @@ class Metadata:
             else:
                 cc.fatal("failed to parse version detector output")
 
-            if os.version_adjust is not None:
+            if osspec.version_adjust is not None:
                 d = {}
-                exec re.sub("(?m)^\s*\|", "", os.version_adjust) in globals(), d
+                exec re.sub("(?m)^\s*\|", "", osspec.version_adjust) \
+                    in globals(), d
                 version = d["version_adjust"](version)
 
-            self.osid = runtime
-            self.version = version
-
-        cc.end_test("%s %s" % (os.label, version))
+        self.osid = runtime
+        self.version = version
+        cc.end_test("%s %s" % (osspec.label, version))
 
 if __name__ == '__main__':
     def main(argv, stdout):
@@ -3235,9 +3289,9 @@ if __name__ == '__main__':
                 cc = Compiler(argv[3:], cfg, logf)
             else:
                 cc = Compiler(argv[2:], cfg, logf)
-            cc.report(stdout)
             md = Metadata(cfg)
             md.probe_os(cc)
+            cc.report(stdout)
         else:
 
             headers = []
