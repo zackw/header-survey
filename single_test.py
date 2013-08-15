@@ -1355,69 +1355,6 @@ class Compiler:
         self.log(msg[0], msg[1:])
         return (rc, msg)
 
-    #
-    # This is only here till snakebite comes back up and I can test some
-    # more wonky vendor compilers.
-    #
-
-    def old_compiler_id(self, cc):
-        stop_re = re.compile(
-        r'unrecognized option|must have argument|not found|warning|error|usage|'
-        r'must have argument|copyright|informational note 404|no input files',
-        re.IGNORECASE)
-
-        # gcc, clang: --version
-        # sun cc, compaq cc, HP CC: -V (possibly with a dummy compilation)
-        # mipspro cc: -version
-        # xlc: -qversion
-        # cl: prints its version number (among other things) upon
-        #     encountering any unrecognized invocation
-        # -qversion is first because xlc's behavior upon receiving an
-        # unrecognized option is to dump out its _entire manpage!_
-        for opt in ("-qversion", "--version", "-V", "-version",
-                    "-V -c dummy.i"):
-            # some versions of HP cc won't print their version info unless you
-            # give them something to compile, le sigh
-            if opt.endswith("dummy.i"):
-                made_dummy_i = 1
-                f = open("dummy.i", "w")
-                f.write("int foo;\n")
-                f.close()
-            else:
-                made_dummy_i = 0
-
-            cmd = cc + opt.split()
-            (rc, msg) = self.invoke(cmd)
-
-            if made_dummy_i:
-                delete_if_exists("dummy.i")
-                delete_if_exists("dummy.o")
-
-            results = []
-            for l in msg[1:]:
-                l = l.strip()
-                if l == "" or l.find("[exit") == 0: continue
-                if stop_re.search(l):
-                    # Special case: GCC's --version message might look like
-                    # cc (distro x.y.z-w) x.y.z
-                    # Copyright (C) yyyy Free Software Foundation, Inc.
-                    # [etc]
-                    # with the word "GCC" not appearing anywhere.  So if "GCC"
-                    # doesn't (case insensitively) appear in the text so far,
-                    # but we just hit the FSF copyright notice, annotate the
-                    # previous line accordingly.
-                    if (l.find("Free Software Foundation") != -1
-                        and results[-1].find("GCC") == -1
-                        and results[-1].find("gcc") == -1):
-                        results[-1] = results[-1] + " (GCC)"
-                    break
-                results.append(l)
-
-            ccid = " | ".join(results)
-            if len(ccid) > 0:
-                return ccid
-        return "unidentified"
-
     def failure_due_to_nonexistence(self, msg, header):
         """True if MSG contains an error message indicating that HEADER
            does not exist."""
@@ -1865,8 +1802,7 @@ int main(void)
     def report(self, outf):
         """Report the identity of the compiler and how we're going to
            use it."""
-        outf.write("old: %s\n" % self.old_compiler_id(self.base_cmd))
-        outf.write("new: %s\n" % self.label)
+        outf.write("compile command: %s\n" % " ".join(self.compile_cmd))
         outf.write("conformance options: %s\n" % " ".join(self.conform_opt))
         outf.write("repeat tests with threads: %d\n"
                    % self.test_with_thread_opt)
