@@ -1462,7 +1462,12 @@ class Compiler:
             self.log("compiling:", code.split("\n"))
             (rc, output) = self.invoke(cmd)
             if rc == 0 and want_output:
-                output.extend(universal_readlines(test_s))
+                try:
+                    output.extend(universal_readlines(test_s))
+                except EnvironmentError, e:
+                    # Filter out ENOENT; under some circumstances the
+                    # desired output goes to stdout instead of the file.
+                    if e.errno != errno.ENOENT: raise
             return (rc, output)
         finally:
             delete_if_exists(test_c)
@@ -1524,7 +1529,7 @@ class Compiler:
             f.write("#if 0\n")
             for (imitated, macro, name) in compilers:
                 f.write("#elif defined %s\n#error %s\n" % (macro, name))
-            f.write("#else\n#error UNKNOWN\n#endif")
+            f.write("#else\n#error UNKNOWN\n#endif\n")
             f.close()
 
             self.progress_tick()
