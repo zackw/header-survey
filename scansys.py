@@ -255,17 +255,6 @@ def english_boolean(s):
         return 0
     raise RuntimeError("'%s' is not recognized as true or false" % s)
 
-def ct(conform, thread):
-    """Subroutine of several class methods far below that need to be able
-       to print a code for a "compilation mode", which is ostensibly a pair
-       of booleans but has grown sufficient hair that it probably ought to
-       be refactored into its own class or summat."""
-    c = "."
-    t = "."
-    if conform: c = "c"
-    if thread: t = "t"
-    return "["+c+t+"]"
-
 def splitto(string, sep, fields):
     """Split STRING at instances of SEP into exactly FIELDS fields."""
     exploded = string.split(sep, fields-1)
@@ -1152,6 +1141,20 @@ class TestProgram:
 # Compilation
 #
 
+class CompilationMode:
+    """The 'mode' in which a header is being tested.  Right now, this is
+       just a pair of booleans: conformance yes/no, threads yes/no."""
+    def __init__(self, conform=0, thread=0):
+        self.conform = conform
+        self.thread = thread
+
+    def __str__(self):
+        c = "."
+        t = "."
+        if self.conform: c = "c"
+        if self.thread: t = "t"
+        return "["+c+t+"]"
+
 class Compiler:
     """A Compiler instance knows how to invoke a particular compiler
        on provided source code.  Instantiated from a command + arguments,
@@ -1377,18 +1380,18 @@ class Compiler:
                 return 1
         return 0
 
-    def test_invoke(self, code, action, outname,
-                    conform=0, thread=0, opts=[], defines=[],
+    def test_invoke(self, code, action, outname, mode,
+                    opts=[], defines=[],
                     suppress_progress_tick=0,
                     want_output=0):
         """Invoke the compiler on CODE, in the compilation mode indicated
-           by ACTION, CONFORM, THREAD, and OPTS, defining preprocessor
+           by ACTION, MODE, and OPTS, defining preprocessor
            macros as given by DEFINES.  Return the exit code and the
            error messages, after cleaning up temporary files."""
         cmd = self.base_cmd[:]
-        if conform:
+        if mode.conform:
             cmd.extend(self.conform_opt)
-        if thread:
+        if mode.thread:
             cmd.extend(self.thread_opt)
         cmd.extend(opts)
         if len(defines) > 0:
@@ -1424,21 +1427,21 @@ class Compiler:
             delete_if_exists(test_c)
             delete_if_exists(test_s)
 
-    def test_compile(self, code, conform=0, thread=0, opts=[], defines=[]):
+    def test_compile(self, code, mode, opts=[], defines=[]):
         """Convenience function for requesting compilation at least up to
            and including semantic validation."""
         return self.test_invoke(code,
                                 self.compile_cmd,
                                 self.compile_out,
-                                conform, thread, opts, defines)
+                                mode, opts, defines)
 
-    def test_preproc(self, code, conform=0, thread=0, opts=[], defines=[],
+    def test_preproc(self, code, mode, opts=[], defines=[],
                      want_output=0):
         """Convenience function for requesting preprocessing only."""
         return self.test_invoke(code,
                                 self.preproc_cmd,
                                 self.preproc_out,
-                                conform, thread, opts, defines,
+                                mode, opts, defines,
                                 want_output=want_output)
 
     def identify(self, ccs, ccs_f):
@@ -1625,7 +1628,7 @@ int main(void)
         for (action, conform, tag) in test_modes:
             self.log("smoke test: %s, should succeed" % tag)
             (rc, msg) = action("#include <stdarg.h>\nint dummy;",
-                               conform)
+                               CompilationMode(conform))
             if rc != 0:
                 self.fatal("failed to %s simple test program. "
                            "Check configuration for %s in %s."
@@ -1635,7 +1638,8 @@ int main(void)
         # preprocess.
         for (action, conform, tag) in test_modes:
             self.log("smoke test: %s, should fail due to nonexistence" % tag)
-            (rc, msg) = action("#include <nonexistent.h>\nint dummy;", conform)
+            (rc, msg) = action("#include <nonexistent.h>\nint dummy;",
+                               CompilationMode(conform))
             if rc == 0 or not self.failure_due_to_nonexistence(msg,
                                                                "nonexistent.h"):
                 self.fatal("failed to detect nonexistence of <nonexistent.h>"
@@ -1651,7 +1655,7 @@ int main(void)
                                           "  not_a_type v;\n"
                                           "  return 0;\n"
                                           "}",
-                                          conform);
+                                          CompilationMode(conform));
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
             srcf = msg[0].split()[-1]
@@ -1692,7 +1696,9 @@ int main(void)
 
             self.log("conformance test: trying for %s %s"
                      % (label, expected))
-            (rc, msg) = self.test_preproc(testcode, conform=1, opts=opts,
+            (rc, msg) = self.test_preproc(testcode,
+                                          CompilationMode(conform=1),
+                                          opts=opts,
                                           defines=["EXPECTED="+expected])
             if rc == 0:
                 return (opts, expected)
@@ -1726,7 +1732,8 @@ int main(void)
         # If we have unistd.h, also find and activate the newest supported
         # POSIX standard.
         self.begin_test("determining POSIX conformance level")
-        (rc, msg) = self.test_preproc("#include <unistd.h>\nint dummy;")
+        (rc, msg) = self.test_preproc("#include <unistd.h>\nint dummy;",
+                                      CompilationMode())
         if rc != 0:
             if not self.failure_due_to_nonexistence(msg, "unistd.h"):
                 self.fatal("failed to determine presence of <unistd.h>. "
@@ -1769,14 +1776,15 @@ int main(void)
         # compiled in a special mode.  If so, enabling this mode may
         # change dependency sets, so we have to test both ways.
         self.begin_test("checking whether <pthread.h> requires special options")
-        (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;")
+        (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;",
+                                      CompilationMode())
         if rc == 0:
             self.end_test("no")
         elif self.failure_due_to_nonexistence(msg, "pthread.h"):
             self.end_test("no (it's absent)")
         else:
             (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;",
-                                          thread=1)
+                                          CompilationMode(thread=1))
             if rc == 0:
                 self.test_with_thread_opt = 1
                 self.end_test("yes")
@@ -1968,7 +1976,7 @@ class Dependency:
 
         # These are here only for interchangeability's sake.
         self.presence = self.UNKNOWN
-        self.deplist = [ [ [], [] ], [ [], [] ] ]
+        self.deplist = []
 
     def __hash__(self):
         return hash(self.what) ^ hash(self.name)
@@ -1979,7 +1987,7 @@ class Dependency:
     def __str__(self):
         return self.name
 
-    def with_dependencies(self, conform, thread, already=None):
+    def with_dependencies(self, already=None):
         """Return a list containing all of this dependency's own
            dependencies (in the appropriate order) and then the
            dependency itself.  Duplicates are filtered out."""
@@ -1997,8 +2005,8 @@ class Dependency:
         already[self] = 1
 
         rv = []
-        for dep in self.deplist[conform][thread]:
-            rv.extend(dep.with_dependencies(conform, thread, already))
+        for dep in self.deplist:
+            rv.extend(dep.with_dependencies(already))
         rv.append(self)
         return rv
 
@@ -2035,14 +2043,10 @@ class Header(Dependency):
        of tests of the header:
 
          - whether it exists at all
-         - whether it can be preprocessed successfully, in isolation
-         - whether it can be compiled successfully, in isolation:
-           - in the default compilation mode
-           - in the strict conformance mode
-           - (optionally) with thread support enabled, in both the above modes
-         - if it can't be compiled successfully in isolation in any
-           of the above modes, whether this can be fixed by including
-           other headers first
+         - whether it can be compiled successfully, in isolation
+         - if it can't be compiled successfully in isolation,
+           whether this can be fixed by including other headers first
+         - for some headers, whether its contents are as expected
 
        Information about other headers to try including first is stored
        in the configuration file 'config/prereqs.ini', q.v."""
@@ -2095,32 +2099,18 @@ class Header(Dependency):
         self.cfg     = cfg
         self.dataset = dataset
 
+        # done in Dependency.__init__, preserved here for documentation:
         #self.presence  = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
+
         self.contents  = self.UNKNOWN # can be PRESENT, INCOMPLETE, CORRECT
         self.depends   = None # None=unknown, 0=no, 1=yes
         self.conflict  = None # None=unknown, 0=no, 1=yes
-        self.pref_mode = None # will be set to a 2-tuple by test_depends
+        self.caution   = 0    # 0=no or unknown, 1=yes, 2=contents only
 
-        # dependency lists form a 2x2 matrix indexed by [conform][thread].
-        # initially all are empty.
-        # done in Dependency.__init__, preserved here for documentation
-        #self.deplist = [ [ [], [] ],
-        #                 [ [], [] ] ]
-
-        # conflict lists likewise. The Nones are so output_* can tell the
-        # difference between "empty set" and "we never scanned this because
-        # cc.test_with_thread_opt=0."
-        self.conflist = [ [ [], None ],
-                          [ [], None ] ]
-
-        # and error lists likewise, except we may not even get to doing
-        # conformance tests.
-        self.errlist = [ [ [],   None ],
-                         [ None, None ] ]
-
-        # caution is also a 2x2 matrix, but of booleans.
-        self.caution = [ [ 0, 0 ],
-                         [ 0, 0 ] ]
+        # done in Dependency.__init__, preserved here for documentation:
+        #self.deplist = []
+        self.conflist = []
+        self.errlist = []
 
         self.content_results = None
 
@@ -2129,35 +2119,11 @@ class Header(Dependency):
         outf.write(" presence: " + self.STATE_LABELS[self.presence] + "\n")
         outf.write(" contents: " + self.STATE_LABELS[self.contents] + "\n")
         outf.write("  depends: " + repr(self.depends) + "\n")
-        outf.write("pref_mode: " + repr(self.pref_mode) + "\n")
-        outf.write("  caution: [..]=%d [c.]=%d [.t]=%d [ct]=%d\n"
-                   % (self.caution[0][0],
-                      self.caution[1][0],
-                      self.caution[0][1],
-                      self.caution[1][1]))
-
-        outf.write(" deplists:\n")
-        outf.write("   [..] = %s\n"
-                   % " ".join([h.name for h in self.deplist[0][0]]))
-        outf.write("   [c.] = %s\n"
-                   % " ".join([h.name for h in self.deplist[1][0]]))
-        outf.write("   [.t] = %s\n"
-                   % " ".join([h.name for h in self.deplist[0][1]]))
-        outf.write("   [ct] = %s\n"
-                   % " ".join([h.name for h in self.deplist[1][1]]))
-
-        outf.write(" errlists:\n")
-        outf.write("   [..] = %s\n"
-                   % " ".join([h.name for h in self.errlist[0][0]]))
-        if self.errlist[1][0] is not None:
-            outf.write("   [c.] = %s\n"
-                       % " ".join([h.name for h in self.errlist[1][0]]))
-        if self.errlist[0][1] is not None:
-            outf.write("   [.t] = %s\n"
-                       % " ".join([h.name for h in self.errlist[0][1]]))
-        if self.errlist[1][1] is not None:
-            outf.write("   [ct] = %s\n"
-                       % " ".join([h.name for h in self.errlist[1][1]]))
+        outf.write("  caution: " + repr(self.caution) + "\n")
+        outf.write("  deplist: %s\n"
+                   % " ".join([h.name for h in self.deplist]))
+        outf.write("  errlist: %s\n"
+                   % " ".join([h.name for h in self.errlist]))
 
         if self.content_results is not None:
             outf.write(" contents:\n")
@@ -2167,19 +2133,9 @@ class Header(Dependency):
                outf.getvalue().split("\n"))
 
     def log_conflicts(self, cc):
-        msg = [" conflict: " + repr(self.conflict),
-               "conflists:",
-               "   [..] = " + " ".join([h.name for h in self.conflist[0][0]]),
-               "   [c.] = " + " ".join([h.name for h in self.conflist[1][0]])]
-        if self.conflist[0][1] is not None:
-            msg.append("   [.t] = "
-                       + " ".join([h.name for h in self.conflist[0][1]]))
-        if self.conflist[1][1] is not None:
-            msg.append("   [ct] = "
-                       + " ".join([h.name for h in self.conflist[1][1]]))
-
         cc.log("%s = %s" % (self.name, self.state_label()),
-               msg)
+               [" conflict: " + repr(self.conflict),
+                " conflist: " + " ".join([h.name for h in self.conflist])])
 
     def state_code(self):
         if self.presence != self.PRESENT:
@@ -2188,10 +2144,7 @@ class Header(Dependency):
         else:
             assert self.depends is not None
 
-            caution = (self.conflict or
-                       self.caution[0][0] or self.caution[0][1] or
-                       self.caution[1][0] or self.caution[1][1])
-
+            caution = (self.conflict or self.caution)
             if self.contents == self.PRESENT:
                 if        caution: return self.PRES_CAU
                 elif self.depends: return self.PRES_DEP
@@ -2211,90 +2164,56 @@ class Header(Dependency):
 
     def output(self, outf):
         outf.write("%s%s\n" % (self.state_code(), self.name))
-        self.output_annotations(outf, self.deplist, self.output_one_deplist)
-        self.output_annotations(outf, self.conflist, self.output_one_conflist)
-        self.output_annotations(outf, self.errlist, self.output_one_errlist)
+        if len(self.deplist) == 0:
+            pass
+        elif isinstance(self.deplist[0], SpecialDependency):
+            assert len(self.deplist) == 1
+            outf.write("  $S %s\n" % self.deplist[0].name)
+        else:
+            self.output_annlist(outf, 'P', self.deplist)
+        self.output_annlist(outf, 'C', self.conflist)
+        self.output_annlist(outf, 'E', self.errlist)
         if self.content_results is not None:
             self.content_results.output(outf)
 
-    def output_one_deplist(self, outf, lst, tag=""):
-        if isinstance(lst[0], SpecialDependency):
-            assert len(lst) == 1
-            outf.write("  $S%s %s\n" % (tag, lst[0].name))
-        else:
-            outf.write("  $P%s %s\n" %
-                       (tag, " ".join([h.name for h in lst])))
+    def output_annlist(self, outf, tag, lst):
+        if lst:
+            outf.write("  $%s %s\n" %
+                       (tag, " ".join([h.name for h in self.lst])))
 
-    def output_one_conflist(self, outf, lst, tag=""):
-        outf.write("  $C%s %s\n" % (tag, " ".join([h.name for h in lst])))
-
-    def output_one_errlist(self, outf, lst, tag=""):
-        outf.write("  $E%s %s\n" % (tag, " ".join([h.name for h in lst])))
-
-    def output_annotations(self, outf, cluster, output_1):
-
-        # always output cluster[0][0] if nonempty
-        if cluster[0][0]:
-            output_1(outf, cluster[0][0])
-
-        # output other lists only if they are not a subset of
-        # the contents of a more generic list
-        if not_a_subset(cluster[1][0], cluster[0][0]):
-            output_1(outf, cluster[1][0], " [conform]")
-
-        if not_a_subset(cluster[0][1], cluster[0][0]):
-            output_1(outf, cluster[0][1], " [thread]")
-
-        if (not_a_subset(cluster[1][1], cluster[0][0]) and
-            not_a_subset(cluster[1][1], cluster[1][0])):
-            output_1(outf, cluster[1][1], " [conform,thread]")
-
-    def extend_errlist(self, conform, thread, errs):
-        if self.errlist[conform][thread] is None:
-            self.errlist[conform][thread] = []
-        l0 = self.errlist[0][0]
-        l1 = self.errlist[conform][thread]
-
+    def extend_errlist(self, errs):
         for e in errs:
-            if e.caution:
-                self.caution[conform][thread] = 1
-                ll = l1
-            else:
-                # Errors that are not "cautions" are put on the
-                # "default" error list regardless of what mode we
-                # detected them in (the idea is that this problem
-                # is a problem regardless of mode, even if the
-                # compiler only catches it with warnings on).
-                self.presence = self.BUGGY
-                ll = l0
-
-            for x in ll:
+            for x in self.errlist:
                 if x.name == e.name:
                     break
             else:
-                ll.append(e)
+                self.errlist.append(e)
+                if e.caution:
+                    self.caution = 1
+                else:
+                    self.presence = self.BUGGY
 
-    def record_errors(self, cc, msg, conform, thread, ignore_unknown=0):
+    def record_errors(self, cc, msg, ignore_unknown=0):
         errs = self.cfg.is_known_error(msg, self.name)
         if errs is not None:
             cc.progress_note("*** errors detected: %s"
                              % " ".join([err.name for err in errs]))
-            self.extend_errlist(conform, thread, errs)
+            self.extend_errlist(errs)
         else:
             if ignore_unknown: return
 
             cc.error("unrecognized failure mode for <%s>. "
                      "Please investigate and add an entry to %s."
                      % (self.name, self.cfg.errors_fname))
-            self.extend_errlist(0, 0, [UnrecognizedError])
+            self.extend_errlist([UnrecognizedError])
 
-    def record_conflict(self, other, conform, thread):
+    def record_conflict(self, other):
         self.conflict = 1
-        for hh in self.conflist[conform][thread]:
+        for hh in self.conflist:
             if hh is other:
                 break
         else:
-            self.conflist[conform][thread].append(other)
+            self.conflist.append(other)
 
     def generate(self, out):
         out.append("#include <%s>" % self.name)
@@ -2325,7 +2244,8 @@ class Header(Dependency):
         if self.presence != self.UNKNOWN: return
 
         cc.log("testing presence of %s" % self.name)
-        (rc, msg) = cc.test_preproc("#include <%s>" % self.name)
+        (rc, msg) = cc.test_preproc("#include <%s>" % self.name,
+                                    self.dataset.mode)
         if rc != 0 and cc.failure_due_to_nonexistence(msg, self.name):
             self.presence = self.ABSENT
         else:
@@ -2334,20 +2254,30 @@ class Header(Dependency):
             # their dependencies in order to _preprocess_ correctly.
             self.presence = self.PRESENT
 
-    def test_depends_1(self, cc, possible_deps, conform, thread):
+    def test_depends(self, cc):
+        if self.depends is not None: return
+        if self.presence != self.PRESENT: return
+
+        possible_deps = []
+        for h in self.dataset.deps.get(self, []):
+            assert h.presence != h.UNKNOWN
+            if h.presence == h.PRESENT:
+                possible_deps.append(h)
+
         failures = []
 
         # dependency_combs is guaranteed to produce an empty set as the first
         # item in its returned list, and the complete set as the last item.
         for candidate_set in dependency_combs(possible_deps):
             cc.log("dependency test %s mode %s candidates: [%s]" %
-                   (self.name, ct(conform, thread),
+                   (self.name,
+                    self.dataset.mode,
                     " ".join([h.name for h in candidate_set])))
 
             includes = []
             already = {}
             for h in candidate_set:
-                for hh in h.with_dependencies(conform, thread, already):
+                for hh in h.with_dependencies(already):
                     hh.generate(includes)
 
             # As a sanity check, confirm that this header can be
@@ -2355,19 +2285,18 @@ class Header(Dependency):
             # rare and handled via config/errors.ini.
             self.generate(includes)
 
-            # If the headers under test contain nothing but macros, we
-            # could trip over the requirement that a translation unit
+            # If the headers under test contain nothing but macros,
+            # we could trip over the requirement that a translation unit
             # contain at least one top-level definition or declaration
-            # (C99 6.9 -- implicit in the grammar; the
-            # "translation-unit" production does not accept an empty
-            # token sequence).
+            # (C99 6.9 -- implicit in the grammar; the "translation-unit"
+            # production does not accept an empty token sequence).
             includes.append("int avoid_empty_translation_unit;")
 
             (rc, msg) = cc.test_compile("\n".join(includes),
-                                        conform=conform,
-                                        thread=thread)
+                                        self.dataset.mode)
             if rc == 0:
-                self.deplist[conform][thread] = candidate_set
+                self.deplist = candidate_set
+                self.depends = len(self.deplist) > 0
                 return
 
             if len(failures) > 0: failures.append("")
@@ -2377,51 +2306,8 @@ class Header(Dependency):
         # Look for a known bug in the last set of messages, which will be
         # the maximal dependency set and therefore the least likely to have
         # problems.
-        self.record_errors(cc, msg, conform, thread)
-
-    def test_depends(self, cc):
-        if self.depends is not None: return
-        if self.presence != self.PRESENT: return
-
-        possible_deps = []
-        for h in self.dataset.deps.get(self, []):
-            h.test(cc)
-            if h.presence == h.PRESENT:
-                possible_deps.append(h)
-
-        self.test_depends_1(cc, possible_deps, 0, 0)
-        if self.presence == self.BUGGY: return
-        self.test_depends_1(cc, possible_deps, 1, 0)
-        if self.presence == self.BUGGY: return
-        if cc.test_with_thread_opt:
-            self.test_depends_1(cc, possible_deps, 0, 1)
-            if self.presence == self.BUGGY: return
-            self.test_depends_1(cc, possible_deps, 1, 1)
-            if self.presence == self.BUGGY: return
-        else:
-            self.deplist[0][1] = self.deplist[0][0][:]
-            self.deplist[1][1] = self.deplist[1][0][:]
-
-            self.caution[0][1] = self.caution[0][0]
-            self.caution[1][1] = self.caution[1][0]
-
-        self.depends = (len(self.deplist[0][0]) > 0 or
-                        len(self.deplist[0][1]) > 0 or
-                        len(self.deplist[1][0]) > 0 or
-                        len(self.deplist[1][1]) > 0)
-
-        # Find a mode in which this header can be processed without errors.
-        if not self.caution[1][0]: # conform, no threads
-            self.pref_mode = (1, 0)
-        elif not self.caution[1][1]: # conform, threads
-            self.pref_mode = (1, 1)
-        elif not self.caution[0][0]: # no conform, no threads
-            self.pref_mode = (0, 0)
-        elif not self.caution[0][1]: # no conform, threads
-            self.pref_mode = (0, 1)
-        else:
-            # There is no mode without problems.
-            self.presence = self.BUGGY
+        self.record_errors(cc, msg)
+        self.presence = self.BUGGY
 
     def test_contents(self, cc):
         if self.presence != self.PRESENT: return
@@ -2434,18 +2320,16 @@ class Header(Dependency):
 
         tester = self.cfg.content_tests[self.name]
 
-        # Contents tests are done only in the preferred mode.
-        (conform, thread) = self.pref_mode
         cc.log("contents test for %s in mode %s" %
-               (self.name, ct(conform, thread)))
+               (self.name, self.dataset.mode))
 
         buf = []
-        for item in self.with_dependencies(conform, thread):
+        for item in self.with_dependencies():
             item.generate(buf)
         buf.append("")
         tester.generate(buf)
         (rc, base_msg) = cc.test_compile("\n".join(buf),
-                                         conform=conform, thread=thread)
+                                         self.dataset.mode)
         if rc == 0:
             self.contents = self.CORRECT
             return
@@ -2466,7 +2350,7 @@ class Header(Dependency):
             # trigger the infamous legacy_type_decls).  Do not record
             # unknown errors; they are probably from the test code,
             # not the header.
-            self.record_errors(cc, msg, conform, thread, ignore_unknown=1)
+            self.record_errors(cc, msg, ignore_unknown=1)
 
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
@@ -2493,14 +2377,14 @@ class Header(Dependency):
             prev_disabled_tags = disabled_tags
 
             buf = []
-            for item in self.with_dependencies(conform, thread):
+            for item in self.with_dependencies():
                 item.generate(buf)
             buf.append("")
             tester.generate(buf)
             cc.log("retry contents test for %s (mode %s)" %
-                   (self.name, ct(conform, thread)))
+                   (self.name, self.dataset.mode))
             (rc, msg) = cc.test_compile("\n".join(buf),
-                                        conform=conform, thread=thread)
+                                        self.dataset.mode)
 
         # If we get here, we just had a successful compilation with at
         # least some items disabled.  Annotate accordingly.
@@ -2511,7 +2395,8 @@ class Header(Dependency):
         elif result.badness == 1:
             # Some required items failed the tests.
             self.contents = self.INCOMPLETE
-            self.caution[conform][thread] = 2
+            self.caution = 2 # contents-only caution (doesn't inhibit
+                             # conflict tests)
         else:
             # _All_ items failed the tests.
             assert result.badness == 2
@@ -2548,10 +2433,9 @@ class ConflictMatrix:
        the service of filling in huge blocks of this matrix with each
        successful compilation."""
 
-    def __init__(self, headers, conform, thread):
+    def __init__(self, dataset, headers):
         self.debug = 0
-        self.conform = conform
-        self.thread = thread
+        self.dataset = dataset
         self.matrix = {}
         self.rdeps = {}
         self.live_headers = {}
@@ -2566,7 +2450,7 @@ class ConflictMatrix:
         # Take note of dependencies.  This has to be done in a second
         # pass so the matrix is fully constructed.
         for x in headers:
-            for y in x.with_dependencies(conform, thread):
+            for y in x.with_dependencies():
                 if y is x or not isinstance(y, Header): continue
 
                 # It is impossible to include x before y, and it is
@@ -2627,8 +2511,8 @@ class ConflictMatrix:
         self.matrix[y][x] = 2
         self.log_matrix(cc, "conflict trial fail")
 
-        x.record_conflict(y, self.conform, self.thread)
-        y.record_conflict(x, self.conform, self.thread)
+        x.record_conflict(y)
+        y.record_conflict(x)
         cc.progress_note("*** conflict identified: %s with %s" % (x, y))
 
     def record_ok(self, cc, tested):
@@ -2677,8 +2561,7 @@ class ConflictMatrix:
         already = {}
         for h in tset:
             if self.live_headers.has_key(h):
-                eset.extend(h.with_dependencies(self.conform, self.thread,
-                                                already))
+                eset.extend(h.with_dependencies(already))
 
         if self.debug:
             cc.log("conflict extended set: %s" % " ".join(eset))
@@ -2688,16 +2571,15 @@ class ConflictMatrix:
         for item in eset:
             item.generate(includes)
 
-        # If the headers under test contain nothing but macros, we
-        # could trip over the requirement that a translation unit
+        # If the headers under test contain nothing but macros,
+        # we could trip over the requirement that a translation unit
         # contain at least one top-level definition or declaration
         # (C99 6.9 -- implicit in the grammar; the "translation-unit"
         # production does not accept an empty token sequence).
         includes.append("int avoid_empty_translation_unit;")
 
         (rc, msg) = cc.test_compile("\n".join(includes),
-                                    conform=self.conform,
-                                    thread=self.thread)
+                                    self.dataset.mode)
         return (rc == 0, eset)
 
     def find_single_conflict(self, cc, tset):
@@ -2945,10 +2827,10 @@ class Configuration:
         self.load_content_tests(ctdir)
 
     def load_compilers(self, fname):
-        """Load information about known compilers.  This is left in a relatively
-           'uncooked' format because all but one of the compiler specifications
-           will be unused on any given invocation; see Compiler.__init__ for
-           how it will be processed."""
+        """Load information about known compilers.  This is left in a
+           relatively 'uncooked' format because all but one of the compiler
+           specifications will be unused on any given invocation; see
+           Compiler.__init__ for how it will be processed."""
         self.compiler_cfg_fname = fname
 
         cfg = ConfigParser.ConfigParser()
@@ -2973,10 +2855,10 @@ class Configuration:
                                             raw=1)
 
     def load_headers(self, fname):
-        """Load the complete set of headers to process.  We do not
-           instantiate Header objects at this time, because each Dataset
-           object (of which there are potentially two on any given run)
-           needs its own set of them."""
+        """Load the complete set of headers to process.  We do not instantiate
+           Header objects at this time, because each Dataset object (of which
+           there are potentially several on any given run) needs its own set
+           of them."""
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
 
@@ -3005,9 +2887,9 @@ class Configuration:
         self.headers = headers
 
     def load_deps(self, fname):
-        """Load the header-header and header-special dependency lists
-           from config/prereqs.ini.  Like load_headers, we do not
-           instantiate Header or SpecialDependency objects at this time."""
+        """Load the header-header and header-special dependency lists from
+           config/prereqs.ini.  Like load_headers, we do not instantiate
+           Header or SpecialDependency objects at this time."""
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
 
@@ -3023,7 +2905,8 @@ class Configuration:
             self.special_deps[h] = cfg.get("special", h, raw=1)
 
     def load_known_errors(self, fname):
-        """Load the specifications of all known errors from config/errors.ini."""
+        """Load the specifications of all known errors from
+           config/errors.ini."""
         self.errors_fname = fname
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
@@ -3094,8 +2977,9 @@ class Dataset:
        of { filename : Header instance } mappings, but also handles certain
        whole-dataset operations."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, mode):
         self.cfg = cfg
+        self.mode = mode
 
         self.headers = {}
         for h in cfg.headers:
@@ -3115,40 +2999,32 @@ class Dataset:
         raise RuntimeError("unknown header %s, check headers.ini" % name)
 
     def test_conflicts(self, cc):
-        """Conflict testing is done _en masse_ after all available
-           headers have been identified, for two reasons.  First, on
-           some systems conflicts between two headers are only evident
-           (provoke a compiler error) in one of the two possible #include
-           orders.  Second, conflict testing is more expensive than all the
-           rest of the tests put together.  We have gone to considerable
-           algorithmic effort to minimize the number of compiler invocations
-           required, and the algorithm is most efficient when operating on
-           large batches of headers (assuming conflicts are rare)."""
+        """Conflict testing is done _en masse_ after all available headers
+           have been identified, for two reasons.  First, on some systems
+           conflicts between two headers are only evident (provoke a compiler
+           error) in one of the two possible #include orders.  Second,
+           conflict testing is more expensive than all the rest of the tests
+           put together.  We have gone to considerable algorithmic effort to
+           minimize the number of compiler invocations required, and the
+           algorithm is most efficient when operating on large batches of
+           headers (assuming conflicts are rare)."""
 
-        self.test_conflict_mode(cc, conform=0, thread=0)
-        self.test_conflict_mode(cc, conform=1, thread=0)
-        if cc.test_with_thread_opt:
-            self.test_conflict_mode(cc, conform=0, thread=1)
-            self.test_conflict_mode(cc, conform=1, thread=1)
-
-        for h in sorthdr(self.headers.keys()):
-            self.headers[h].log_conflicts(cc)
-
-    def test_conflict_mode(self, cc, conform, thread):
-
-        cc.begin_test("conflict test mode " + ct(conform, thread))
+        cc.begin_test("conflict test, mode " + str(self.mode))
 
         # Construct a conflict matrix for every known header which is
         # compatible with this compilation mode.
         headers = []
         for h in self.headers.values():
             if h.presence != h.PRESENT: continue
-            if h.caution[conform][thread] == 1: continue
+            if h.caution == 1: continue
             assert h.depends is not None
             headers.append(h)
 
-        matrix = ConflictMatrix(headers, conform, thread)
+        matrix = ConflictMatrix(self, headers)
         matrix.find_conflicts(cc)
+
+        for h in sorthdr(self.headers.keys()):
+            self.headers[h].log_conflicts(cc)
 
         cc.end_test("done")
 
@@ -3185,7 +3061,8 @@ class Metadata:
             idcode.append("#error " + name)
         idcode.extend(("#else", "#error UNKNOWN", "#endif"))
 
-        (rc, msg) = cc.test_preproc("\n".join(idcode))
+        (rc, msg) = cc.test_preproc("\n".join(idcode),
+                                    CompilationMode())
         runtime = parse_output(msg, self.cfg.runtimes.keys())
         if runtime == "FAIL":
             cc.fatal("unable to parse compiler output.")
@@ -3210,6 +3087,7 @@ class Metadata:
         else:
             (rc, out) = cc.test_preproc("#include <errno.h>\n" +
                                         rtspec.version_detector,
+                                        CompilationMode(),
                                         want_output=1)
             if rc != 0:
                 cc.fatal("failed to probe C runtime version")
@@ -3265,7 +3143,7 @@ if __name__ == '__main__':
             if not headers:
                 headers = cfg.headers
 
-            dataset = Dataset(cfg)
+            dataset = Dataset(cfg, CompilationMode())
             for h in headers:
                 hh = dataset.get_header(h)
                 hh.test(cc)
