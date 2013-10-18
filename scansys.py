@@ -974,6 +974,7 @@ class TestProgram:
         """Construct a TestProgram from an .ini file, FNAME."""
         self.header = None
         self.baseline = None
+        self.line_index = None
         self.global_decls = ""
         self.infname = fname
         self.extra_includes = []
@@ -1059,7 +1060,7 @@ class TestProgram:
             raise RuntimeError("%s: unrecognized [preamble] items: %s"
                                % (fname, ", ".join(items.keys())))
 
-    # WARNING: The next three methods can only be used after generate() has
+    # WARNING: The next four methods can only be used after generate() has
     # been called at least once.
     def disable_line(self, line):
         """Disable the test case at line LINE (or just before it -- necessary
@@ -1087,6 +1088,13 @@ class TestProgram:
             if not item.enabled:
                 tags.append(item.tag)
         return tags
+
+    def results(self, cfg):
+        """Serialize the results of a content test, and reset the tester."""
+        rv = ContentTestResult(self, cfg)
+        for item in self.line_index.values():
+            item.enabled = 1
+        return rv
 
     def generate(self, out):
         """Append the test program to OUT.
@@ -1131,11 +1139,12 @@ class TestProgram:
         # Now that we've generated the entire file, construct an index of
         # what's at what line.  This is what enables use of the three
         # methods above (disable_line, all_disabled, disabled_tags).
-        self.line_index = {}
-        for bloc in self.COMPONENTS.keys():
-            for group in getattr(self, bloc):
-                for item in group.items:
-                    self.line_index[item.lineno] = item
+        if self.line_index is None:
+            self.line_index = {}
+            for bloc in self.COMPONENTS.keys():
+                for group in getattr(self, bloc):
+                    for item in group.items:
+                        self.line_index[item.lineno] = item
 
 #
 # Compilation
@@ -1993,7 +2002,9 @@ class Dependency:
            dependency itself.  Duplicates are filtered out."""
 
         assert self.presence != self.UNKNOWN
-        if self.presence != self.PRESENT:
+        # Buggy headers may still be dependencies!  (actually happens
+        # e.g. when <rpc/rpc.h> suffers from 'legacy_type_decls')
+        if self.presence == self.ABSENT:
             return []
 
         if already is None:
@@ -2179,7 +2190,7 @@ class Header(Dependency):
     def output_annlist(self, outf, tag, lst):
         if lst:
             outf.write("  $%s %s\n" %
-                       (tag, " ".join([h.name for h in self.lst])))
+                       (tag, " ".join([h.name for h in lst])))
 
     def extend_errlist(self, errs):
         for e in errs:
@@ -2231,7 +2242,7 @@ class Header(Dependency):
         for h in self.dataset.deps.get(self, []):
             h.test(cc)
 
-        cc.begin_test(self.name)
+        cc.begin_test(self.name + " " + str(self.dataset.mode))
 
         self.test_presence(cc)
         self.test_depends(cc)
@@ -2261,8 +2272,14 @@ class Header(Dependency):
         possible_deps = []
         for h in self.dataset.deps.get(self, []):
             assert h.presence != h.UNKNOWN
-            if h.presence == h.PRESENT:
+            # Buggy headers may still be dependencies!  (actually happens
+            # e.g. when <rpc/rpc.h> suffers from 'legacy_type_decls')
+            if h.presence != h.ABSENT:
                 possible_deps.append(h)
+
+        cc.log("dependency test %s mode %s possibilities: [%s]" %
+               (self.name, self.dataset.mode,
+                " ".join([h.name for h in possible_deps])))
 
         failures = []
 
@@ -2388,7 +2405,7 @@ class Header(Dependency):
 
         # If we get here, we just had a successful compilation with at
         # least some items disabled.  Annotate accordingly.
-        result = ContentTestResult(tester, self.cfg)
+        result = tester.results(self.cfg)
         if result.badness == 0:
             # Only optional items failed the tests.
             self.contents = self.INCOMPLETE
@@ -3110,53 +3127,61 @@ class Metadata:
         self.runtime_version = version
         cc.end_test("%s %s" % (rtspec.label, version))
 
-if __name__ == '__main__':
-    def main(argv, stdout):
-        logf = open("st.log", "w")
-        cfg = Configuration("config", "content_tests")
+def main(argv, stdout):
+    logf = open("st.log", "w")
+    cfg = Configuration("config", "content_tests")
 
-        if len(argv) >= 2 and argv[1] == "compiler_id":
-            if len(argv) == 2:
-                cc = Compiler(["cc"], cfg, logf)
-            elif argv[2] == "--":
-                cc = Compiler(argv[3:], cfg, logf)
-            else:
-                cc = Compiler(argv[2:], cfg, logf)
-            md = Metadata(cfg)
-            md.probe_runtime(cc)
-            cc.report(stdout)
+    if len(argv) >= 2 and argv[1] == "compiler_id":
+        if len(argv) == 2:
+            cc = Compiler(["cc"], cfg, logf)
+        elif argv[2] == "--":
+            cc = Compiler(argv[3:], cfg, logf)
         else:
+            cc = Compiler(argv[2:], cfg, logf)
+        md = Metadata(cfg)
+        md.probe_runtime(cc)
+        cc.report(stdout)
+    else:
 
-            headers = []
-            for i in range(len(argv)):
-                if argv[i] == "--":
-                    if i == len(argv)-1:
-                        usage()
-                    headers = argv[1:i]
-                    cc = Compiler(argv[i+1:], cfg, logf)
-                    break
-            else:
-                if len(argv) > 1:
-                    headers = argv[1:]
-                cc = Compiler(["cc"], cfg, logf)
+        headers = []
+        for i in range(len(argv)):
+            if argv[i] == "--":
+                if i == len(argv)-1:
+                    usage()
+                headers = argv[1:i]
+                cc = Compiler(argv[i+1:], cfg, logf)
+                break
+        else:
+            if len(argv) > 1:
+                headers = argv[1:]
+            cc = Compiler(["cc"], cfg, logf)
 
-            if not headers:
-                headers = cfg.headers
+        if not headers:
+            headers = cfg.headers
 
-            dataset = Dataset(cfg, CompilationMode())
-            for h in headers:
-                hh = dataset.get_header(h)
-                hh.test(cc)
+        datasets = [Dataset(cfg, CompilationMode(conform=0)),
+                    Dataset(cfg, CompilationMode(conform=1))]
+        if cc.test_with_thread_opt:
+            datasets.extend((Dataset(cfg, CompilationMode(conform=0, thread=1)),
+                             Dataset(cfg, CompilationMode(conform=1, thread=1))))
 
+        for h in headers:
+            hh0 = datasets[0].get_header(h)
+            for dset in datasets:
+                if hh0.presence != hh0.ABSENT:
+                    hh = dset.get_header(h)
+                    hh.test(cc)
+                if cc.error_occurred:
+                    raise SystemExit(1)
+
+        for dset in datasets:
+            dset.test_conflicts(cc)
             if cc.error_occurred:
                 raise SystemExit(1)
 
-            dataset.test_conflicts(cc)
-
-            if cc.error_occurred:
-                raise SystemExit(1)
-
-            kk = dataset.headers.items()
+        for dset in datasets:
+            stdout.write(str(dset.mode) + "\n")
+            kk = dset.headers.items()
             try:
                 kk.sort(key=lambda k: hsortkey(k[0]))
             except (NameError, TypeError):
@@ -3167,4 +3192,5 @@ if __name__ == '__main__':
                 if h.presence != h.UNKNOWN:
                     h.output(stdout)
 
+if __name__ == '__main__':
     main(sys.argv, sys.stdout)
