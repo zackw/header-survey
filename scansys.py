@@ -334,6 +334,217 @@ def dependency_combs(deps):
         dependency_combs_r(0, i, deps, work, rv)
     return rv
 
+def subst_filename(fname, opts):
+    """If any of OPTS is of the form '$.extension', replace the
+       dollar sign with FNAME's base name.  Returns the modified
+       string or list."""
+    (base, _) = os.path.splitext(fname)
+    if type(opts) == type(""):
+        if opts.startswith("$."):
+            return base + opts[1:]
+        else:
+            return opts
+    else:
+        nopts = []
+        for opt in opts:
+            if opt.startswith("$."):
+                nopts.append(base + opt[1:])
+            else:
+                nopts.append(opt)
+        return nopts
+
+#
+# Logging
+#
+
+class Logger:
+    """Logger is a singleton class which owns the log file and the
+       terminal (to which progress reports will be written).  Logger
+       is also responsible for adjusting the standard streams and the
+       environment for safe subprocess invocation, and for tracking
+       whether an error has occurred (i.e. inventory-taking has failed
+       and we should exit unsuccessfully, but not necessarily right
+       this instant)."""
+
+    def __init__(self, log_fname, verbose, progress):
+        self.logf = open(log_fname, "w")
+        self.verbose = verbose
+        self.progress = progress
+        self.need_cr = 0
+        self.error_occurred = 0
+
+        # Force the locale to "C" both for this process and all
+        # subsequently invoked subprocesses.
+        for k in os.environ.keys():
+            if k[:3] == "LC_" or k[:4] == "LANG":
+                del os.environ[k]
+        os.environ["LANG"] = "C"
+        os.environ["LANGUAGE"] = "C"
+        os.environ["LC_ALL"] = "C"
+        locale.setlocale(locale.LC_ALL, "C")
+
+        # Rejigger standard I/O streams. After this operation, file
+        # descriptor 0 reads from /dev/null, whereas descriptors 1 and
+        # 2 write to /dev/null; sys.stdin is closed; and sys.stdout
+        # and sys.stderr have been replaced with new file objects
+        # writing to wherever they used to write to, but with their
+        # underlying file descriptors moved above 2.  The point of
+        # this exercise is to ensure that processes invoked via
+        # os.system (see above) cannot interfere with our output or
+        # get stuck trying to read from our input.  (The output part
+        # is defense-in-depth, as they are always invoked with
+        # explicit output redirections.)  The interpreter cannot be
+        # persuaded to close the C-level stdin, stdout, or stderr
+        # objects, but they shouldn't get used after this point.
+
+        try:
+            devnull = os.devnull
+        except AttributeError:
+            if sys.platform == "win32":
+                devnull = "nul"
+            else:
+                devnull = "/dev/null"
+
+        ifd = os.open(devnull, os.O_RDONLY)
+        sys.stdin.close()
+        sys.__stdin__.close()
+        os.dup2(ifd, 0)
+        os.close(ifd)
+
+        ofd = os.open(devnull, os.O_WRONLY)
+        orig_stdout = os.dup(1)
+        sys.stdout = os.fdopen(orig_stdout, "w")
+        sys.__stdout__ = sys.stdout
+        os.dup2(ofd, 1)
+
+        orig_stderr = os.dup(2)
+        sys.stderr = os.fdopen(orig_stderr, "w")
+        sys.__stderr__ = sys.stderr
+        os.dup2(ofd, 2)
+        os.close(ofd)
+
+    def log(self, msg, output=[]):
+        """Write MSG to the log file, followed by OUTPUT if any.
+           Expected use pattern is for OUTPUT to be the contents of a file
+           as returned by universal_readlines(), e.g. code about to be
+           compiled, or error messages coming back.  Forces a carriage
+           return after MSG and after each element of OUTPUT."""
+        self.logf.write(msg.rstrip())
+        self.logf.write('\n')
+        for line in output:
+            self.logf.write(("| %s" % line).rstrip())
+            self.logf.write('\n')
+        self.logf.flush()
+
+    def begin_test(self, msg):
+        """Announce the commencement of a test, both in the log file and
+           on stderr."""
+        msg = msg.strip()
+        self.log("Begin test: %s" % msg)
+        if self.progress:
+            sys.stderr.write(msg)
+            sys.stderr.write("..")
+            sys.stderr.flush()
+            self.need_cr = 1
+
+    def progress_tick(self):
+        """Indicate on stderr that forward progress is being made.
+           Should normally be paired with one or more calls to log()."""
+        if self.progress:
+            sys.stderr.write(".")
+            sys.stderr.flush()
+            self.need_cr = 1
+
+    def progress_note(self, msg):
+        """Indicate status in the middle of an ongoing test.
+           MSG is sent both to stderr and to the logfile, and a carriage
+           return is forced before and after MSG if necessary."""
+        msg = msg.strip()
+        self.log(msg)
+        if self.progress:
+            if self.need_cr:
+                sys.stderr.write("\n")
+            sys.stderr.write(msg)
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+            self.need_cr = 0
+
+    def end_test(self, msg):
+        """Announce the completion of a test, both in the log file
+           and on stderr."""
+        msg = msg.strip()
+        self.log("Test complete: %s" % msg)
+        if self.progress:
+            sys.stderr.write(" %s\n" % msg)
+            sys.stderr.flush()
+            self.need_cr = 0
+
+    def error(self, msg):
+        """Announce an error severe enough that we cannot produce
+           meaningful output, but not so severe that we must abandon
+           the test run immediately."""
+        msg = "Error: %s" % msg
+        self.log(msg)
+        if self.need_cr:
+            sys.stderr.write("\n")
+        sys.stderr.write(msg)
+        sys.stderr.write("\n")
+        self.need_cr = 0
+        self.error_occurred = 1
+
+    def fatal(self, msg):
+        """Announce an error severe enough that the test run should
+           be aborted immediately.  Does not return."""
+        msg = "Fatal error: %s" % msg
+        self.log(msg)
+        if self.need_cr:
+            sys.stderr.write("\n")
+        sys.stderr.write(msg)
+        sys.stderr.write("\n")
+        raise SystemExit(1)
+
+    def invoke(self, argv):
+        """Invoke the command in ARGV, capturing and logging all its
+           output and its exit code."""
+        # For a wonder, the incantation to redirect both stdout and
+        # stderr to a file is exactly the same on Windows as on Unix!
+        # We put the redirections first on the command line because
+        # CMD.EXE may include a trailing space in the string it passes
+        # to CreateProcess() if they're last.  Yeeeeeah.
+        rc = -1
+        msg = []
+        result = None
+        try:
+            try:
+                result = named_tmpfile(prefix="out", suffix="txt")
+                cmdline = ">" + result + " 2>&1 " + list2shell(argv)
+                msg.append(cmdline)
+                rc = os.system(cmdline)
+                if rc != 0:
+                    if sys.platform == 'win32':
+                        msg.append("[exit %08x]" % rc)
+                    elif os.WIFEXITED(rc):
+                        msg.append("[exit %d]" % os.WEXITSTATUS(rc))
+                    elif os.WIFSIGNALED(rc):
+                        msg.append("[signal %d]" % os.WTERMSIG(rc))
+                        # special check for ^C and ^\ (SIGINT, SIGQUIT:
+                        # respectively signal numbers 2 and 3, everywhere)
+                        if os.WTERMSIG(rc) == 2 or os.WTERMSIG(rc) == 3:
+                            raise KeyboardInterrupt
+                    else:
+                        msg.append("[status %08x]" % rc)
+                msg.extend(universal_readlines(result))
+            except EnvironmentError, e:
+                if e.filename:
+                    msg.append("%s: %s" % (e.filename, e.strerror))
+                else:
+                    msg.append("%s: %s" % (argv[0], e.strerror))
+        finally:
+            delete_if_exists(result)
+
+        self.log(msg[0], msg[1:])
+        return (rc, msg)
+
 #
 # Code generation for decltests (used by Header.test_contents, far below)
 #
@@ -1062,12 +1273,16 @@ class TestProgram:
 
     # WARNING: The next four methods can only be used after generate() has
     # been called at least once.
-    def disable_line(self, line):
+    def disable_line(self, line, log):
         """Disable the test case at line LINE (or just before it -- necessary
            for #if(def)-wrapped test cases)."""
-        while line > 0 and not self.line_index.has_key(line):
+        oline = line
+        while not self.line_index.has_key(line):
             line -= 1
-        assert line > 0
+            if line == 0:
+                log.fatal("Nothing to disable at line %d of content test.  "
+                          "(Problem with preamble? Check %s.)"
+                          % (oline, self.infname))
         item = self.line_index[line]
         assert item.lineno == line
         if not item.enabled: return None
@@ -1166,220 +1381,31 @@ class CompilationMode:
 
 class Compiler:
     """A Compiler instance knows how to invoke a particular compiler
-       on provided source code.  Instantiated from a command + arguments,
-       it will identify the compiler and set up to use it.
+       on provided source code.  The Metadata class, below, does most
+       of the heavy lifting on figuring out what *kind* of compiler it is.
 
        Because we are limited to os.system for subprocess invocation,
        and because some compilers require particular environment
        variable settings, it does not work to have more than one
-       Compiler instance per process.  Thus, Compiler is also
-       responsible for logging and progress reports.
+       Compiler instance per process."""
 
-       Uses a config file (defaulting to 'config/compilers.ini') to
-       track the idiosyncracies of various compilers."""
-
-    #@staticmethod
-    def prepare_environment(self, ccenv):
-        """Prepare the environment for compiler invocation."""
-        for k, v in ccenv.items():
-            os.environ[k] = v
-
-        # Force the locale to "C" both for this process and all subsequently
-        # invoked subprocesses.
-        for k in os.environ.keys():
-            if k[:3] == "LC_" or k[:4] == "LANG":
-                del os.environ[k]
-        os.environ["LANG"] = "C"
-        os.environ["LANGUAGE"] = "C"
-        os.environ["LC_ALL"] = "C"
-
-        locale.setlocale(locale.LC_ALL, "C")
-
-        # Redirect standard input from /dev/null in subprocesses.
-        try:
-            devnull = os.devnull
-        except AttributeError:
-            if sys.platform == "win32":
-                devnull = "nul:"
-            else:
-                devnull = "/dev/null"
-        fd = os.open(devnull, os.O_RDONLY)
-        os.dup2(fd, 0)
-        os.close(fd)
-
-    def __init__(self, base_cmd, cfg, logf, ccenv={}):
-        """Identify the compiler that is invoked by BASE_CMD, and initialize
-           internal state accordingly."""
+    def __init__(self, base_cmd, cfg, log):
         self.base_cmd = base_cmd
-        self.cfg = cfg
-        self.logf = logf
-        self.error_occurred = 0
-        self.need_cr = 0
+        self.log = log
 
-        self.prepare_environment(ccenv)
+        self.notfound_re = re.compile(cfg.notfound_re, re.VERBOSE)
+        self.errloc_re   = re.compile(cfg.errloc_re, re.VERBOSE)
 
-        (compiler, label) = self.identify(cfg.compilers,
-                                          cfg.compiler_cfg_fname)
-        self.compiler = compiler
-        self.label = label
+        self.preproc_cmd = cfg.preproc.split()
+        self.preproc_out = cfg.preproc_out
+        self.compile_cmd = cfg.compile.split()
+        self.compile_out = cfg.compile_out
 
-        cc = cfg.compilers[compiler]
+        self.define_opt  = cfg.define
+        self.thread_opt  = cfg.threads.split()
+        self.dump_macros = cfg.dump_macros.split()
 
-        self.notfound_re = re.compile(cc.notfound_re, re.VERBOSE)
-        self.errloc_re   = re.compile(cc.errloc_re, re.VERBOSE)
-
-        self.preproc_cmd = cc.preproc.split()
-        self.preproc_out = cc.preproc_out
-        self.compile_cmd = cc.compile.split()
-        self.compile_out = cc.compile_out
-
-        self.define_opt  = cc.define
-        self.conform_opt = cc.conform.split()
-        self.thread_opt  = cc.threads.split()
-        self.dump_macros = cc.dump_macros.split()
-        self.test_with_thread_opt = 0
-
-        self.smoke_test(cfg.compiler_cfg_fname)
-        self.conformance_test(cc, cfg.compiler_cfg_fname)
-
-    def subst_filename(self, fname, opts):
-        """If any of OPTS is of the form '$.extension', replace the
-           dollar sign with FNAME's base name.  Returns the modified
-           string or list."""
-        (base, _) = os.path.splitext(fname)
-        if type(opts) == type(""):
-            if opts.startswith("$."):
-                return base + opts[1:]
-            else:
-                return opts
-        else:
-            nopts = []
-            for opt in opts:
-                if opt.startswith("$."):
-                    nopts.append(base + opt[1:])
-                else:
-                    nopts.append(opt)
-            return nopts
-
-    # N.B. logging methods will be moved somewhere else Real Soon Now.
-
-    def log(self, msg, output=[]):
-        """Write MSG to the log file, followed by OUTPUT if any.
-           Expected use pattern is for OUTPUT to be the contents of a file
-           as returned by universal_readlines(), e.g. code about to be
-           compiled, or error messages coming back.  Forces a carriage
-           return after MSG and after each element of OUTPUT."""
-        self.logf.write(msg.rstrip())
-        self.logf.write('\n')
-        for line in output:
-            self.logf.write(("| %s" % line).rstrip())
-            self.logf.write('\n')
-        self.logf.flush()
-
-    def begin_test(self, msg):
-        """Announce the commencement of a test, both in the log file and
-           on stderr."""
-        msg = msg.strip()
-        self.log("Begin test: %s" % msg)
-        sys.stderr.write(msg)
-        sys.stderr.write("..")
-        sys.stderr.flush()
-        self.need_cr = 1
-
-    def progress_tick(self):
-        """Indicate on stderr that forward progress is being made.
-           Should normally be paired with one or more calls to log()."""
-        sys.stderr.write(".")
-        sys.stderr.flush()
-        self.need_cr = 1
-
-    def progress_note(self, msg):
-        """Indicate status in the middle of an ongoing test.
-           MSG is sent both to stderr and to the logfile, and a carriage
-           return is forced before and after MSG if necessary."""
-        msg = msg.strip()
-        self.log(msg)
-        if self.need_cr:
-            sys.stderr.write("\n")
-        sys.stderr.write(msg)
-        sys.stderr.write("\n")
-        sys.stderr.flush()
-        self.need_cr = 0
-
-    def end_test(self, msg):
-        """Announce the completion of a test, both in the log file
-           and on stderr."""
-        msg = msg.strip()
-        self.log("Test complete: %s" % msg)
-        sys.stderr.write(" %s\n" % msg)
-        sys.stderr.flush()
-        self.need_cr = 0
-
-    def error(self, msg):
-        """Announce an error severe enough that we cannot produce
-           meaningful output, but not so severe that we must abandon
-           the test run immediately."""
-        msg = "Error: %s" % msg
-        self.log(msg)
-        if self.need_cr:
-            sys.stderr.write("\n")
-        sys.stderr.write(msg)
-        sys.stderr.write("\n")
-        self.need_cr = 0
-        self.error_occurred = 1
-
-    def fatal(self, msg):
-        """Announce an error severe enough that the test run should
-           be aborted immediately.  Does not return."""
-        msg = "Fatal error: %s" % msg
-        self.log(msg)
-        if self.need_cr:
-            sys.stderr.write("\n")
-        sys.stderr.write(msg)
-        sys.stderr.write("\n")
-        raise SystemExit(1)
-
-    def invoke(self, argv):
-        """Invoke the command in ARGV, capturing all its output and its
-           exit code."""
-        # For a wonder, the incantation to redirect both stdout and
-        # stderr to a file is exactly the same on Windows as on Unix!
-        # We put the redirections first on the command line because
-        # CMD.EXE may include a trailing space in the string it passes
-        # to CreateProcess() if they're last.  Yeeeeeah.
-        rc = -1
-        msg = []
-        result = None
-        try:
-            try:
-                result = named_tmpfile(prefix="out", suffix="txt")
-                cmdline = ">" + result + " 2>&1 " + list2shell(argv)
-                msg.append(cmdline)
-                rc = os.system(cmdline)
-                if rc != 0:
-                    if sys.platform == 'win32':
-                        msg.append("[exit %08x]" % rc)
-                    elif os.WIFEXITED(rc):
-                        msg.append("[exit %d]" % os.WEXITSTATUS(rc))
-                    elif os.WIFSIGNALED(rc):
-                        msg.append("[signal %d]" % os.WTERMSIG(rc))
-                        # special check for ^C and ^\ (SIGINT, SIGQUIT:
-                        # respectively signal numbers 2 and 3, everywhere)
-                        if os.WTERMSIG(rc) == 2 or os.WTERMSIG(rc) == 3:
-                            raise KeyboardInterrupt
-                    else:
-                        msg.append("[status %08x]" % rc)
-                msg.extend(universal_readlines(result))
-            except EnvironmentError, e:
-                if e.filename:
-                    msg.append("%s: %s" % (e.filename, e.strerror))
-                else:
-                    msg.append("%s: %s" % (argv[0], e.strerror))
-        finally:
-            delete_if_exists(result)
-
-        self.log(msg[0], msg[1:])
-        return (rc, msg)
+        self._is_cross_compiler = None
 
     def failure_due_to_nonexistence(self, msg, header):
         """True if MSG contains an error message indicating that HEADER
@@ -1389,30 +1415,76 @@ class Compiler:
                 return 1
         return 0
 
-    def test_invoke(self, code, action, outname, mode,
-                    opts=[], defines=[],
-                    suppress_progress_tick=0,
-                    want_output=0):
-        """Invoke the compiler on CODE, in the compilation mode indicated
-           by ACTION, MODE, and OPTS, defining preprocessor
-           macros as given by DEFINES.  Return the exit code and the
-           error messages, after cleaning up temporary files."""
-        cmd = self.base_cmd[:]
-        if mode.conform:
-            cmd.extend(self.conform_opt)
-        if mode.thread:
-            cmd.extend(self.thread_opt)
-        cmd.extend(opts)
-        if len(defines) > 0:
-            for d in defines:
-                cmd.append(self.define_opt + d)
+    def is_cross_compiler(self):
+        """True if this is a cross compiler. Primarily used to decide
+           whether `uname -r` is likely to indicate something useful
+           about the C implementation under test."""
+        if self._is_cross_compiler is None:
+            self._is_cross_compiler = self.probe_cross_compiler()
+        return self._is_cross_compiler
+
+    def probe_cross_compiler(self):
+        """Detect whether this is a cross compiler.  Logic borrowed
+           from autoconf 2.61's _AC_COMPILER_EXEEXT_CROSS.  Note in
+           particular that (according to the comments in that code)
+           attempting to compile and execute a no-op program is
+           insufficient."""
+
+        test_c = None
+        try:
+            test_c = named_tmpfile(prefix="cci", suffix="c")
+            f = open(test_c, "w")
+            f.write("""\
+#include <stdio.h>
+int main(void)
+{
+  FILE *f = tmpfile();
+  fputs("blort", f);
+  return ferror(f) || fclose(f) != 0;
+}
+""")
+            f.close()
+            self.log.progress_tick()
+            self.log.log("attempting to create an executable:",
+                         universal_readlines(test_c))
+            # We gonna just assume invoking the compiler without any
+            # options produces an executable named 'a.out', at least till
+            # I get back to my Windows VM.
+            (rc, msg) = self.log.invoke(self.base_cmd + [test_c])
+            if rc != 0:
+                self.log.fatal("failed to create a test executable")
+            self.log.progress_tick()
+            self.log.log("running said executable")
+            (rc, msg) = self.log.invoke(["./a.out"])
+        finally:
+            delete_if_exists("a.out")
+            if test_c is not None: delete_if_exists(test_c)
+
+        if rc != 0:
+            self.log.log("execution failed, assuming a cross compiler")
+            return 1
+        else:
+            self.log.log("execution succeeded, assuming a native compiler")
+            return 0
+
+    def test_invoke_basic(self, code, action, outname, opts,
+                          suppress_progress_tick=0, want_output=0):
+        """Invoke the compiler on CODE to do ACTION and produce OUTNAME,
+           providing additional options OPTIONS.  Return the exit code
+           and the error messages, after cleaning up temporary files.
+           If WANT_OUTPUT is true, the output is appended to the error
+           messages.  If SUPPRESS_PROGRESS_TICK is true, does not call
+           progress_tick() (see above)."""
 
         test_c = None
         test_s = None
         try:
             test_c = named_tmpfile(prefix="cct", suffix="c")
-            test_s = self.subst_filename(test_c, outname)
-            cmd.extend(self.subst_filename(test_c, action))
+            test_s = subst_filename(test_c, outname)
+
+            cmd = self.base_cmd[:]
+            cmd.extend(opts)
+            cmd.extend(subst_filename(test_c, action))
             cmd.append(test_c)
 
             f = open(test_c, "w")
@@ -1421,9 +1493,9 @@ class Compiler:
             f.close()
 
             if not suppress_progress_tick:
-                self.progress_tick()
-            self.log("compiling:", code.split("\n"))
-            (rc, output) = self.invoke(cmd)
+                self.log.progress_tick()
+            self.log.log("compiling:", code.split("\n"))
+            (rc, output) = self.log.invoke(cmd)
             if rc == 0 and want_output:
                 try:
                     output.extend(universal_readlines(test_s))
@@ -1432,9 +1504,34 @@ class Compiler:
                     # desired output goes to stdout instead of the file.
                     if e.errno != errno.ENOENT: raise
             return (rc, output)
+
         finally:
             delete_if_exists(test_c)
             delete_if_exists(test_s)
+
+    def test_invoke(self, code, action, outname,
+                    mode, opts=None, defines=None,
+                    suppress_progress_tick=0, want_output=0):
+        """Invoke the compiler on CODE, in the compilation mode indicated
+           by ACTION, MODE, and OPTS, defining preprocessor
+           macros as given by DEFINES.  Return the exit code and the
+           error messages, after cleaning up temporary files."""
+
+        xopts = []
+        if mode.conform:
+            xopts.extend(self.clevel_opts_std)
+        else:
+            xopts.extend(self.clevel_opts_ext)
+        if mode.thread:
+            xopts.extend(self.thread_opt)
+        if opts is not None:
+            xopts.extend(opts)
+        if defines is not None:
+            for d in defines:
+                cmd.append(self.define_opt + d)
+
+        return self.test_invoke_basic(code, action, outname, xopts,
+                                      suppress_progress_tick, want_output)
 
     def test_compile(self, code, mode, opts=[], defines=[]):
         """Convenience function for requesting compilation at least up to
@@ -1453,8 +1550,20 @@ class Compiler:
                                 mode, opts, defines,
                                 want_output=want_output)
 
-    def identify(self, ccs, ccs_f):
-        """Identify the compiler in use."""
+class Metadata:
+    """Records all the metadata associated with an inventory.
+       Responsible for identifying the C compiler and runtime,
+       and selecting an appropriate set of compilation modes."""
+
+    def __init__(self, cfg, log):
+        self.cfg   = cfg
+        self.log   = log
+        self.cc    = None
+        self.modes = []
+
+    def probe_compiler(self, cmd, ccenv={}):
+        """Identify the compiler that is invoked by CMD (with environment
+           settings CCENV) and instantiate an appropriate Compiler object."""
 
         def parse_output(msg, compilers):
             # This is a nested routine so we can use "return" to break
@@ -1468,7 +1577,10 @@ class Compiler:
                         return "UNKNOWN"
             return "FAIL"
 
-        self.begin_test("identifying compiler")
+        self.log.begin_test("identifying compiler")
+
+        for k, v in ccenv.items():
+            os.environ[k] = v
 
         # Construct a source file that will fail to compile with
         # exactly one #error directive, identifying the compiler in
@@ -1480,7 +1592,7 @@ class Compiler:
         # Some compilers are imitated - their identifying macros are
         # also defined by other compilers.  Sort these to the end.
         compilers = [(cc.imitated, cc.id_macro, name)
-                     for (name, cc) in ccs.items()]
+                     for (name, cc) in self.cfg.compilers.items()]
         compilers.sort()
 
         test1 = None
@@ -1495,20 +1607,22 @@ class Compiler:
             f.write("#else\n#error UNKNOWN\n#endif\n")
             f.close()
 
-            self.progress_tick()
-            self.log("probing compiler identity:", universal_readlines(test1))
-            (rc, msg) = self.invoke(self.base_cmd + [test1])
+            self.log.progress_tick()
+            self.log.log("probing compiler identity:",
+                         universal_readlines(test1))
+            (rc, msg) = self.log.invoke(cmd + [test1])
             compiler = parse_output(msg, compilers)
 
             if compiler == "FAIL":
-                self.fatal("unable to parse compiler output.")
+                self.log.fatal("unable to parse compiler output.")
             if compiler == "UNKNOWN":
-                self.fatal("no configuration available for this "
-                           "compiler.  Please add appropriate settings "
-                           "to " + repr(ccs_f) + ".")
+                self.log.fatal("no configuration available for this "
+                               "compiler.  Please add appropriate "
+                               "settings to " +
+                               repr(self.cfg.compiler_cfg_fname) + ".")
 
             # Confirm the identification.
-            cc = ccs[compiler]
+            cc = self.cfg.compilers[compiler]
             version_argv = cc.version.split()
             version_out = cc.version_out
 
@@ -1518,20 +1632,20 @@ class Compiler:
                     f = open(test2, "w")
                     f.write("int dummy;\n")
                     f.close()
-                    test2_o  = self.subst_filename(test2, version_out)
-                    version_argv = self.subst_filename(test2, version_argv)
+                    test2_o  = subst_filename(test2, version_out)
+                    version_argv = subst_filename(test2, version_argv)
                     break
 
-            self.progress_tick()
-            (rc, msg) = self.invoke(self.base_cmd + version_argv)
+            self.log.progress_tick()
+            (rc, msg) = self.log.invoke(cmd + version_argv)
             if rc != 0:
-                self.fatal("detailed version request failed")
+                self.log.fatal("detailed version request failed")
             mm = "\n".join(msg[1:]) # throw away the command line
             version_re = re.compile(cc.id_regexp, re.VERBOSE|re.DOTALL)
             match = version_re.search(mm)
             if not match:
-                self.fatal("version information not as expected: "
-                           "is this really " + compiler + "?")
+                self.log.fatal("version information not as expected: "
+                               "is this really " + compiler + "?")
 
             try:
                 version = match.group("version")
@@ -1541,7 +1655,7 @@ class Compiler:
                 if group_matched(versio1): version = versio1
                 elif group_matched(versio2): version = versio2
                 else:
-                    self.fatal("version number not found")
+                    self.log.fatal("version number not found")
 
             details = -1
             try:
@@ -1563,244 +1677,217 @@ class Compiler:
                 ident = "%s %s (%s)" % (compiler, version, details)
             else:
                 ident = "%s %s" % (compiler, version)
-            self.end_test(ident)
-            return (compiler, ident)
 
         finally:
             if test1   is not None: delete_if_exists(test1)
             if test2   is not None: delete_if_exists(test2)
             if test2_o is not None: delete_if_exists(test2_o)
 
-    def is_cross_compiler(self):
-        """True if we are a cross compiler.  Primarily used to decide
-           whether `uname -r` is likely to tell us something useful."""
+        self.log.end_test(ident)
 
-        # This logic for detecting a cross compiler borrowed from
-        # autoconf 2.61's _AC_COMPILER_EXEEXT_CROSS.  Note in
-        # particular that (according to the comments in that code)
-        # attempting to compile and execute a no-op program is
-        # insufficient.
+        self.compiler = compiler
+        self.compiler_label = ident
+        self.cc = Compiler(cmd, cc, self.log)
+        self.select_c_standard(self.cc, cc)
+        return self.cc
 
-        test_c = None
-        try:
-            test_c = named_tmpfile(prefix="cci", suffix="c")
-            f = open(test_c, "w")
-            f.write("""\
-#include <stdio.h>
-int main(void)
-{
-  FILE *f = tmpfile();
-  fputs("blort", f);
-  return ferror(f) || fclose(f) != 0;
-}
-""")
-            f.close()
-            self.progress_tick()
-            self.log("attempting to create an executable:",
-                     universal_readlines(test_c))
-            # We gonna just assume invoking the compiler without any
-            # options produces an executable named 'a.out', at least till
-            # I get back to my Windows VM.
-            (rc, msg) = self.invoke(self.base_cmd + [test_c])
+    def probe_runtime(self):
+
+        # Probing the runtime uses the same technique as above, because
+        # it's convenient.
+
+        def parse_output(msg, rtnames):
+            # This is a nested routine so we can use "return" to break
+            # out of two loops at once.
+            for line in msg:
+                if line.find("error") != -1:
+                    for name in rtnames:
+                        if re.search(r'\b' + name + r'\b', line):
+                            return name
+                    if re.search(r'\bUNKNOWN\b', line):
+                        return "UNKNOWN"
+            return "FAIL"
+
+        self.log.begin_test("identifying C runtime")
+        idcode = ["#include <errno.h>", "#if 0"]
+        for (name, rtspec) in self.cfg.runtimes.items():
+            idcode.append("#elif " + rtspec.id_expr)
+            idcode.append("#error " + name)
+        idcode.extend(("#else", "#error UNKNOWN", "#endif"))
+
+        (rc, msg) = self.cc.test_preproc("\n".join(idcode),
+                                         CompilationMode())
+        runtime = parse_output(msg, self.cfg.runtimes.keys())
+        if runtime == "FAIL":
+            self.log.fatal("unable to parse compiler output.")
+        if runtime == "UNKNOWN":
+            self.log.error("no configuration available for this C runtime.  "
+                           "Please add appropriate settings to " +
+                           repr(self.cfg.runtimes_cfg_fname) + ".")
+            self.dump_potential_system_id_macros()
+            raise SystemExit(1)
+
+        rtspec = self.cfg.runtimes[runtime]
+
+        if rtspec.version_detector is None:
+            if cc.is_cross_compiler():
+                self.log.fatal("Cross compiling to target that does not reveal "
+                               "version of C runtime to preprocessor.")
+
+            # If we are not cross compiling, we can probably trust
+            # os.uname()[2] == `uname -r` to tell us a useful number.
+            version = os.uname()[2]
+
+        else:
+            (rc, out) = self.cc.test_preproc("#include <errno.h>\n" +
+                                             rtspec.version_detector,
+                                             CompilationMode(),
+                                             want_output=1)
             if rc != 0:
-                self.fatal("failed to create a test executable")
-            self.progress_tick()
-            self.log("running said executable")
-            (rc, msg) = self.invoke(["./a.out"])
-            if rc != 0:
-                self.log("execution failed, assuming a cross compiler")
-                return 1
+                self.log.fatal("failed to probe C runtime version")
+            squishre = re.compile("[ \t\r\n\v\f\"\']+")
+            for line in out:
+                line = squishre.sub("", line)
+                if line[:8] == "VERSION=":
+                    version = line[8:]
+                    break
             else:
-                self.log("execution succeeded, assuming a native compiler")
-                return 0
+                self.log.fatal("failed to parse version detector output")
 
-        finally:
-            delete_if_exists("a.out")
-            if test_c is not None: delete_if_exists(test_c)
+        if rtspec.version_adjust is not None:
+            d = {}
+            exec re.sub("(?m)^\s*\|", "", rtspec.version_adjust) \
+                in globals(), d
+            version = d["version_adjust"](version)
 
-    def smoke_test(self, ccs_f):
+        self.runtime_id = runtime
+        self.runtime_version = version
+        self.log.end_test("%s %s" % (rtspec.label, version))
+
+    def select_c_standard(self, cc, cspec):
+        """Determine the most recent level of the C standard supported by
+           this compiler, and enable it."""
+
+        levels = [
+            ("2011", cspec.c2011, ["201112L"]),
+            ("1999", cspec.c1999, ["199901L"]),
+            # There are two possible values of __STDC_VERSION__ for C1989.
+            ("1989", cspec.c1989, ["199401L", "1"])
+        ]
+        self.log.begin_test("determining ISO C conformance level")
+        for level, probe_opts, version_values in levels:
+            if probe_opts == "no":
+                continue
+
+            if probe_opts == "":
+                opts_ext = []
+                opts_std = []
+            else:
+                x = probe_opts.find('|')
+                if x == -1:
+                    opts_ext = probe_opts.split()
+                    opts_std = opts_ext[:]
+                else:
+                    opts_ext = probe_opts[:x].split()
+                    opts_std = probe_opts[(x+1):].split()
+
+            if cspec.conform != "":
+                opts_std.extend(conform.split())
+
+            self.log.log("trying C%s %s" % (level, repr(opts_std)))
+            code = "#if 1 "
+            for val in version_values:
+                code = code + " && __STDC_VERSION__ != " + val
+                code = code + "\n#error \"wrong version\"\n#endif\n"
+
+            (rc, msg) = cc.test_invoke_basic(code,
+                                             cc.preproc_cmd,
+                                             cc.preproc_out,
+                                             opts_std)
+            if rc == 0:
+                self.log.end_test("C"+level)
+                cc.clevel_opts_std = opts_std
+                cc.clevel_opts_ext = opts_ext
+                return
+
+        self.log.end_test("failed")
+        self.log.fatal("failed to determine ISO C conformance level. "
+                       "Check configuration for %s in %s."
+                       % (self.compiler, self.cfg.compiler_cfg_fname))
+
+
+
+    def smoke_test(self):
         """Perform tests which, if they fail, indicate something horribly
            wrong with the compiler and/or our usage of it (so there is no
            point in continuing with the test run).  Either returns
            successfully, or issues a fatal error."""
 
-        self.begin_test("smoke test")
+        self.log.begin_test("smoke test")
 
         test_modes = [
-            (self.test_preproc, 0, "preprocess"),
-            (self.test_preproc, 1, "preprocess (conformance mode)"),
-            (self.test_compile, 0, "compile"),
-            (self.test_compile, 1, "compile (conformance mode)")
+            (self.cc.test_preproc, 0, "preprocess"),
+            (self.cc.test_preproc, 1, "preprocess (conformance mode)"),
+            (self.cc.test_compile, 0, "compile"),
+            (self.cc.test_compile, 1, "compile (conformance mode)")
         ]
 
         # This code should compile without complaint.
         for (action, conform, tag) in test_modes:
-            self.log("smoke test: %s, should succeed" % tag)
+            self.log.log("smoke test: %s, should succeed" % tag)
             (rc, msg) = action("#include <stdarg.h>\nint dummy;",
                                CompilationMode(conform))
             if rc != 0:
-                self.fatal("failed to %s simple test program. "
-                           "Check configuration for %s in %s."
-                           % (tag, self.compiler, ccs_f))
+                self.log.fatal("failed to %s simple test program. "
+                               "Check configuration for %s in %s."
+                               % (tag, self.compiler,
+                                  self.cfg.compiler_cfg_fname))
 
         # This code should _not_ compile, in any mode, nor should it
         # preprocess.
         for (action, conform, tag) in test_modes:
-            self.log("smoke test: %s, should fail due to nonexistence" % tag)
+            self.log.log("smoke test: %s, should fail due to nonexistence"
+                         % tag)
             (rc, msg) = action("#include <nonexistent.h>\nint dummy;",
                                CompilationMode(conform))
-            if rc == 0 or not self.failure_due_to_nonexistence(msg,
-                                                               "nonexistent.h"):
-                self.fatal("failed to detect nonexistence of <nonexistent.h>"
-                           " (%s). Check configuration for %s in %s."
-                           % (tag, self.compiler, ccs_f))
+            if rc == 0 or not self.cc.failure_due_to_nonexistence(
+                    msg, "nonexistent.h"):
+                self.log.fatal(
+                    "failed to detect nonexistence of <nonexistent.h>"
+                    " (%s). Check configuration for %s in %s."
+                    % (tag, self.compiler, self.cfg.compiler_cfg_fname))
 
         # We should be able to tell that the error in this code is on line 3.
         for conform in (0,1):
-            self.log("smoke test: error on specific line (conform=%d)"
+            self.log.log("smoke test: error on specific line (conform=%d)"
                      % conform)
-            (rc, msg) = self.test_compile("int main(void)\n"
-                                          "{\n"
-                                          "  not_a_type v;\n"
-                                          "  return 0;\n"
-                                          "}",
-                                          CompilationMode(conform));
+            (rc, msg) = self.cc.test_compile("int main(void)\n"
+                                             "{\n"
+                                             "  not_a_type v;\n"
+                                             "  return 0;\n"
+                                             "}",
+                                             CompilationMode(conform));
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
             srcf = msg[0].split()[-1]
 
             for line in msg:
-                m = self.errloc_re.search(line)
+                m = self.cc.errloc_re.search(line)
                 if m and m.group("file") == srcf:
                     if int(m.group("line")) == 3:
                         break
                     else:
-                        self.fatal("error on unexpected line %s. "
-                                   "Check configuration for %s in %s."
-                                   % (m.group(line), self.compiler, ccs_f))
+                        self.log.fatal("error on unexpected line %s. "
+                                       "Check configuration for %s in %s."
+                                       % (m.group(line), self.compiler,
+                                          self.cfg.compiler_cfg_fname))
             else:
-                self.fatal("failed to detect error on line 3. "
-                           "Check configuration for %s in %s."
-                           % (self.compiler, ccs_f))
+                self.log.fatal("failed to detect error on line 3. "
+                               "Check configuration for %s in %s."
+                               % (self.compiler, ccs_f,
+                                  self.cfg.compiler_cfg_fname))
 
-        self.end_test("ok")
-
-    def probe_max_std(self, label, probes, testcode):
-        """Subroutine of conformance_test.
-           PROBES is a list of tuples: (compiler options, macros to
-           define, expected value). For the first such tuple that
-           makes TESTCODE preprocess successfully, return a slightly
-           munged version of the options+defines."""
-
-        failures = []
-        for (opts, defines, expected) in probes:
-            if opts == "no":
-                continue
-            if opts == "":
-                opts = []
-            else:
-                opts = opts.split()
-            if defines != "":
-                opts.extend([self.define_opt + d for d in defines.split()])
-
-            self.log("conformance test: trying for %s %s"
-                     % (label, expected))
-            (rc, msg) = self.test_preproc(testcode,
-                                          CompilationMode(conform=1),
-                                          opts=opts,
-                                          defines=["EXPECTED="+expected])
-            if rc == 0:
-                return (opts, expected)
-
-            failures.append("")
-            failures.extend(msg)
-
-        self.fatal("all %s version tests failed." % label)
-
-    def conformance_test(self, cc, ccs_f):
-        """Determine the levels of the C, POSIX, and XSI standards to
-           which this compiler + target runtime claim to conform; adjust
-           'conform_opt' accordingly.  Also figure out whether
-           threaded code must be compiled in a special mode."""
-
-        # First find and activate the newest supported C standard.
-        self.begin_test("determining ISO C conformance level")
-        (opts, result) = self.probe_max_std("C", [
-                (cc.c2011, "", "201112L"),
-                (cc.c1999, "", "199901L"),
-                # There are two possible values of __STDC_VERSION__ for C1989.
-                (cc.c1989, "EXPECTED2=1", "199401L")
-                ], """\
-#if __STDC_VERSION__ != EXPECTED && \\
-    (!defined EXPECTED2 || __STDC_VERSION__ != EXPECTED2)
-#error "wrong version"
-#endif""")
-        self.end_test(result)
-        self.conform_opt.extend(opts)
-
-        # If we have unistd.h, also find and activate the newest supported
-        # POSIX standard.
-        self.begin_test("determining POSIX conformance level")
-        (rc, msg) = self.test_preproc("#include <unistd.h>\nint dummy;",
-                                      CompilationMode())
-        if rc != 0:
-            if not self.failure_due_to_nonexistence(msg, "unistd.h"):
-                self.fatal("failed to determine presence of <unistd.h>. "
-                           "Check configuration for %s in %s."
-                           % (self.compiler, ccs_f))
-            else:
-                self.end_test("none")
-        else:
-            # If _XOPEN_SOURCE works, we want to use it instead of
-            # _POSIX_C_SOURCE, as it may enable more stuff.
-            #
-            # Some systems (e.g. NetBSD) support _XOPEN_SOURCE as input to
-            # feature selection but don't bother defining _XOPEN_VERSION in
-            # response.  They _do_, however, respond with the appropriate
-            # _POSIX_VERSION definition.
-            #
-            # So for each _POSIX_VERSION level we are interested in, try
-            # selecting it first with _XOPEN_SOURCE and then, if that didn't
-            # work, with _POSIX_C_SOURCE.
-            #
-            # There were meaningful values of _XOPEN_SOURCE and _POSIX_C_SOURCE
-            # prior to 500 / 199506L, but they are so old that probing for them
-            # is not worth it.
-            (opts, result) = self.probe_max_std("POSIX", [
-                    ("", "_XOPEN_SOURCE=700",       "200809L"),
-                    ("", "_POSIX_C_SOURCE=200809L", "200809L"),
-                    ("", "_XOPEN_SOURCE=600",       "200112L"),
-                    ("", "_POSIX_C_SOURCE=200112L", "200112L"),
-                    ("", "_XOPEN_SOURCE=500",       "199506L"),
-                    ("", "_POSIX_C_SOURCE=199506L", "199506L"),
-                ], """\
-#include <unistd.h>
-#if _POSIX_VERSION != EXPECTED
-#error "wrong version"
-#endif""")
-            self.end_test(result)
-            self.conform_opt.extend(opts)
-
-        # Find out whether code that includes <pthread.h> must be
-        # compiled in a special mode.  If so, enabling this mode may
-        # change dependency sets, so we have to test both ways.
-        self.begin_test("checking whether <pthread.h> requires special options")
-        (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;",
-                                      CompilationMode())
-        if rc == 0:
-            self.end_test("no")
-        elif self.failure_due_to_nonexistence(msg, "pthread.h"):
-            self.end_test("no (it's absent)")
-        else:
-            (rc, msg) = self.test_compile("#include <pthread.h>\nint dummy;",
-                                          CompilationMode(thread=1))
-            if rc == 0:
-                self.test_with_thread_opt = 1
-                self.end_test("yes")
-            else:
-                self.fatal("pthread.h exists but cannot be compiled? "
-                           "Check thread configuration for %s in %s."
-                           % (self.compiler, ccs_f))
+        self.log.end_test("ok")
 
     def dump_potential_system_id_macros(self):
         macro_name_extractor = re.compile(
@@ -1810,13 +1897,14 @@ int main(void)
         # we use errno.h for this because it's universal, reasonably likely
         # to expose library-identification macros, and doesn't have a ton of
         # other junk in it.
-        (rc, output) = self.test_invoke("#include <errno.h>",
-                                        self.preproc_cmd + self.dump_macros,
-                                        self.preproc_out,
-                                        suppress_progress_tick=1,
-                                        want_output=1)
+        (rc, output) = self.test_invoke_basic("#include <errno.h>",
+                                              self.preproc_cmd,
+                                              self.preproc_out,
+                                              self.dump_macros,
+                                              suppress_progress_tick=1,
+                                              want_output=1)
         if rc != 0:
-            self.fatal("failed to dump predefined macros")
+            self.log.fatal("failed to dump predefined macros")
 
         macros = []
         for line in output:
@@ -1833,10 +1921,9 @@ int main(void)
     def report(self, outf):
         """Report the identity of the compiler and how we're going to
            use it."""
-        outf.write("compile command: %s\n" % " ".join(self.compile_cmd))
-        outf.write("conformance options: %s\n" % " ".join(self.conform_opt))
-        outf.write("repeat tests with threads: %d\n"
-                   % self.test_with_thread_opt)
+        outf.write("compilation options: %s\n" % " ".join(self.cc.compile_cmd))
+        outf.write("standard mode: %s\n" % " ".join(self.cc.clevel_opts_std))
+        outf.write("extended mode: %s\n" % " ".join(self.cc.clevel_opts_ext))
 
 #
 # Headers and high-level analysis
@@ -2021,7 +2108,7 @@ class Dependency:
         rv.append(self)
         return rv
 
-    def test(self, cc):
+    def test(self, cc, log):
         """Test whether this dependency is present and usable; set
            self.presence accordingly.  Subclasses may need to override
            this method."""
@@ -2125,7 +2212,7 @@ class Header(Dependency):
 
         self.content_results = None
 
-    def log_tests(self, cc):
+    def log_tests(self, log):
         outf = StringIO.StringIO()
         outf.write(" presence: " + self.STATE_LABELS[self.presence] + "\n")
         outf.write(" contents: " + self.STATE_LABELS[self.contents] + "\n")
@@ -2140,13 +2227,13 @@ class Header(Dependency):
             outf.write(" contents:\n")
             self.content_results.output(outf)
 
-        cc.log("%s = %s" % (self.name, self.state_label()),
-               outf.getvalue().split("\n"))
+        log.log("%s = %s" % (self.name, self.state_label()),
+                outf.getvalue().split("\n"))
 
-    def log_conflicts(self, cc):
-        cc.log("%s = %s" % (self.name, self.state_label()),
-               [" conflict: " + repr(self.conflict),
-                " conflist: " + " ".join([h.name for h in self.conflist])])
+    def log_conflicts(self, log):
+        log.log("%s = %s" % (self.name, self.state_label()),
+                [" conflict: " + repr(self.conflict),
+                 " conflist: " + " ".join([h.name for h in self.conflist])])
 
     def state_code(self):
         if self.presence != self.PRESENT:
@@ -2204,18 +2291,18 @@ class Header(Dependency):
                 else:
                     self.presence = self.BUGGY
 
-    def record_errors(self, cc, msg, ignore_unknown=0):
+    def record_errors(self, log, msg, ignore_unknown=0):
         errs = self.cfg.is_known_error(msg, self.name)
         if errs is not None:
-            cc.progress_note("*** errors detected: %s"
-                             % " ".join([err.name for err in errs]))
+            log.progress_note("*** errors detected: %s"
+                              % " ".join([err.name for err in errs]))
             self.extend_errlist(errs)
         else:
             if ignore_unknown: return
 
-            cc.error("unrecognized failure mode for <%s>. "
-                     "Please investigate and add an entry to %s."
-                     % (self.name, self.cfg.errors_fname))
+            log.error("unrecognized failure mode for <%s>. "
+                      "Please investigate and add an entry to %s."
+                      % (self.name, self.cfg.errors_fname))
             self.extend_errlist([UnrecognizedError])
 
     def record_conflict(self, other):
@@ -2229,7 +2316,7 @@ class Header(Dependency):
     def generate(self, out):
         out.append("#include <%s>" % self.name)
 
-    def test(self, cc):
+    def test(self, cc, log):
         """Perform all checks on this header in isolation (up to
            dependencies).  This blindly calls itself on other header
            objects, and so must be idempotent.
@@ -2240,21 +2327,21 @@ class Header(Dependency):
 
         # Test dependencies first so the logs are not jumbled.
         for h in self.dataset.deps.get(self, []):
-            h.test(cc)
+            h.test(cc, log)
 
-        cc.begin_test(self.name + " " + str(self.dataset.mode))
+        log.begin_test(self.name + " " + str(self.dataset.mode))
 
-        self.test_presence(cc)
-        self.test_depends(cc)
-        self.test_contents(cc)
-        self.log_tests(cc)
+        self.test_presence(cc, log)
+        self.test_depends(cc, log)
+        self.test_contents(cc, log)
+        self.log_tests(log)
 
-        cc.end_test(self.state_label().lower())
+        log.end_test(self.state_label().lower())
 
-    def test_presence(self, cc):
+    def test_presence(self, cc, log):
         if self.presence != self.UNKNOWN: return
 
-        cc.log("testing presence of %s" % self.name)
+        log.log("testing presence of %s" % self.name)
         (rc, msg) = cc.test_preproc("#include <%s>" % self.name,
                                     self.dataset.mode)
         if rc != 0 and cc.failure_due_to_nonexistence(msg, self.name):
@@ -2265,7 +2352,7 @@ class Header(Dependency):
             # their dependencies in order to _preprocess_ correctly.
             self.presence = self.PRESENT
 
-    def test_depends(self, cc):
+    def test_depends(self, cc, log):
         if self.depends is not None: return
         if self.presence != self.PRESENT: return
 
@@ -2277,7 +2364,7 @@ class Header(Dependency):
             if h.presence != h.ABSENT:
                 possible_deps.append(h)
 
-        cc.log("dependency test %s mode %s possibilities: [%s]" %
+        log.log("dependency test %s mode %s possibilities: [%s]" %
                (self.name, self.dataset.mode,
                 " ".join([h.name for h in possible_deps])))
 
@@ -2286,7 +2373,7 @@ class Header(Dependency):
         # dependency_combs is guaranteed to produce an empty set as the first
         # item in its returned list, and the complete set as the last item.
         for candidate_set in dependency_combs(possible_deps):
-            cc.log("dependency test %s mode %s candidates: [%s]" %
+            log.log("dependency test %s mode %s candidates: [%s]" %
                    (self.name,
                     self.dataset.mode,
                     " ".join([h.name for h in candidate_set])))
@@ -2323,21 +2410,21 @@ class Header(Dependency):
         # Look for a known bug in the last set of messages, which will be
         # the maximal dependency set and therefore the least likely to have
         # problems.
-        self.record_errors(cc, msg)
+        self.record_errors(log, msg)
         self.presence = self.BUGGY
 
-    def test_contents(self, cc):
+    def test_contents(self, cc, log):
         if self.presence != self.PRESENT: return
         if self.contents != self.UNKNOWN: return
 
         if not self.cfg.content_tests.has_key(self.name):
-            cc.log("no contents test available for %s" % self.name)
+            log.log("no contents test available for %s" % self.name)
             self.contents = self.PRESENT
             return
 
         tester = self.cfg.content_tests[self.name]
 
-        cc.log("contents test for %s in mode %s" %
+        log.log("contents test for %s in mode %s" %
                (self.name, self.dataset.mode))
 
         buf = []
@@ -2358,7 +2445,7 @@ class Header(Dependency):
                 # Everything being disabled at the top of the loop means that
                 # we tried to compile a source file with everything disabled
                 # and it _still_ didn't go through.
-                cc.error("unrecognized failure mode for <%s> (contents tests)."
+                log.error("unrecognized failure mode for <%s> (contents tests)."
                          % self.name)
                 self.extend_errlist(0, 0, [UnrecognizedError])
                 return
@@ -2367,7 +2454,7 @@ class Header(Dependency):
             # trigger the infamous legacy_type_decls).  Do not record
             # unknown errors; they are probably from the test code,
             # not the header.
-            self.record_errors(cc, msg, ignore_unknown=1)
+            self.record_errors(log, msg, ignore_unknown=1)
 
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
@@ -2380,16 +2467,16 @@ class Header(Dependency):
                     # each thing-under-test occupies exactly one line, so
                     # we don't need to understand the error message beyond
                     # which line it's on.
-                    tag = tester.disable_line(int(m.group("line")))
+                    tag = tester.disable_line(int(m.group("line")), log)
                     if tag:
-                        cc.log("disabled %s" % tag)
+                        log.log("disabled %s" % tag)
 
             disabled_tags = tester.disabled_tags()
             if disabled_tags == prev_disabled_tags:
                 # Nothing changed, so the compiler is complaining about
                 # something we don't know how to turn off.
-                cc.error("unrecognized failure mode for <%s> (contents tests)."
-                         % self.name)
+                log.error("unrecognized failure mode for <%s> (contents tests)."
+                          % self.name)
                 break
             prev_disabled_tags = disabled_tags
 
@@ -2398,8 +2485,8 @@ class Header(Dependency):
                 item.generate(buf)
             buf.append("")
             tester.generate(buf)
-            cc.log("retry contents test for %s (mode %s)" %
-                   (self.name, self.dataset.mode))
+            log.log("retry contents test for %s (mode %s)" %
+                    (self.name, self.dataset.mode))
             (rc, msg) = cc.test_compile("\n".join(buf),
                                         self.dataset.mode)
 
@@ -2450,8 +2537,9 @@ class ConflictMatrix:
        the service of filling in huge blocks of this matrix with each
        successful compilation."""
 
-    def __init__(self, dataset, headers):
+    def __init__(self, dataset, headers, log):
         self.debug = 0
+        self.log = log
         self.dataset = dataset
         self.matrix = {}
         self.rdeps = {}
@@ -2486,9 +2574,9 @@ class ConflictMatrix:
                 # certain asymmetric conflicts.
                 self.rdeps[y].append(x)
 
-    def log_matrix(self, cc, msg):
+    def log_matrix(self, msg):
         if not self.debug:
-            cc.log(msg)
+            self.log.log(msg)
             return
         # U+00A0 NO-BREAK SPACE, U+2592 MEDIUM SHADE, U+2588 FULL BLOCK
         codes = [ "\xc2\xa0", "\xe2\x96\x92", "\xe2\x96\x88" ]
@@ -2496,7 +2584,7 @@ class ConflictMatrix:
         for x in self.all_headers:
             lines.append("".join([codes[self.matrix[x][y]]
                                   for y in self.all_headers]))
-        cc.log(msg, lines)
+        self.log.log(msg, lines)
 
     def check_completely_done(self, cc):
         # Determine whether we are completely done with any headers.
@@ -2508,7 +2596,7 @@ class ConflictMatrix:
                 if self.matrix[x][y] == 0 or self.matrix[y][x] == 0:
                     break
             else:
-                cc.log("conflict test: done with %s" % x)
+                self.log.log("conflict test: done with %s" % x)
                 if x.conflict is None:
                     x.conflict = 0
                 del self.live_headers[x]
@@ -2526,11 +2614,11 @@ class ConflictMatrix:
     def record_conflict_1(self, cc, x, y):
         self.matrix[x][y] = 2
         self.matrix[y][x] = 2
-        self.log_matrix(cc, "conflict trial fail")
+        self.log_matrix("conflict trial fail")
 
         x.record_conflict(y)
         y.record_conflict(x)
-        cc.progress_note("*** conflict identified: %s with %s" % (x, y))
+        self.log.progress_note("*** conflict identified: %s with %s" % (x, y))
 
     def record_ok(self, cc, tested):
         # For each header in the tested set, mark every header after
@@ -2543,15 +2631,15 @@ class ConflictMatrix:
                 if not isinstance(y, Header): continue
 
                 if self.matrix[x][y] == 2 or self.matrix[y][x] == 2:
-                    cc.error("attempting to mark %s with %s as ok when "
-                             "already determined to conflict" % (x, y))
+                    self.log.error("attempting to mark %s with %s as ok when "
+                                   "already determined to conflict" % (x, y))
                 else:
                     self.matrix[x][y] = 1
-        self.log_matrix(cc, "conflict trial ok")
+        self.log_matrix("conflict trial ok")
 
     def test_conflict_set(self, cc, cand):
         if self.debug:
-            cc.log("conflict candidate set: %s" % " ".join(cand))
+            self.log.log("conflict candidate set: %s" % " ".join(cand))
         tset = []
         for i in range(len(cand)):
             # Pass specials through.
@@ -2572,7 +2660,7 @@ class ConflictMatrix:
             return (1, tset)
 
         if self.debug:
-            cc.log("conflict trial set: %s" % " ".join(tset))
+            self.log.log("conflict trial set: %s" % " ".join(tset))
 
         eset = []
         already = {}
@@ -2581,7 +2669,7 @@ class ConflictMatrix:
                 eset.extend(h.with_dependencies(already))
 
         if self.debug:
-            cc.log("conflict extended set: %s" % " ".join(eset))
+            self.log.log("conflict extended set: %s" % " ".join(eset))
 
         # handling of specials
         includes = []
@@ -2619,7 +2707,7 @@ class ConflictMatrix:
                 if result:
                     self.record_ok(cc, tested)
                 else:
-                    cc.log("conflict trial fail")
+                    self.log.log("conflict trial fail")
             if result:
                 if prev_conflict and prev_delta == 1:
                     hi += 1
@@ -2650,7 +2738,7 @@ class ConflictMatrix:
                 if result:
                     self.record_ok(cc, tested)
                 else:
-                    cc.log("conflict trial fail")
+                    self.log.log("conflict trial fail")
             if result:
                 if prev_conflict and prev_delta == 1:
                     lo -= 1
@@ -2763,8 +2851,8 @@ class ConflictMatrix:
                     if not self.matrix[x][y]: colg += 1
                     if not self.matrix[y][x]: rowg += 1
 
-                cc.log("conflict test: %s: todo before %d after %d"
-                       % (x, colg, rowg))
+                self.log.log("conflict test: %s: todo before %d after %d"
+                             % (x, colg, rowg))
                 if rowg > row_maxg:
                     row_maxg = rowg
                     row_argmg = x
@@ -2972,7 +3060,7 @@ class Configuration:
         """Load the specifications of all content tests."""
         content_tests = {}
         for f in glob.glob(os.path.join(dname, "*.ini")):
-            if f.endswith("CATEGORIES.ini"): continue
+            if os.path.basename(f) == "CATEGORIES.ini": continue
             dt = TestProgram(f)
             if content_tests.has_key(dt.header):
                 sys.stderr.write("%s: skipping extra test for %s\n"
@@ -3015,7 +3103,7 @@ class Dataset:
             return self.headers[name]
         raise RuntimeError("unknown header %s, check headers.ini" % name)
 
-    def test_conflicts(self, cc):
+    def test_conflicts(self, cc, log):
         """Conflict testing is done _en masse_ after all available headers
            have been identified, for two reasons.  First, on some systems
            conflicts between two headers are only evident (provoke a compiler
@@ -3026,7 +3114,7 @@ class Dataset:
            algorithm is most efficient when operating on large batches of
            headers (assuming conflicts are rare)."""
 
-        cc.begin_test("conflict test, mode " + str(self.mode))
+        log.begin_test("conflict test, mode " + str(self.mode))
 
         # Construct a conflict matrix for every known header which is
         # compatible with this compilation mode.
@@ -3037,160 +3125,79 @@ class Dataset:
             assert h.depends is not None
             headers.append(h)
 
-        matrix = ConflictMatrix(self, headers)
+        matrix = ConflictMatrix(self, headers, log)
         matrix.find_conflicts(cc)
 
         for h in sorthdr(self.headers.keys()):
-            self.headers[h].log_conflicts(cc)
+            self.headers[h].log_conflicts(log)
 
-        cc.end_test("done")
+        log.end_test("done")
 
-class Metadata:
-    """Records all the metadata associated with an inventory.
-       Responsible for identifying the C runtime, once the compiler
-       has been identified and configured."""
+def main(argv):
+    def usage():
+        raise SystemExit("usage: %s ['compiler_id' | headers...] [-- cc [args]]"
+                         % sys.argv[0])
 
-    def __init__(self, cfg):
-        self.cfg = cfg
-
-    def probe_runtime(self, cc):
-        self.cc = cc
-
-        # Probing the runtime uses the same technique as
-        # Compiler.identify, because it's convenient.
-
-        def parse_output(msg, rtnames):
-            # This is a nested routine so we can use "return" to break
-            # out of two loops at once.
-            for line in msg:
-                if line.find("error") != -1:
-                    for name in rtnames:
-                        if re.search(r'\b' + name + r'\b', line):
-                            return name
-                    if re.search(r'\bUNKNOWN\b', line):
-                        return "UNKNOWN"
-            return "FAIL"
-
-        cc.begin_test("identifying C runtime")
-        idcode = ["#include <errno.h>", "#if 0"]
-        for (name, rtspec) in self.cfg.runtimes.items():
-            idcode.append("#elif " + rtspec.id_expr)
-            idcode.append("#error " + name)
-        idcode.extend(("#else", "#error UNKNOWN", "#endif"))
-
-        (rc, msg) = cc.test_preproc("\n".join(idcode),
-                                    CompilationMode())
-        runtime = parse_output(msg, self.cfg.runtimes.keys())
-        if runtime == "FAIL":
-            cc.fatal("unable to parse compiler output.")
-        if runtime == "UNKNOWN":
-            cc.error("no configuration available for this C runtime.  "
-                     "Please add appropriate settings to " +
-                     repr(self.cfg.runtimes_cfg_fname) + ".")
-            cc.dump_potential_system_id_macros()
-            raise SystemExit(1)
-
-        rtspec = self.cfg.runtimes[runtime]
-
-        if rtspec.version_detector is None:
-            if cc.is_cross_compiler():
-                cc.fatal("Cross compiling to target that does not reveal "
-                         "version of C runtime to preprocessor.")
-
-            # If we are not cross compiling, we can probably trust
-            # os.uname()[2] == `uname -r` to tell us a useful number.
-            version = os.uname()[2]
-
-        else:
-            (rc, out) = cc.test_preproc("#include <errno.h>\n" +
-                                        rtspec.version_detector,
-                                        CompilationMode(),
-                                        want_output=1)
-            if rc != 0:
-                cc.fatal("failed to probe C runtime version")
-            squishre = re.compile("[ \t\r\n\v\f\"\']+")
-            for line in out:
-                line = squishre.sub("", line)
-                if line[:8] == "VERSION=":
-                    version = line[8:]
-                    break
-            else:
-                cc.fatal("failed to parse version detector output")
-
-        if rtspec.version_adjust is not None:
-            d = {}
-            exec re.sub("(?m)^\s*\|", "", rtspec.version_adjust) \
-                in globals(), d
-            version = d["version_adjust"](version)
-
-        self.runtime_id = runtime
-        self.runtime_version = version
-        cc.end_test("%s %s" % (rtspec.label, version))
-
-def main(argv, stdout):
-    logf = open("st.log", "w")
-    cfg = Configuration("config", "content_tests")
-
-    if len(argv) >= 2 and argv[1] == "compiler_id":
-        if len(argv) == 2:
-            cc = Compiler(["cc"], cfg, logf)
-        elif argv[2] == "--":
-            cc = Compiler(argv[3:], cfg, logf)
-        else:
-            cc = Compiler(argv[2:], cfg, logf)
-        md = Metadata(cfg)
-        md.probe_runtime(cc)
-        cc.report(stdout)
+    headers = None
+    for i in range(len(argv)):
+        if argv[i] == "--":
+            if i == len(argv)-1:
+                usage()
+            headers = argv[1:i]
+            cccmd = argv[i+1:]
+            break
     else:
+        if len(argv) > 1:
+            headers = argv[1:]
+        ccmd = ["cc"]
 
-        headers = []
-        for i in range(len(argv)):
-            if argv[i] == "--":
-                if i == len(argv)-1:
-                    usage()
-                headers = argv[1:i]
-                cc = Compiler(argv[i+1:], cfg, logf)
-                break
-        else:
-            if len(argv) > 1:
-                headers = argv[1:]
-            cc = Compiler(["cc"], cfg, logf)
+    cfg = Configuration("config", "content_tests")
+    if not headers:
+        headers = cfg.headers
 
-        if not headers:
-            headers = cfg.headers
+    if headers[0] == "compiler_id":
+        if len(headers) > 1: usage()
 
-        datasets = [Dataset(cfg, CompilationMode(conform=0)),
-                    Dataset(cfg, CompilationMode(conform=1))]
-        if cc.test_with_thread_opt:
-            datasets.extend((Dataset(cfg, CompilationMode(conform=0, thread=1)),
-                             Dataset(cfg, CompilationMode(conform=1, thread=1))))
+    log = Logger("st.log", verbose=0, progress=1)
+    md = Metadata(cfg, log)
 
-        for h in headers:
-            hh0 = datasets[0].get_header(h)
-            for dset in datasets:
-                if hh0.presence != hh0.ABSENT:
-                    hh = dset.get_header(h)
-                    hh.test(cc)
-                if cc.error_occurred:
-                    raise SystemExit(1)
+    cc = md.probe_compiler(ccmd)
+    md.probe_runtime()
+    if headers[0] == "compiler_id":
+        md.report(sys.stdout)
+        return
 
+    md.smoke_test()
+
+    datasets = [Dataset(cfg, CompilationMode(conform=0)),
+                Dataset(cfg, CompilationMode(conform=1))]
+
+    for h in headers:
+        hh0 = datasets[0].get_header(h)
         for dset in datasets:
-            dset.test_conflicts(cc)
-            if cc.error_occurred:
+            if hh0.presence != hh0.ABSENT:
+                hh = dset.get_header(h)
+                hh.test(cc, log)
+            if log.error_occurred:
                 raise SystemExit(1)
 
-        for dset in datasets:
-            stdout.write(str(dset.mode) + "\n")
-            kk = dset.headers.items()
-            try:
-                kk.sort(key=lambda k: hsortkey(k[0]))
-            except (NameError, TypeError):
-                kk = [(hsortkey(k[0]), k[0], k[1]) for k in kk]
-                kk.sort()
-                kk = [(k[1], k[2]) for k in kk]
-            for _, h in kk:
-                if h.presence != h.UNKNOWN:
-                    h.output(stdout)
+    for dset in datasets:
+        dset.test_conflicts(cc, log)
+        if log.error_occurred:
+            raise SystemExit(1)
+
+    for dset in datasets:
+        sys.stdout.write(str(dset.mode) + "\n")
+        kk = dset.headers.items()
+        try:
+            kk.sort(key=lambda k: hsortkey(k[0]))
+        except (NameError, TypeError):
+            kk = [(hsortkey(k[0]), k[0], k[1]) for k in kk]
+            kk.sort()
+            kk = [(k[1], k[2]) for k in kk]
+        for _, h in kk:
+            if h.presence != h.UNKNOWN:
+                h.output(sys.stdout)
 
 if __name__ == '__main__':
-    main(sys.argv, sys.stdout)
+    main(sys.argv)
