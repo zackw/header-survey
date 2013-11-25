@@ -1735,26 +1735,26 @@ class Metadata:
                            "This compiler's default mode appears to be "
                            "pre-standardization ('K&R C'). Is that really so?")
 
-        self.log.end_test("C"+level)
+        cstd_dflt = "C"+level
+        (cstd_dflt_ext, cstd_dflt_std) = cspec.standard_selection_options(level)
+        self.log.end_test(cstd_dflt)
 
-        (opts_ext, opts_std) = cspec.standard_selection_options(level)
-        if opts_ext is None:
+        if cstd_dflt_ext is None:
             self.log.fatal("Configuration for %s in %s says it does not "
-                           "support C%s, but according to __STDC_VERSION__ "
+                           "support %s, but according to __STDC_VERSION__ "
                            "that is the default. Please investigate."
-                           % (self.compiler, self.compiler_cfg_fname, level))
+                           % (self.compiler, self.compiler_cfg_fname,
+                              cstd_dflt))
 
-        self.cstd_dflt = level
-        self.cstd_dflt_ext = opts_ext
-        self.cstd_dflt_std = opts_std
 
         self.log.begin_test("determining highest supported C standard")
         for level, version_values in levels:
-            (opts_ext, opts_std) = cspec.standard_selection_options(level)
-            if opts_ext is None:
+            (cstd_high_ext, cstd_high_std) = \
+                cspec.standard_selection_options(level)
+            if cstd_high_ext is None:
                 continue
 
-            self.log.log("trying C%s %s" % (level, repr(opts_std)))
+            self.log.log("trying C%s %s" % (level, repr(cstd_high_std)))
             code = "#if 1 "
             for val in version_values:
                 code = code + " && __STDC_VERSION__ != " + val
@@ -1763,7 +1763,7 @@ class Metadata:
             (rc, msg) = cc.test_invoke_basic(code,
                                              cc.preproc_cmd,
                                              cc.preproc_out,
-                                             opts_std)
+                                             cstd_high_std)
             if rc == 0:
                 break
         else:
@@ -1773,17 +1773,18 @@ class Metadata:
                            "Check configuration for %s in %s."
                            % (self.compiler, self.cfg.compiler_cfg_fname))
 
-        self.log.end_test("C"+level)
-        self.cstd_high = "C"+level
-        self.cstd_high_std = opts_std
-        self.cstd_high_ext = opts_ext
+        cstd_high = "C"+level
+        self.log.end_test(cstd_high)
 
-        self.modes = [
-            CompilationMode(self.cstd_dflt_ext, self.cstd_dflt, cf="extended"),
-            CompilationMode(self.cstd_dflt_std, self.cstd_dflt, cf="strict"),
-            CompilationMode(self.cstd_high_ext, self.cstd_high, cf="extended"),
-            CompilationMode(self.cstd_high_std, self.cstd_high, cf="strict"),
-        ]
+        M = [CompilationMode(cstd_dflt_ext, cstd_dflt, cf="extended")]
+        if cstd_dflt_std != cstd_dflt_ext:
+            M.append(CompilationMode(cstd_dflt_std, cstd_dflt, cf="strict"))
+        if cstd_high != cstd_dflt:
+            M.append(CompilationMode(cstd_high_ext, cstd_high, cf="extended"))
+            if cstd_high_std != cstd_high_ext:
+                M.append(CompilationMode(cstd_high_std, cstd_high, cf="strict"))
+
+        self.modes = M
 
     def probe_runtime(self):
         """Probe the C runtime library for its identity and its POSIX
@@ -1923,8 +1924,15 @@ class Metadata:
         except NoSuchHeaderError:
             # probe_special_thread_options throws a special exception when
             # <pthread.h> does not exist, in order to short-circuit the loop.
-            self.log.end_test("none")
+            self.log.end_test("none needed (pthread.h absent)")
             tmodes = xmodes
+
+        if not features:
+            self.log.end_test("none needed")
+        else:
+            features = features.keys()
+            features.sort()
+            self.log.end_test(", ".join(features))
 
         self.modes = tmodes
 
@@ -1955,13 +1963,38 @@ class Metadata:
         return [] # stub
 
     def probe_special_thread_options(self, mode, features):
-        """
-           * If <pthread.h> is absent, or does not require special options,
-             we assume there is no meaningful distinction between "threads"
-             and "no threads".  If it is present *and* requires special
-             options, we add (threads off, threads on) to the test matrix.
-        """
-        raise NoSuchHeaderError
+        """Detect whether this C runtime makes a distinction between code
+           compiled with multithreading support enabled, and not.  This uses
+           a really simple heuristic: If <pthread.h> is absent, or does not
+           require special options, we assume there is no meaningful
+           distinction between "threads" and "no threads".  If it is present
+           *and* requires special options, we add (threads off, threads on)
+           to the test matrix."""
+
+        self.log.log("testing acceptability of <pthread.h> %s" % mode)
+        (rc, msg) = self.cc.test_invoke("#include <pthread.h>\n"
+                                        "int avoid_empty_translation_unit;\n",
+                                        mode)
+        if rc == 0:
+            return [] # no special options required ... in _this_ mode
+
+        if self.cc.failure_due_to_nonexistence(msg, "pthread.h"):
+            # It should be safe to assume pthread.h exists in all modes or
+            # none.  Skip iterating over all the other modes.
+            raise NoSuchHeaderError
+
+        thread_mode = mode.augment(self.cc.thread_opt,
+                                   threads=" ".join(self.cc.thread_opt))
+        self.log.log("testing acceptability of <pthread.h> %s" % thread_mode)
+        (rc, msg) = self.cc.test_invoke("#include <pthread.h>\n"
+                                        "int avoid_empty_translation_unit;\n",
+                                        thread_mode)
+        if rc == 0:
+            return [thread_mode]
+
+        self.log.error("<pthread.h> failed to compile with and without %s."
+                       "Please investigate." % thread_mode.threads)
+        return []
 
     def smoke_test(self):
         """Perform tests which, if they fail, indicate something horribly
@@ -1969,7 +2002,7 @@ class Metadata:
            point in continuing with the test run).  Either returns
            successfully, or issues a fatal error."""
 
-        self.log.begin_test("smoke test")
+        self.log.begin_test("testing compiler invocation")
 
         for mode in self.modes:
             for preprocess in (1, 0):
@@ -2068,11 +2101,11 @@ class Metadata:
         """Report the identity of the compiler and how we're going to
            use it."""
         cc = self.cc
-        outf.write("compilation options: %s\n" % " ".join(cc.compile_cmd))
-        outf.write("default standard mode: %s\n" % " ".join(self.cstd_dflt_std))
-        outf.write("default extended mode: %s\n" % " ".join(self.cstd_dflt_ext))
-        outf.write("highest standard mode: %s\n" % " ".join(self.cstd_high_std))
-        outf.write("highest extended mode: %s\n" % " ".join(self.cstd_high_ext))
+        outf.write("\ngeneric compilation options: %s\n"
+                   % " ".join(cc.compile_cmd))
+        outf.write("test modes:\n")
+        for mode in self.modes:
+            outf.write("  %-40s %s\n" % (" ".join(mode.options), mode))
 
 #
 # Headers and high-level analysis
