@@ -1701,12 +1701,14 @@ class Metadata:
             ("2011", ["201112L"]),
             ("1999", ["199901L"]),
             # There are three possible values of __STDC_VERSION__ for C1989.
-            ("1989", ["199401L", "1", "0"])
+            ("1989", ["199409L", "1", "0"])
         ]
 
         self.log.begin_test("determining default C standard")
+        # Some Unix vendor compilers define __STDC__ to 0 to indicate their
+        # extended-ISO mode, so don't check its value.
         code = [
-            "#if __STDC__ != 1",
+            "#ifndef __STDC__",
             "#error \"traditional\"",
             "#endif"
         ]
@@ -1855,7 +1857,7 @@ class Metadata:
         rtspec = self.cfg.runtimes[runtime]
 
         if rtspec.version_detector is None:
-            if cc.is_cross_compiler():
+            if self.cc.is_cross_compiler():
                 self.log.fatal("Cross compiling to target that does not reveal "
                                "version of C runtime to preprocessor.")
 
@@ -1913,6 +1915,12 @@ class Metadata:
             features = features.keys()
             features.sort()
             self.log.end_test(", ".join(features))
+
+        # There is no point checking for special thread options if the
+        # compiler doesn't have any.
+        if not self.cc.thread_opt:
+            self.modes = xmodes
+            return
 
         self.log.begin_test("checking for special options for threads")
         tmodes = []
@@ -1983,6 +1991,20 @@ class Metadata:
             # none.  Skip iterating over all the other modes.
             raise NoSuchHeaderError
 
+        errs = self.cfg.is_known_error(msg, "pthread.h")
+        if errs is None:
+            self.log.error("unrecognized failure mode for <pthread.h>. "
+                           "Please investigate and add an entry to %s."
+                           % self.cfg.errors_fname)
+            return []
+
+        for err in errs:
+            if err.threads:
+                break
+        else:
+            # none of these errors indicate a need for special options
+            return []
+    
         thread_mode = mode.augment(self.cc.thread_opt,
                                    threads=" ".join(self.cc.thread_opt))
         self.log.log("testing acceptability of <pthread.h> %s" % thread_mode)
@@ -1990,6 +2012,7 @@ class Metadata:
                                         "int avoid_empty_translation_unit;\n",
                                         thread_mode)
         if rc == 0:
+            for opt in self.cc.thread_opt: features[opt] = 1
             return [thread_mode]
 
         self.log.error("<pthread.h> failed to compile with and without %s."
@@ -2117,15 +2140,18 @@ class KnownError:
        HEADERS are the headers it applies to ("*" for potentially all of
        them); REGEXP is a regular expression that will match error messages
        indicating this failure mode; DESC is a human-readable description
-       of the problem; and CAUTION is true if this problem is not so severe
-       that the header can't be used at all.  These correspond precisely to
-       the fields of each stanza of config/errors.ini."""
-    def __init__(self, name, headers, regexp, desc, caution):
+       of the problem; CAUTION is true if this problem is not so severe
+       that the header can't be used at all; and THREADS is true if this
+       problem indicates that special "threads" options are required for this
+       header. These correspond precisely to the fields of each stanza of
+       config/errors.ini."""
+    def __init__(self, name, headers, regexp, desc, caution, threads):
         self.name = name
         self.headers = headers
         self.regexp = re.compile(regexp, re.VERBOSE)
         self.desc = desc
         self.caution = caution
+        self.threads = threads
 
     def search(self, msg):
         """True if the error message MSG indicates this known error."""
@@ -2133,7 +2159,7 @@ class KnownError:
 
 # Stopgap value used to preserve data structure consistency when we
 # hit a failure mode that isn't coded into config/errors.ini yet.
-UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0)
+UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0, 0)
 
 class ContentTestResultCluster:
     """Data structure object used by ContentTestResult."""
@@ -3228,10 +3254,14 @@ class Configuration:
                 caution = int(cfg.get(tag, "caution"))
             else:
                 caution = 0
+            if cfg.has_option(tag, "threads"):
+                threads = int(cfg.get(tag, "threads"))
+            else:
+                threads = 0
             err = KnownError(tag, headers,
                              cfg.get(tag, "regexp"),
                              cfg.get(tag, "desc"),
-                             caution)
+                             caution, threads)
             errors_by_tag[tag] = err
             for h in headers:
                 if errors_by_header.has_key(h):
@@ -3361,7 +3391,7 @@ def main(argv):
     if headers[0] == "compiler_id":
         if len(headers) > 1: usage()
 
-    log = Logger("st.log", verbose=0, progress=1)
+    log = Logger("st%d.log" % os.getpid(), verbose=0, progress=1)
     md = Metadata(cfg, log)
 
     cc = md.probe_compiler(ccmd)
