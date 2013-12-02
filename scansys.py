@@ -2648,7 +2648,7 @@ class Header(Dependency):
             outf.write("  $S %s\n" % self.deplist[0].name)
         else:
             self.output_annlist(outf, 'P', self.deplist)
-        self.output_annlist(outf, 'C', self.conflist)
+        self.output_annlist(outf, 'C', sorthdr(self.conflist))
         self.output_annlist(outf, 'E', self.errlist)
         if self.content_results is not None:
             self.content_results.output(outf)
@@ -2917,18 +2917,21 @@ class ConflictMatrix:
        the service of filling in huge blocks of this matrix with each
        successful compilation."""
 
-    def __init__(self, dataset, headers, log):
+    def __init__(self, dataset, headers, log, cache):
         self.debug = 0
         self.log = log
         self.dataset = dataset
+        self.cache = cache
         self.matrix = {}
         self.rdeps = {}
         self.live_headers = {}
+        self.headers_by_name = {}
         self.all_headers = sorthdr(headers)
         for x in headers:
             self.live_headers[x] = 1
             self.matrix[x] = {}
             self.rdeps[x] = []
+            self.headers_by_name[x.name] = x
             for y in headers:
                 self.matrix[x][y] = int(x is y)
 
@@ -2966,7 +2969,7 @@ class ConflictMatrix:
                                   for y in self.all_headers]))
         self.log.log(msg, lines)
 
-    def check_completely_done(self, cc):
+    def check_completely_done(self):
         # Determine whether we are completely done with any headers.
         # If we are, remove them from the set of headers still of
         # interest (but not the conflict matrix).
@@ -2992,6 +2995,8 @@ class ConflictMatrix:
             self.record_conflict_1(cc, x, yd)
 
     def record_conflict_1(self, cc, x, y):
+        x, y = sorthdr([x, y])
+
         self.matrix[x][y] = 2
         self.matrix[y][x] = 2
         self.log_matrix("conflict trial fail")
@@ -2999,6 +3004,7 @@ class ConflictMatrix:
         x.record_conflict(y)
         y.record_conflict(x)
         self.log.progress_note("*** conflict identified: %s with %s" % (x, y))
+        self.cache[x.name +"|"+ y.name] = 1
 
     def record_ok(self, cc, tested):
         # For each header in the tested set, mark every header after
@@ -3165,9 +3171,30 @@ class ConflictMatrix:
         return next_tests
 
     def find_conflicts(self, cc):
-        # If there are no conflicts, testing all_headers in both
-        # forward and reverse order will completely fill the matrix in
-        # two compiler invocations.
+        # The cache contains pairs of header names which, on a
+        # previous run, were observed to conflict. It is probable
+        # that the conflict also exists in whatever mode we're
+        # testing now, so by checking these pairs upfront, we can
+        # save a whole lot of work.
+        for pair in self.cache.keys():
+            xname, yname = pair.split("|")
+            try:
+                x = self.headers_by_name[xname]
+                y = self.headers_by_name[yname]
+            except KeyError:
+                continue
+
+            (result, tested) = self.test_conflict_set(cc, [x, y])
+            if result:
+                (result, tested) = self.test_conflict_set(cc, [y, x])
+            if result:
+                continue
+
+            self.record_conflict(cc, x, y)
+
+        # If there are no (other) conflicts, testing all_headers in
+        # both forward and reverse order will completely fill the
+        # matrix in two compiler invocations.
         hh = self.all_headers[:]
         hh.reverse()
         queue = [ hh, self.all_headers ]
@@ -3205,7 +3232,7 @@ class ConflictMatrix:
                     else:
                         queue.extend(self.find_single_conflict(cc, tested))
 
-            self.check_completely_done(cc)
+            self.check_completely_done()
             if len(self.live_headers) < 2:
                 assert len(self.live_headers) == 0
                 return # done
@@ -3509,7 +3536,7 @@ class Dataset:
             return self.headers[name]
         raise RuntimeError("unknown header %s, check headers.ini" % name)
 
-    def test_conflicts(self, cc, log):
+    def test_conflicts(self, cc, log, cache):
         """Conflict testing is done _en masse_ after all available headers
            have been identified, for two reasons.  First, on some systems
            conflicts between two headers are only evident (provoke a compiler
@@ -3531,7 +3558,7 @@ class Dataset:
             assert h.depends is not None
             headers.append(h)
 
-        matrix = ConflictMatrix(self, headers, log)
+        matrix = ConflictMatrix(self, headers, log, cache)
         matrix.find_conflicts(cc)
 
         for h in sorthdr(self.headers.keys()):
@@ -3587,8 +3614,9 @@ def main(argv):
             if log.error_occurred:
                 raise SystemExit(1)
 
+    conflict_cache = {}
     for dset in datasets:
-        dset.test_conflicts(cc, log)
+        dset.test_conflicts(cc, log, conflict_cache)
         if log.error_occurred:
             raise SystemExit(1)
 
