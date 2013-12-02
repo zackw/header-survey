@@ -482,6 +482,16 @@ class Logger:
             self.logf.write('\n')
         self.logf.flush()
 
+    def verbose_log(self, msg, output=[]):
+        """As above, but OUTPUT is only logged if self.verbose is true."""
+        self.logf.write(msg.rstrip())
+        self.logf.write('\n')
+        if self.verbose:
+            for line in output:
+                self.logf.write(("| %s" % line).rstrip())
+                self.logf.write('\n')
+        self.logf.flush()
+
     def begin_test(self, msg):
         """Announce the commencement of a test, both in the log file and
            on stderr."""
@@ -514,6 +524,19 @@ class Logger:
             sys.stderr.write("\n")
             sys.stderr.flush()
             self.need_cr = 0
+
+    def verbose_progress_note(self, msg):
+        """As above, but only prints to stderr if self.verbose is true."""
+        msg = msg.strip()
+        self.log(msg)
+        if self.progress and self.verbose:
+            if self.need_cr:
+                sys.stderr.write("\n")
+            sys.stderr.write(msg)
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+            self.need_cr = 0
+
 
     def end_test(self, msg):
         """Announce the completion of a test, both in the log file
@@ -2650,8 +2673,8 @@ class Header(Dependency):
     def record_errors(self, log, msg, ignore_unknown=0):
         errs = self.cfg.is_known_error(msg, self.name)
         if errs is not None:
-            log.progress_note("*** errors detected: %s"
-                              % " ".join([err.name for err in errs]))
+            log.verbose_progress_note("*** errors detected: %s"
+                                      % " ".join([err.name for err in errs]))
             self.extend_errlist(errs)
         else:
             if ignore_unknown: return
@@ -2692,7 +2715,11 @@ class Header(Dependency):
         self.test_contents(cc, log)
         self.log_tests(log)
 
-        log.end_test(self.state_label().lower())
+        result = self.state_label().lower()
+        if self.errlist:
+            result = result + ": " + " ".join([e.name for e in self.errlist])
+
+        log.end_test(result)
 
     def test_presence(self, cc, log):
         if self.presence != self.UNKNOWN: return
@@ -2928,7 +2955,7 @@ class ConflictMatrix:
                 self.rdeps[y].append(x)
 
     def log_matrix(self, msg):
-        if not self.debug:
+        if not self.log.verbose:
             self.log.log(msg)
             return
         # U+00A0 NO-BREAK SPACE, U+2592 MEDIUM SHADE, U+2588 FULL BLOCK
