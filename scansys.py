@@ -2334,21 +2334,12 @@ UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0, 0)
 
 class ContentTestResultCluster:
     """Data structure object used by ContentTestResult."""
-    def __init__(self, std, mod, stype, symbols):
-        self.stype = stype
-        if mod == "":
-            self.category = std
-        else:
-            self.category = std + ":" + mod
+    def __init__(self, symbols):
         self.symbols = symbols
         self.symbols.sort()
 
     def __str__(self):
-        if not self.symbols:
-            return "%s:%s:" % (self.stype, self.category)
-        else:
-            return "%s:%s: %s" % (self.stype, self.category,
-                                  " ".join(self.symbols))
+        return " ".join(self.symbols)
 
 class ContentTestResult:
     """Results of a test for contents.  Instantiate from a TestProgram
@@ -2356,29 +2347,26 @@ class ContentTestResult:
        set of annotations."""
 
     def __init__(self, tester, cfg):
-        self.missing_items = []
-        self.wrong_items = []
-        self.uncertain_items = []
-
+        self.missing_items = None
+        self.wrong_items = None
+        self.uncertain_items = None
         self.badness = 0
 
-        CTRC = ContentTestResultCluster
+        missing = {}
+        wrong = {}
+        uncertain = {}
+        all_symbols = {}
 
         for std, mods in tester.std_index.items():
             for mod, components in mods.items():
+
+                bad = (std == tester.baseline and
+                       cfg.required_modules.has_key(mod))
+
                 for comp in components:
-
-                    missing = {}
-                    wrong = {}
-                    uncertain = {}
-                    all_symbols = {}
-
-                    for item in comp.items:
-                        all_symbols[item.tag] = 1
-
                     disabled = comp.disabled_items()
-
                     for item in disabled:
+                        self.badness |= bad
                         if item.meaning == TestItem.INCORRECT:
                             wrong[item.tag] = 1
                         elif item.meaning == TestItem.MISSING:
@@ -2387,53 +2375,29 @@ class ContentTestResult:
                             assert item.meaning == TestItem.AMBIGUOUS
                             uncertain[item.tag] = 1
 
-                    # A 'missing' item trumps a 'wrong' or 'uncertain' item
-                    # with the same tag.
-                    for tag in missing.keys():
-                        if wrong.has_key(tag): del wrong[tag]
-                        if uncertain.has_key(tag): del uncertain[tag]
-
-                    if (std == tester.baseline and
-                        (missing or wrong or uncertain) and
-                        cfg.required_modules.has_key(mod)):
-                        self.badness = 1
-
-                    if (len(missing) + len(wrong) + len(uncertain)
-                        == len(all_symbols)):
-                        # All the symbols in this module are busted
-                        # somehow.  Treat "uncertain" as collectively
-                        # trumping "wrong" and "missing", and
-                        # "missing" as collectively trumping "wrong",
-                        # for compactness' sake.
-                        cluster = CTRC(std, mod, comp.label, [])
-                        if uncertain:
-                            self.uncertain_items.append(cluster)
-                        elif missing:
-                            self.missing_items.append(cluster)
-                        else:
-                            assert wrong
-                            self.wrong_items.append(cluster)
-                    else:
-                        if missing:
-                            self.missing_items.append(
-                                CTRC(std, mod, comp.label, missing.keys()))
-                        if wrong:
-                            self.wrong_items.append(
-                                CTRC(std, mod, comp.label, wrong.keys()))
-                        if uncertain:
-                            self.uncertain_items.append(
-                                CTRC(std, mod, comp.label, uncertain.keys()))
+        # A 'missing' item trumps a 'wrong' or 'uncertain' item
+        # with the same tag.
+        for tag in missing.keys():
+            if wrong.has_key(tag): del wrong[tag]
+            if uncertain.has_key(tag): del uncertain[tag]
 
         if tester.all_disabled():
             self.badness = 2
 
+        if missing:
+            self.missing_items = ContentTestResultCluster(missing.keys())
+        if wrong:
+            self.wrong_items = ContentTestResultCluster(wrong.keys())
+        if uncertain:
+            self.uncertain_items = ContentTestResultCluster(uncertain.keys)
+
     def output(self, outf):
-        for cluster in self.missing_items:
-            outf.write("  $M %s\n" % cluster)
-        for cluster in self.wrong_items:
-            outf.write("  $W %s\n" % cluster)
-        for cluster in self.uncertain_items:
-            outf.write("  $X %s\n" % cluster)
+        if self.missing_items is not None:
+            outf.write("  $M %s\n" % self.missing_items)
+        if self.wrong_items is not None:
+            outf.write("  $W %s\n" % self.wrong_items)
+        if self.uncertain_items is not None:
+            outf.write("  $X %s\n" % self.uncertain_items)
 
 class Dependency:
     """Either a header, or a [special] dependency from config/prereqs.ini.
