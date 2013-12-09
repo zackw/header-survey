@@ -89,18 +89,6 @@ def group_matched(grp):
        never what we want in context)."""
     return grp is not None and grp != -1 and grp != ""
 
-def delete_if_exists(fname):
-    """Delete FNAME; do not raise an exception if FNAME already
-       doesn't exist.  Used to clean up files that may or may not
-       have been created by a compile invocation."""
-    if fname is None or fname == "":
-        return
-    try:
-        os.remove(fname)
-    except EnvironmentError, e:
-        if e.errno != errno.ENOENT:
-            raise
-
 _universal_readlines_re = re.compile("\r\n|\r|\n")
 def universal_readlines(fname):
     """Replacement for the Python 2.3+ "universal newlines" feature in open().
@@ -139,6 +127,35 @@ def named_tmpfile(prefix="tmp", suffix="txt"):
             if tries == 10000:
                 raise
             # otherwise loop
+
+# The textwrap module was added in Python 2.3, and included all of the
+# features we use here at that time.
+try:
+    import textwrap
+    _diagnostic_wrapper = textwrap.TextWrapper(width=76,
+                                               subsequent_indent="   ")
+    def wrap_diagnostic(msg):
+        """Line-wrap diagnostic message MSG for output to a standard 80-
+           column terminal.  Subsequent lines of the diagnostic are
+           indented for clarity."""
+        return _diagnostic_wrapper.fill(msg)
+
+except (ImportError, AttributeError):
+    def wrap_diagnostic(msg):
+        """As above but using a less sophisticated paragraph-filling
+           algorithm.  Present for 2.0 compatibility only."""
+        obuf = []
+        line = []
+        linelen = 0
+        for word in msg.split():
+            linelen += 1 + len(word)
+            if linelen > 76:
+                obuf.append(" ".join(line))
+                line = ["  "]
+                linelen = 3 + len(word)
+            line.append(word)
+        obuf.append(" ".join(line))
+        return "\n".join(obuf)
 
 # Process invocation helpers.
 # We can't use subprocess, it's too new.  We can't use os.popen*, because
@@ -240,6 +257,18 @@ def list2shell(argv):
 #
 # utility routines that aren't workarounds for old Python
 #
+
+def delete_if_exists(fname):
+    """Delete FNAME; do not raise an exception if FNAME already
+       doesn't exist.  Used to clean up files that may or may not
+       have been created by a compile invocation."""
+    if fname is None or fname == "":
+        return
+    try:
+        os.remove(fname)
+    except EnvironmentError, e:
+        if e.errno != errno.ENOENT:
+            raise
 
 def plural(n):
     """Return the appropriate English suffix for N items.
@@ -416,7 +445,7 @@ class Logger:
         self.logf = open(log_fname, "w")
         self.verbose = verbose
         self.progress = progress
-        self.need_cr = 0
+        self.column = 0
         self.error_occurred = 0
 
         # Force the locale to "C" both for this process and all
@@ -498,18 +527,23 @@ class Logger:
         msg = msg.strip()
         self.log("Begin test: %s" % msg)
         if self.progress:
+            if self.column > 0:
+                sys.stderr.write("\n")
             sys.stderr.write(msg)
             sys.stderr.write("..")
             sys.stderr.flush()
-            self.need_cr = 1
+            self.column = len(msg) + 2
 
     def progress_tick(self):
         """Indicate on stderr that forward progress is being made.
            Should normally be paired with one or more calls to log()."""
         if self.progress:
+            if self.column > 76:
+                sys.stderr.write("\n   ")
+                self.column = 3
             sys.stderr.write(".")
+            self.column += 1
             sys.stderr.flush()
-            self.need_cr = 1
 
     def progress_note(self, msg):
         """Indicate status in the middle of an ongoing test.
@@ -518,25 +552,24 @@ class Logger:
         msg = msg.strip()
         self.log(msg)
         if self.progress:
-            if self.need_cr:
+            if self.column > 0:
                 sys.stderr.write("\n")
-            sys.stderr.write(msg)
+            sys.stderr.write(wrap_diagnostic(msg))
             sys.stderr.write("\n")
             sys.stderr.flush()
-            self.need_cr = 0
+            self.column = 0
 
     def verbose_progress_note(self, msg):
         """As above, but only prints to stderr if self.verbose is true."""
         msg = msg.strip()
         self.log(msg)
         if self.progress and self.verbose:
-            if self.need_cr:
+            if self.column > 0:
                 sys.stderr.write("\n")
-            sys.stderr.write(msg)
+            sys.stderr.write(wrap_diagnostic(msg))
             sys.stderr.write("\n")
             sys.stderr.flush()
-            self.need_cr = 0
-
+            self.column = 0
 
     def end_test(self, msg):
         """Announce the completion of a test, both in the log file
@@ -544,9 +577,14 @@ class Logger:
         msg = msg.strip()
         self.log("Test complete: %s" % msg)
         if self.progress:
-            sys.stderr.write(" %s\n" % msg)
+            if self.column + len(msg) + 1 <= 76:
+                sys.stderr.write(" %s\n" % msg)
+            else:
+                sys.stderr.write("\n   ")
+                sys.stderr.write(wrap_diagnostic(msg))
+                sys.stderr.write("\n")
             sys.stderr.flush()
-            self.need_cr = 0
+            self.column = 0
 
     def error(self, msg):
         """Announce an error severe enough that we cannot produce
@@ -554,11 +592,11 @@ class Logger:
            the test run immediately."""
         msg = "Error: %s" % msg
         self.log(msg)
-        if self.need_cr:
+        if self.column > 0:
             sys.stderr.write("\n")
-        sys.stderr.write(msg)
+        sys.stderr.write(wrap_diagnostic(msg))
         sys.stderr.write("\n")
-        self.need_cr = 0
+        self.column = 0
         self.error_occurred = 1
 
     def fatal(self, msg):
@@ -566,10 +604,12 @@ class Logger:
            be aborted immediately.  Does not return."""
         msg = "Fatal error: %s" % msg
         self.log(msg)
-        if self.need_cr:
+        if self.column > 0:
             sys.stderr.write("\n")
-        sys.stderr.write(msg)
+        sys.stderr.write(wrap_diagnostic(msg))
         sys.stderr.write("\n")
+        self.column = 0
+        self.error_occurred = 1
         raise SystemExit(1)
 
     def invoke(self, argv):
@@ -2215,6 +2255,23 @@ class Metadata:
                                    % (action, mode, self.compiler,
                                       self.cfg.compiler_cfg_fname))
 
+                # This code should also compile without complaint.
+                self.log.log("smoke test: %s %s "
+                             "(potentially unsupported pragmas), "
+                             "should succeed"
+                             % (mode, action))
+                (rc, msg) = self.cc.test_invoke("#pragma STDC FENV_ACCESS ON\n"
+                                                "int dummy;",
+                                                mode, preprocess)
+                if rc != 0:
+                    self.log.fatal("failed to %s program containing "
+                                   "C99 #pragma directive %s. "
+                                   "Ensure configuration for %s in %s "
+                                   "suppresses errors for unsupported #pragma "
+                                   "directives."
+                                   % (action, mode, self.compiler,
+                                      self.cfg.compiler_cfg_fname))
+
                 # This code should _not_ compile, and we should detect
                 # that this is because a header doesn't exist.
                 self.log.log("smoke test: %s %s, "
@@ -2295,9 +2352,10 @@ class Metadata:
         """Report the identity of the compiler and how we're going to
            use it."""
         cc = self.cc
-        outf.write("\ngeneric compilation options: %s\n"
-                   % " ".join(cc.compile_cmd))
-        outf.write("test modes:\n")
+        outf.write("\n")
+        outf.write(wrap_diagnostic("generic compilation options: "
+                                   + " ".join(cc.compile_cmd)))
+        outf.write("\ntest modes:\n")
         for mode in self.modes:
             outf.write("  %-40s %s\n" % (" ".join(mode.options), mode))
 
@@ -2389,7 +2447,7 @@ class ContentTestResult:
         if wrong:
             self.wrong_items = ContentTestResultCluster(wrong.keys())
         if uncertain:
-            self.uncertain_items = ContentTestResultCluster(uncertain.keys)
+            self.uncertain_items = ContentTestResultCluster(uncertain.keys())
 
     def output(self, outf):
         if self.missing_items is not None:
