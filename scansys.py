@@ -157,6 +157,15 @@ except (ImportError, AttributeError):
         obuf.append(" ".join(line))
         return "\n".join(obuf)
 
+# The hashlib module was added in Python 2.5.
+# Older Python does not appear to provide sha256, and sha1 should be good
+# enough for our purposes (detecting whether any of the configuration has
+# changed since an inventory was taken, in a non-adversarial context).
+try:
+    from hashlib import sha1
+except ImportError:
+    from sha import new as sha1
+
 # Process invocation helpers.
 # We can't use subprocess, it's too new.  We can't use os.popen*, because
 # they don't report the exit code.  So... os.system it is.  Which means we
@@ -3375,18 +3384,38 @@ class Configuration:
     def __init__(self, cfgdir, ctdir):
         self.cfgdir = cfgdir
         self.ctdir = ctdir
+
+        self.config_hasher = sha1()
+        self.add_hash(self.config_hasher, sys.argv[0])
+
         self.load_compilers(os.path.join(cfgdir, "compilers.ini"))
         self.load_runtimes(os.path.join(cfgdir, "runtimes.ini"))
         self.load_known_errors(os.path.join(cfgdir, "errors.ini"))
         self.load_headers(os.path.join(cfgdir, "headers.ini"))
         self.load_deps(os.path.join(cfgdir, "prereqs.ini"))
+
+        self.config_hash = self.config_hasher.hexdigest()
+        del self.config_hasher
+
         self.load_content_tests(ctdir)
+
+    def add_hash(self, hasher, fname):
+        def comment_line(l):
+            l = l.lstrip()
+            return l == "" or l[0] == "#"
+
+        for l in universal_readlines(fname):
+            if comment_line(l): continue
+            l = l.rstrip()
+            hasher.update(l)
+            hasher.update("\n")
 
     def load_compilers(self, fname):
         """Load information about known compilers.  This is left in a
            relatively 'uncooked' format because all but one of the compiler
            specifications will be unused on any given invocation; see
            Compiler.__init__ for how it will be processed."""
+        self.add_hash(self.config_hasher, fname)
         self.compiler_cfg_fname = fname
 
         cfg = ConfigParser.ConfigParser()
@@ -3397,6 +3426,7 @@ class Configuration:
             self.compilers[sect] = CompilerSpec(cfg, sect, fname)
 
     def load_runtimes(self, fname):
+        self.add_hash(self.config_hasher, fname)
         self.runtimes_cfg_fname = fname
 
         cfg = ConfigParser.ConfigParser()
@@ -3415,6 +3445,7 @@ class Configuration:
            Header objects at this time, because each Dataset object (of which
            there are potentially several on any given run) needs its own set
            of them."""
+        self.add_hash(self.config_hasher, fname)
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
 
@@ -3446,6 +3477,7 @@ class Configuration:
         """Load the header-header and header-special dependency lists from
            config/prereqs.ini.  Like load_headers, we do not instantiate
            Header or SpecialDependency objects at this time."""
+        self.add_hash(self.config_hasher, fname)
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
 
@@ -3463,6 +3495,7 @@ class Configuration:
     def load_known_errors(self, fname):
         """Load the specifications of all known errors from
            config/errors.ini."""
+        self.add_hash(self.config_hasher, fname)
         self.errors_fname = fname
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
@@ -3514,22 +3547,46 @@ class Configuration:
     def load_content_tests(self, dname):
         """Load the specifications of all content tests."""
         content_tests = {}
+        required_modules = {"": 1}
+        content_hasher = sha1()
+
         for f in glob.glob(os.path.join(dname, "*.ini")):
-            if os.path.basename(f) == "CATEGORIES.ini": continue
-            dt = TestProgram(f)
-            if content_tests.has_key(dt.header):
-                sys.stderr.write("%s: skipping extra test for %s\n"
-                                 % (f, dt.header))
-            content_tests[dt.header] = dt
+            self.add_hash(content_hasher, f)
+
+            if os.path.basename(f) == "CATEGORIES.ini":
+                parser = ConfigParser.ConfigParser()
+                parser.read(os.path.join(dname, "CATEGORIES.ini"))
+                if parser.has_section("required_modules"):
+                    for m in parser.options("required_modules"):
+                        required_modules[m] = 1
+
+            else:
+                dt = TestProgram(f)
+                if content_tests.has_key(dt.header):
+                    sys.stderr.write("%s: skipping extra test for %s\n"
+                                     % (f, dt.header))
+                content_tests[dt.header] = dt
+
+        self.content_hash = content_hasher.hexdigest()
         self.content_tests = content_tests
+        self.required_modules = required_modules
 
-        self.required_modules = {"": 1}
-        parser = ConfigParser.ConfigParser()
-        parser.read(os.path.join(dname, "CATEGORIES.ini"))
-        if parser.has_section("required_modules"):
-            for m in parser.options("required_modules"):
-                self.required_modules[m] = 1
+    def report(self, outf):
+        outf.write("\n"
+                   "config hash: %s\n"
+                   "content test hash: %s\n"
+                   % (self.config_hash, self.content_hash))
 
+    def banner(self, log):
+        log.log("This file contains a detailed log of a scansys run.\n\n"
+                "Host Python %s (platform: %s)\n"
+                "Config hash: %s\n"
+                "Content test hash: %s\n"
+                "Invocation: %s\n"
+                % (sys.version.split()[0], sys.platform,
+                   self.config_hash, self.content_hash,
+                   list2shell(sys.argv)))
+        log.log("")
 
 class Dataset:
     """A Dataset instance represents the totality of information known
@@ -3616,12 +3673,15 @@ def main(argv):
         if len(headers) > 1: usage()
 
     log = Logger("st%d.log" % os.getpid(), verbose=0, progress=1)
-    md = Metadata(cfg, log)
+    cfg.banner(log)
 
+    md = Metadata(cfg, log)
     cc = md.probe_compiler(ccmd)
+
     md.smoke_test()
     md.probe_runtime()
     if headers[0] == "compiler_id":
+        cfg.report(sys.stdout)
         md.report(sys.stdout)
         return
 
