@@ -1479,6 +1479,100 @@ class TestProgram:
                     for item in group.items:
                         self.line_index[item.lineno] = item
 
+class KnownError:
+    """A known way in which a header (or headers) can fail to compile
+       successfully.  NAME is a mnemonic label for this failure case;
+       HEADERS are the headers it applies to ("*" for potentially all of
+       them); REGEXP is a regular expression that will match error messages
+       indicating this failure mode; DESC is a human-readable description
+       of the problem; CAUTION is true if this problem is not so severe
+       that the header can't be used at all; and THREADS is true if this
+       problem indicates that special "threads" options are required for this
+       header. These correspond precisely to the fields of each stanza of
+       config/errors.ini."""
+    def __init__(self, name, headers, regexp, desc, caution, threads):
+        self.name = name
+        self.headers = headers
+        self.regexp = re.compile(regexp, re.VERBOSE)
+        self.desc = desc
+        self.caution = caution
+        self.threads = threads
+
+    def search(self, msg):
+        """True if the error message MSG indicates this known error."""
+        return self.regexp.search(msg)
+
+# Stopgap value used to preserve data structure consistency when we
+# hit a failure mode that isn't coded into config/errors.ini yet.
+UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0, 0)
+
+class ContentTestResultCluster:
+    """Data structure object used by ContentTestResult."""
+    def __init__(self, symbols):
+        self.symbols = symbols
+        self.symbols.sort()
+
+    def __str__(self):
+        return " ".join(self.symbols)
+
+class ContentTestResult:
+    """Results of a test for contents.  Instantiate from a TestProgram
+       instance; walks the data structure and computes the appropriate
+       set of annotations."""
+
+    def __init__(self, tester, cfg):
+        self.missing_items = None
+        self.wrong_items = None
+        self.uncertain_items = None
+        self.badness = 0
+
+        missing = {}
+        wrong = {}
+        uncertain = {}
+        all_symbols = {}
+
+        for std, mods in tester.std_index.items():
+            for mod, components in mods.items():
+
+                bad = (std == tester.baseline and
+                       cfg.required_modules.has_key(mod))
+
+                for comp in components:
+                    disabled = comp.disabled_items()
+                    for item in disabled:
+                        self.badness |= bad
+                        if item.meaning == TestItem.INCORRECT:
+                            wrong[item.tag] = 1
+                        elif item.meaning == TestItem.MISSING:
+                            missing[item.tag] = 1
+                        else:
+                            assert item.meaning == TestItem.AMBIGUOUS
+                            uncertain[item.tag] = 1
+
+        # A 'missing' item trumps a 'wrong' or 'uncertain' item
+        # with the same tag.
+        for tag in missing.keys():
+            if wrong.has_key(tag): del wrong[tag]
+            if uncertain.has_key(tag): del uncertain[tag]
+
+        if tester.all_disabled():
+            self.badness = 2
+
+        if missing:
+            self.missing_items = ContentTestResultCluster(missing.keys())
+        if wrong:
+            self.wrong_items = ContentTestResultCluster(wrong.keys())
+        if uncertain:
+            self.uncertain_items = ContentTestResultCluster(uncertain.keys())
+
+    def output(self, outf):
+        if self.missing_items is not None:
+            outf.write("  $M %s\n" % self.missing_items)
+        if self.wrong_items is not None:
+            outf.write("  $W %s\n" % self.wrong_items)
+        if self.uncertain_items is not None:
+            outf.write("  $X %s\n" % self.uncertain_items)
+
 #
 # Compilation
 #
@@ -2372,100 +2466,6 @@ class Metadata:
 # Headers and high-level analysis
 #
 
-class KnownError:
-    """A known way in which a header (or headers) can fail to compile
-       successfully.  NAME is a mnemonic label for this failure case;
-       HEADERS are the headers it applies to ("*" for potentially all of
-       them); REGEXP is a regular expression that will match error messages
-       indicating this failure mode; DESC is a human-readable description
-       of the problem; CAUTION is true if this problem is not so severe
-       that the header can't be used at all; and THREADS is true if this
-       problem indicates that special "threads" options are required for this
-       header. These correspond precisely to the fields of each stanza of
-       config/errors.ini."""
-    def __init__(self, name, headers, regexp, desc, caution, threads):
-        self.name = name
-        self.headers = headers
-        self.regexp = re.compile(regexp, re.VERBOSE)
-        self.desc = desc
-        self.caution = caution
-        self.threads = threads
-
-    def search(self, msg):
-        """True if the error message MSG indicates this known error."""
-        return self.regexp.search(msg)
-
-# Stopgap value used to preserve data structure consistency when we
-# hit a failure mode that isn't coded into config/errors.ini yet.
-UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0, 0)
-
-class ContentTestResultCluster:
-    """Data structure object used by ContentTestResult."""
-    def __init__(self, symbols):
-        self.symbols = symbols
-        self.symbols.sort()
-
-    def __str__(self):
-        return " ".join(self.symbols)
-
-class ContentTestResult:
-    """Results of a test for contents.  Instantiate from a TestProgram
-       instance; walks the data structure and computes the appropriate
-       set of annotations."""
-
-    def __init__(self, tester, cfg):
-        self.missing_items = None
-        self.wrong_items = None
-        self.uncertain_items = None
-        self.badness = 0
-
-        missing = {}
-        wrong = {}
-        uncertain = {}
-        all_symbols = {}
-
-        for std, mods in tester.std_index.items():
-            for mod, components in mods.items():
-
-                bad = (std == tester.baseline and
-                       cfg.required_modules.has_key(mod))
-
-                for comp in components:
-                    disabled = comp.disabled_items()
-                    for item in disabled:
-                        self.badness |= bad
-                        if item.meaning == TestItem.INCORRECT:
-                            wrong[item.tag] = 1
-                        elif item.meaning == TestItem.MISSING:
-                            missing[item.tag] = 1
-                        else:
-                            assert item.meaning == TestItem.AMBIGUOUS
-                            uncertain[item.tag] = 1
-
-        # A 'missing' item trumps a 'wrong' or 'uncertain' item
-        # with the same tag.
-        for tag in missing.keys():
-            if wrong.has_key(tag): del wrong[tag]
-            if uncertain.has_key(tag): del uncertain[tag]
-
-        if tester.all_disabled():
-            self.badness = 2
-
-        if missing:
-            self.missing_items = ContentTestResultCluster(missing.keys())
-        if wrong:
-            self.wrong_items = ContentTestResultCluster(wrong.keys())
-        if uncertain:
-            self.uncertain_items = ContentTestResultCluster(uncertain.keys())
-
-    def output(self, outf):
-        if self.missing_items is not None:
-            outf.write("  $M %s\n" % self.missing_items)
-        if self.wrong_items is not None:
-            outf.write("  $W %s\n" % self.wrong_items)
-        if self.uncertain_items is not None:
-            outf.write("  $X %s\n" % self.uncertain_items)
-
 class Dependency:
     """Either a header, or a [special] dependency from config/prereqs.ini.
        These are treated interchangeably in some contexts.  Dependency
@@ -3317,6 +3317,67 @@ class ConflictMatrix:
                     if not self.matrix[col_argmg][x]: col.append(x)
                 queue.append(col)
 
+class Dataset:
+    """A Dataset instance represents the totality of information known
+       about header files in a particular mode, on this platform.
+       It is primarily a dictionary of { filename : Header instance }
+       mappings, but also handles certain whole-dataset operations."""
+
+    def __init__(self, cfg, mode):
+        self.cfg = cfg
+        self.mode = mode
+
+        self.headers = {}
+        for h in cfg.headers:
+            self.headers[h] = Header(h, self.cfg, self)
+
+        self.deps = {}
+        for name, deplist in cfg.normal_deps.items():
+            self.deps[self.headers[name]] = [self.headers[d] for d in deplist]
+        for name, text in cfg.special_deps.items():
+            h = self.headers[name]
+            assert not self.deps.has_key(h)
+            self.deps[h] = [SpecialDependency(name, text)]
+
+    def get_header(self, name):
+        if self.headers.has_key(name):
+            return self.headers[name]
+        raise RuntimeError("unknown header %s, check headers.ini" % name)
+
+    def test_conflicts(self, cc, log, cache):
+        """Conflict testing is done _en masse_ after all available headers
+           have been identified, for two reasons.  First, on some systems
+           conflicts between two headers are only evident (provoke a compiler
+           error) in one of the two possible #include orders.  Second,
+           conflict testing is more expensive than all the rest of the tests
+           put together.  We have gone to considerable algorithmic effort to
+           minimize the number of compiler invocations required, and the
+           algorithm is most efficient when operating on large batches of
+           headers (assuming conflicts are rare)."""
+
+        log.begin_test("conflict test, mode " + str(self.mode))
+
+        # Construct a conflict matrix for every known header which is
+        # compatible with this compilation mode.
+        headers = []
+        for h in self.headers.values():
+            if h.presence != h.PRESENT: continue
+            if h.caution == 1: continue
+            assert h.depends is not None
+            headers.append(h)
+
+        matrix = ConflictMatrix(self, headers, log, cache)
+        matrix.find_conflicts(cc)
+
+        for h in sorthdr(self.headers.keys()):
+            self.headers[h].log_conflicts(log)
+
+        log.end_test("done")
+
+#
+# Scanner configuration
+#
+
 class CompilerSpec:
     """Data carrier for compiler information, used by Configuration."""
     def __init__(self, cfg, sect, fname):
@@ -3587,63 +3648,6 @@ class Configuration:
                    self.config_hash, self.content_hash,
                    list2shell(sys.argv)))
         log.log("")
-
-class Dataset:
-    """A Dataset instance represents the totality of information known
-       about header files on this platform.  It is primarily a dictionary
-       of { filename : Header instance } mappings, but also handles certain
-       whole-dataset operations."""
-
-    def __init__(self, cfg, mode):
-        self.cfg = cfg
-        self.mode = mode
-
-        self.headers = {}
-        for h in cfg.headers:
-            self.headers[h] = Header(h, self.cfg, self)
-
-        self.deps = {}
-        for name, deplist in cfg.normal_deps.items():
-            self.deps[self.headers[name]] = [self.headers[d] for d in deplist]
-        for name, text in cfg.special_deps.items():
-            h = self.headers[name]
-            assert not self.deps.has_key(h)
-            self.deps[h] = [SpecialDependency(name, text)]
-
-    def get_header(self, name):
-        if self.headers.has_key(name):
-            return self.headers[name]
-        raise RuntimeError("unknown header %s, check headers.ini" % name)
-
-    def test_conflicts(self, cc, log, cache):
-        """Conflict testing is done _en masse_ after all available headers
-           have been identified, for two reasons.  First, on some systems
-           conflicts between two headers are only evident (provoke a compiler
-           error) in one of the two possible #include orders.  Second,
-           conflict testing is more expensive than all the rest of the tests
-           put together.  We have gone to considerable algorithmic effort to
-           minimize the number of compiler invocations required, and the
-           algorithm is most efficient when operating on large batches of
-           headers (assuming conflicts are rare)."""
-
-        log.begin_test("conflict test, mode " + str(self.mode))
-
-        # Construct a conflict matrix for every known header which is
-        # compatible with this compilation mode.
-        headers = []
-        for h in self.headers.values():
-            if h.presence != h.PRESENT: continue
-            if h.caution == 1: continue
-            assert h.depends is not None
-            headers.append(h)
-
-        matrix = ConflictMatrix(self, headers, log, cache)
-        matrix.find_conflicts(cc)
-
-        for h in sorthdr(self.headers.keys()):
-            self.headers[h].log_conflicts(log)
-
-        log.end_test("done")
 
 def main(argv):
     def usage():
