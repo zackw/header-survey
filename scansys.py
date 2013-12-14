@@ -33,8 +33,10 @@ import locale
 import os
 import random
 import re
+import stat
 import string
 import sys
+import time
 
 # "True" division only became available in Python 2.2.  Therefore, it is a
 # style violation to use bare / or // anywhere in this program other than
@@ -450,9 +452,9 @@ class Logger:
        and we should exit unsuccessfully, but not necessarily right
        this instant)."""
 
-    def __init__(self, log_fname, verbose, progress):
+    def __init__(self, log_fname, debug, progress):
         self.logf = open(log_fname, "w")
-        self.verbose = verbose
+        self.debug = debug
         self.progress = progress
         self.column = 0
         self.error_occurred = 0
@@ -520,11 +522,11 @@ class Logger:
             self.logf.write('\n')
         self.logf.flush()
 
-    def verbose_log(self, msg, output=[]):
-        """As above, but OUTPUT is only logged if self.verbose is true."""
+    def debug_log(self, msg, output=[]):
+        """As above, but OUTPUT is only logged if self.debug is true."""
         self.logf.write(msg.rstrip())
         self.logf.write('\n')
-        if self.verbose:
+        if self.debug:
             for line in output:
                 self.logf.write(("| %s" % line).rstrip())
                 self.logf.write('\n')
@@ -568,11 +570,11 @@ class Logger:
             sys.stderr.flush()
             self.column = 0
 
-    def verbose_progress_note(self, msg):
-        """As above, but only prints to stderr if self.verbose is true."""
+    def debug_progress_note(self, msg):
+        """As above, but only prints to stderr if self.debug is true."""
         msg = msg.strip()
         self.log(msg)
-        if self.progress and self.verbose:
+        if self.progress and self.debug:
             if self.column > 0:
                 sys.stderr.write("\n")
             sys.stderr.write(wrap_diagnostic(msg))
@@ -1584,7 +1586,7 @@ class CompilationMode:
 
     def __init__(self, options, cstd, cf=None, rtstd=None, threads=None):
         self.options = options
-        self.cstd = cstd
+        self.cstd = cstd.lower()
         self.cf = cf
         self.rtstd = rtstd
         self.threads = threads
@@ -1599,10 +1601,10 @@ class CompilationMode:
 
     def __str__(self):
         l = self.cstd
-        if self.cf is not None: l = self.cf + " " + l
-        if self.rtstd is not None: l = l + " (%s)"%self.rtstd
-        if self.threads is not None: l = l + " (%s)"%self.threads
-        return "["+l+"]"
+        if self.cf is not None: l = l + "_" + self.cf
+        if self.rtstd is not None: l = l + "_" + self.rtstd
+        if self.threads is not None: l = l + "_" + self.threads
+        return l
 
 class Compiler:
     """A Compiler instance knows how to invoke a particular compiler
@@ -1761,14 +1763,15 @@ class Metadata:
         self.log   = log
         self.cc    = None
         self.modes = [CompilationMode([], "default")]
+        self.good  = 0
 
-    def probe_compiler(self, cmd, ccenv={}):
+    def probe_compiler(self, cmd, cc_env, skip_modes):
         """Identify the compiler that is invoked by CMD (with environment
-           settings CCENV) and instantiate an appropriate Compiler object."""
+           settings CC_ENV) and instantiate an appropriate Compiler object."""
 
         self.log.begin_test("identifying compiler")
 
-        for k, v in ccenv.items():
+        for k, v in cc_env.items():
             os.environ[k] = v
 
         # Construct a source file that will fail to compile with
@@ -1875,10 +1878,15 @@ class Metadata:
 
         self.log.end_test(ident)
 
-        self.compiler = compiler
+        self.compiler_id = compiler
+        self.compiler_version = version
         self.compiler_label = ident
         self.cc = Compiler(cmd, cc, self.log)
-        self.select_c_standard(self.cc, cc)
+        self.log.log("using generic compilation options: "
+                     + " ".join(self.cc.compile_cmd))
+
+        if not skip_modes:
+            self.select_c_standard(self.cc, cc)
         return self.cc
 
     def select_c_standard(self, cc, cspec):
@@ -1918,7 +1926,7 @@ class Metadata:
             self.log.end_test("failed")
             self.log.fatal("unable to determine default C standard. "
                            "Check configuration for %s in %s."
-                           % (self.compiler, self.cfg.compiler_cfg_fname))
+                           % (self.compiler_id, self.cfg.compiler_cfg_fname))
         if level == "traditional":
             self.log.end_test("traditional")
             self.log.fatal("inventory-taking requires an ISO C compiler. "
@@ -1933,7 +1941,7 @@ class Metadata:
             self.log.fatal("Configuration for %s in %s says it does not "
                            "support %s, but according to __STDC_VERSION__ "
                            "that is the default. Please investigate."
-                           % (self.compiler, self.compiler_cfg_fname,
+                           % (self.compiler_id, self.compiler_cfg_fname,
                               cstd_dflt))
 
 
@@ -1961,22 +1969,22 @@ class Metadata:
             self.log.fatal("unable to determine highest supported "
                            "C standard. "
                            "Check configuration for %s in %s."
-                           % (self.compiler, self.cfg.compiler_cfg_fname))
+                           % (self.compiler_id, self.cfg.compiler_cfg_fname))
 
         cstd_high = "C"+level
         self.log.end_test(cstd_high)
 
-        M = [CompilationMode(cstd_dflt_ext, cstd_dflt, cf="extended")]
+        M = [CompilationMode(cstd_dflt_ext, cstd_dflt, cf="ext")]
         if cstd_dflt_std != cstd_dflt_ext:
-            M.append(CompilationMode(cstd_dflt_std, cstd_dflt, cf="strict"))
+            M.append(CompilationMode(cstd_dflt_std, cstd_dflt, cf="std"))
         if cstd_high != cstd_dflt:
-            M.append(CompilationMode(cstd_high_ext, cstd_high, cf="extended"))
+            M.append(CompilationMode(cstd_high_ext, cstd_high, cf="ext"))
             if cstd_high_std != cstd_high_ext:
-                M.append(CompilationMode(cstd_high_std, cstd_high, cf="strict"))
+                M.append(CompilationMode(cstd_high_std, cstd_high, cf="std"))
 
         self.modes = M
 
-    def probe_runtime(self):
+    def probe_runtime(self, skip_modes):
         """Probe the C runtime library for its identity and its POSIX
            conformance, and augment the set of compilation modes accordingly.
 
@@ -2077,6 +2085,8 @@ class Metadata:
         self.runtime_version = version
         self.log.end_test("%s %s" % (rtspec.label, version))
 
+        if skip_modes: return
+
         self.log.begin_test("selecting runtime-feature modes to test")
         xmodes = []
         features = {}
@@ -2092,8 +2102,7 @@ class Metadata:
                 xmodes.append(mode)
                 xmodes.extend(self.probe_max_posix_level(mode, features))
                 if mf_defines is not None:
-                    xmodes.append(mode.augment(mf_defines,
-                                               rtstd="platform features"))
+                    xmodes.append(mode.augment(mf_defines, rtstd="plat"))
         except NoSuchHeaderError, e:
             self.log.end_test("none (%s absent)" % e.header)
             return
@@ -2185,13 +2194,13 @@ class Metadata:
         # know the default behavior of whatever mode this is.
         candidate_modes = [
             # feature selection macro, label, _POSIX_VERSION, _XOPEN_VERSION
-            ("_XOPEN_SOURCE=700",        "POSIX.1-2008+XSI", "200809L", "700"),
-            ("_POSIX_C_SOURCE=200809L",  "POSIX.1-2008",     "200809L", "700"),
-            ("_XOPEN_SOURCE=600",        "POSIX.1-2001+XSI", "200112L", "600"),
-            ("_POSIX_C_SOURCE=200112L",  "POSIX.1-2001",     "200112L", "600"),
-            ("_XOPEN_SOURCE=500",        "POSIX.1-1995+XSI", "199506L", "500"),
-            ("_POSIX_C_SOURCE=199506L",  "POSIX.1-1995",     "199506L", "500"),
-            ("",                         "",                 "",        ""),
+            ("_XOPEN_SOURCE=700",        "x7",    "200809L", "700"),
+            ("_POSIX_C_SOURCE=200809L",  "p2008", "200809L", "700"),
+            ("_XOPEN_SOURCE=600",        "x6",    "200112L", "600"),
+            ("_POSIX_C_SOURCE=200112L",  "p2001", "200112L", "600"),
+            ("_XOPEN_SOURCE=500",        "x5",    "199506L", "500"),
+            ("_POSIX_C_SOURCE=199506L",  "p1995", "199506L", "500"),
+            ("",                         "",      "",        ""),
         ]
 
         xmodes = {}
@@ -2319,8 +2328,7 @@ class Metadata:
             # none of these errors indicate a need for special options
             return []
 
-        thread_mode = mode.augment(self.cc.thread_opt,
-                                   threads=" ".join(self.cc.thread_opt))
+        thread_mode = mode.augment(self.cc.thread_opt, threads="mt")
         self.log.log("testing acceptability of <pthread.h> %s" % thread_mode)
         (rc, msg) = self.cc.test_invoke("#include <pthread.h>\n"
                                         "int avoid_empty_translation_unit;\n",
@@ -2339,6 +2347,8 @@ class Metadata:
            point in continuing with the test run).  Either returns
            successfully, or issues a fatal error."""
 
+        if self.good: return
+
         self.log.begin_test("testing compiler invocation")
 
         for mode in self.modes:
@@ -2355,7 +2365,7 @@ class Metadata:
                 if rc != 0:
                     self.log.fatal("failed to %s simple test program %s. "
                                    "Check configuration for %s in %s."
-                                   % (action, mode, self.compiler,
+                                   % (action, mode, self.compiler_id,
                                       self.cfg.compiler_cfg_fname))
 
                 # This code should also compile without complaint.
@@ -2372,7 +2382,7 @@ class Metadata:
                                    "Ensure configuration for %s in %s "
                                    "suppresses errors for unsupported #pragma "
                                    "directives."
-                                   % (action, mode, self.compiler,
+                                   % (action, mode, self.compiler_id,
                                       self.cfg.compiler_cfg_fname))
 
                 # This code should _not_ compile, and we should detect
@@ -2388,7 +2398,7 @@ class Metadata:
                     self.log.fatal(
                         "failed to detect nonexistence of <nonexistent.h>"
                         " (%s %s). Check configuration for %s in %s."
-                        % (mode, action, self.compiler,
+                        % (mode, action, self.compiler_id,
                            self.cfg.compiler_cfg_fname))
 
             # We should be able to tell that the error in this code is
@@ -2412,15 +2422,16 @@ class Metadata:
                     else:
                         self.log.fatal("error on unexpected line %s. "
                                        "Check configuration for %s in %s."
-                                       % (m.group(line), self.compiler,
+                                       % (m.group(line), self.compiler_id,
                                           self.cfg.compiler_cfg_fname))
             else:
                 self.log.fatal("failed to detect error on line 3. "
                                "Check configuration for %s in %s."
-                               % (self.compiler, ccs_f,
+                               % (self.compiler_id, ccs_f,
                                   self.cfg.compiler_cfg_fname))
 
         self.log.end_test("ok")
+        self.good = 1
 
     def dump_potential_system_id_macros(self):
         macro_name_extractor = re.compile(
@@ -2451,16 +2462,31 @@ class Metadata:
         for m in macros:
             sys.stderr.write("  %s\n" % m)
 
-    def report(self, outf):
-        """Report the identity of the compiler and how we're going to
-           use it."""
-        cc = self.cc
-        outf.write("\n")
-        outf.write(wrap_diagnostic("generic compilation options: "
-                                   + " ".join(cc.compile_cmd)))
-        outf.write("\ntest modes:\n")
+    def write_label(self, outf):
+        """Write the [label] section of inventory metadata."""
+        outf.write("[label]\n"
+                   "runtime    = %s\n"
+                   "runtime_v  = %s\n"
+                   "compiler   = %s\n"
+                   "compiler_v = %s\n\n"
+                   % (self.runtime_id,
+                      self.runtime_version,
+                      self.compiler_id,
+                      self.compiler_version))
+
+    def log_modes(self):
+        self.log.log("Test modes:",
+                     ["%s = %s\n" % (mode, list2shell(mode.options))
+                      for mode in self.modes])
+
+    def write_modes(self, outf):
+        """Write the [modes] section of inventory metadata."""
+        outf.write("[modes]\n")
+        l = 0
         for mode in self.modes:
-            outf.write("  %-40s %s\n" % (" ".join(mode.options), mode))
+            l = max(l, len(str(mode)))
+        for mode in self.modes:
+            outf.write("%-*s = %s\n" % (l, mode, list2shell(mode.options)))
 
 #
 # Headers and high-level analysis
@@ -2704,8 +2730,8 @@ class Header(Dependency):
     def record_errors(self, log, msg, ignore_unknown=0):
         errs = self.cfg.is_known_error(msg, self.name)
         if errs is not None:
-            log.verbose_progress_note("*** errors detected: %s"
-                                      % " ".join([err.name for err in errs]))
+            log.debug_progress_note("*** errors detected: %s"
+                                    % " ".join([err.name for err in errs]))
             self.extend_errlist(errs)
         else:
             if ignore_unknown: return
@@ -2949,7 +2975,6 @@ class ConflictMatrix:
        successful compilation."""
 
     def __init__(self, dataset, headers, log, cache):
-        self.debug = 0
         self.log = log
         self.dataset = dataset
         self.cache = cache
@@ -2989,7 +3014,7 @@ class ConflictMatrix:
                 self.rdeps[y].append(x)
 
     def log_matrix(self, msg):
-        if not self.log.verbose:
+        if not self.log.debug:
             self.log.log(msg)
             return
         # U+00A0 NO-BREAK SPACE, U+2592 MEDIUM SHADE, U+2588 FULL BLOCK
@@ -3055,7 +3080,7 @@ class ConflictMatrix:
         self.log_matrix("conflict trial ok")
 
     def test_conflict_set(self, cc, cand):
-        if self.debug:
+        if self.log.debug:
             self.log.log("conflict candidate set: %s" % " ".join(cand))
         tset = []
         for i in range(len(cand)):
@@ -3076,7 +3101,7 @@ class ConflictMatrix:
         if len(tset) < 2:
             return (1, tset)
 
-        if self.debug:
+        if self.log.debug:
             self.log.log("conflict trial set: %s" % " ".join(tset))
 
         eset = []
@@ -3085,7 +3110,7 @@ class ConflictMatrix:
             if self.live_headers.has_key(h):
                 eset.extend(h.with_dependencies(already))
 
-        if self.debug:
+        if self.log.debug:
             self.log.log("conflict extended set: %s" % " ".join(eset))
 
         # handling of specials
@@ -3374,6 +3399,112 @@ class Dataset:
 
         log.end_test("done")
 
+class Inventory:
+    """An Inventory instance represents a complete inventory for this
+       platform.  There may be up to two Inventory objects on any
+       given run: one loaded from an existing data file, and another
+       constructed from scratch.  Inventory is responsible for high-level
+       control, mode-independent operations, and marshalling data in and out
+       of inventory files.
+
+       The inventory file format is ConfigParser-compatible, but we write it
+       out by hand, because Python 2.0's ConfigParser doesn't guarantee any
+       particular sort order."""
+
+    def __init__(self, cfg, log):
+        self.cfg      = cfg
+        self.log      = log
+        self.cc_cmd   = None
+        self.cc_env   = {}
+        self.cc       = None
+        self.metadata = None
+        self.datasets = []
+
+    def load_args(self, args):
+        self.cc_cmd = args.cc_cmd
+
+    def load_file(self, fp):
+        pass
+
+    def write_file(self, fp):
+        fp.write("# Generated by scansys.py on %s.\n"
+                 % time.strftime("%Y-%m-%d", time.localtime(time.time())))
+        self.metadata.write_label(fp)
+
+        # Additional information for resumable inventory-taking.
+        fp.write("[compiler]\n"
+                 "command    = %s\n"
+                 % list2shell(self.cc_cmd))
+        if self.cc_env:
+            fp.write("environ  = %s\n\n" % repr(self.cc_env))
+        else:
+            fp.write("\n")
+            "environ   = %s\n\n"
+        fp.write("[generation]\n"
+                 "config_v   = %s\n"
+                 "content_v  = %s\n\n"
+                 % (self.cfg.config_hash,
+                    self.cfg.content_hash))
+
+        self.metadata.write_modes(fp)
+
+        if self.datasets:
+            fp.write("\n")
+            self.write_overview(fp)
+            self.write_details(fp)
+
+        def write_overview(fp):
+            pass
+
+        def write_details(fp):
+            pass
+
+        # for dset in self.datasets:
+        #     sys.stdout.write(str(dset.mode) + "\n")
+        #     kk = dset.headers.items()
+        #     try:
+        #         kk.sort(key=lambda k: hsortkey(k[0]))
+        #     except (NameError, TypeError):
+        #         kk = [(hsortkey(k[0]), k[0], k[1]) for k in kk]
+        #         kk.sort()
+        #         kk = [(k[1], k[2]) for k in kk]
+        #     for _, h in kk:
+        #         if h.presence != h.UNKNOWN:
+        #             h.output(fp)
+
+
+
+    def take_label(self, skip_modes):
+        self.metadata = Metadata(self.cfg, self.log)
+        self.cc = self.metadata.probe_compiler(self.cc_cmd, self.cc_env,
+                                               skip_modes)
+        self.metadata.smoke_test()
+        self.metadata.probe_runtime(skip_modes)
+        self.metadata.log_modes()
+
+    def take_inventory(self, headers):
+        if not headers: return 1
+
+        self.metadata.smoke_test()
+        self.datasets = [Dataset(self.cfg, mode)
+                         for mode in self.metadata.modes]
+
+        for h in headers:
+            hh0 = self.datasets[0].get_header(h)
+            for dset in self.datasets:
+                if hh0.presence != hh0.ABSENT:
+                    hh = dset.get_header(h)
+                    hh.test(self.cc, self.log)
+
+        if self.log.error_occurred:
+            return 0
+
+        conflict_cache = {}
+        for dset in self.datasets:
+            dset.test_conflicts(self.cc, self.log, conflict_cache)
+
+        return not self.log.error_occurred
+
 #
 # Scanner configuration
 #
@@ -3442,23 +3573,23 @@ class Configuration:
     """All static configuration data (config/*.ini, content_tests/*.ini) is
        loaded into an instance of this class at startup."""
 
-    def __init__(self, cfgdir, ctdir):
-        self.cfgdir = cfgdir
-        self.ctdir = ctdir
+    def __init__(self, args):
+        self.cfgdir = args.cfgdir
+        self.ctdir = args.ctdir
 
         self.config_hasher = sha1()
         self.add_hash(self.config_hasher, sys.argv[0])
 
-        self.load_compilers(os.path.join(cfgdir, "compilers.ini"))
-        self.load_runtimes(os.path.join(cfgdir, "runtimes.ini"))
-        self.load_known_errors(os.path.join(cfgdir, "errors.ini"))
-        self.load_headers(os.path.join(cfgdir, "headers.ini"))
-        self.load_deps(os.path.join(cfgdir, "prereqs.ini"))
+        self.load_compilers(os.path.join(self.cfgdir, "compilers.ini"))
+        self.load_runtimes(os.path.join(self.cfgdir, "runtimes.ini"))
+        self.load_known_errors(os.path.join(self.cfgdir, "errors.ini"))
+        self.load_headers(os.path.join(self.cfgdir, "headers.ini"), args)
+        self.load_deps(os.path.join(self.cfgdir, "prereqs.ini"))
 
         self.config_hash = self.config_hasher.hexdigest()
         del self.config_hasher
 
-        self.load_content_tests(ctdir)
+        self.load_content_tests(self.ctdir)
 
     def add_hash(self, hasher, fname):
         def comment_line(l):
@@ -3501,12 +3632,17 @@ class Configuration:
         self.not_system_id_macros = cfg.get("META", "not_system_id_macros",
                                             raw=1)
 
-    def load_headers(self, fname):
+    def load_headers(self, fname, args):
         """Load the complete set of headers to process.  We do not instantiate
            Header objects at this time, because each Dataset object (of which
            there are potentially several on any given run) needs its own set
            of them."""
         self.add_hash(self.config_hasher, fname)
+
+        if args.headers:
+            self.headers = sorthdr(args.headers)
+            return
+
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
 
@@ -3649,75 +3785,229 @@ class Configuration:
                    list2shell(sys.argv)))
         log.log("")
 
-def main(argv):
-    def usage():
-        raise SystemExit("usage: %s ['compiler_id' | headers...] [-- cc [args]]"
-                         % sys.argv[0])
+#
+# Command line processing and top-level control.
+#
 
-    headers = None
-    ccmd = None
-    for i in range(len(argv)):
-        if argv[i] == "--":
-            if i == len(argv)-1:
-                usage()
-            headers = argv[1:i]
-            ccmd = argv[i+1:]
-            break
-    else:
-        if len(argv) > 1:
-            headers = argv[1:]
+class Args:
+    """Bespoke command line parser.  The only argument parser
+       available in py2.0 is getopt, which is not nearly clever
+       enough."""
 
-    cfg = Configuration("config", "content_tests")
-    if not headers:
-        headers = cfg.headers
-    if not ccmd:
-        ccmd = ["cc"]
+    def usage(self, err, offending_arg=None):
+        me = os.path.basename(sys.argv[0])
+        if offending_arg:
+            err = err % offending_arg
+        sys.stderr.write("%s: %s\n" % (me, err))
+        sys.stderr.write(
+            "usage: %s [options] inventory [headers] [-- cc [cc-opts...]]\n"
+            "Try '%s --help' for more information.\n"
+            % (me, me))
+        raise SystemExit(2)
 
-    if headers[0] == "compiler_id":
-        if len(headers) > 1: usage()
+    def help(self):
+        me = os.path.basename(sys.argv[0])
+        sys.stderr.write("""\
+usage: %s [options] inventory [headers] [-- cc [cc-opts...]]
 
-    log = Logger("st%d.log" % os.getpid(), verbose=0, progress=1)
+Identify a C compiler and runtime and inventory their header files.
+
+positional arguments:
+  inventory             name of inventory file to create or update;
+                        may be '-' to write to standard output
+  headers               if present, restrict the inventory to these headers;
+                        only valid if inventory doesn't already exist
+  cc, cc-opts           name of compiler to use, arguments to pass to compiler;
+                        only valid if inventory doesn't already exist;
+                        default for a new inventory is "cc"
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -q, --quiet           disable progress messages
+  -r, --recheck         recheck the results in an existing inventory, even if
+                        this appears to be unnecessary
+  -l LOG, --log=LOG     name of log file; defaults to name of inventory, with
+                        '.log' suffix
+  -s, --skip-id         do not identify the runtime in detail; tests will be
+                        done only in the selected compiler's default mode
+                        (useful for content test development:
+                            %s -s - HEADER -- COMPILER)
+  -d, --debug           enable extra detail in the logfile; useful only when
+                        debugging %s internals
+  --cfgdir=DIRECTORY    override location of directory containing config files
+                        (default: "config")
+  --ctdir=DIRECTORY     override location of directory containing content tests
+                        (default: "content_tests")
+    """ % (me, me, me))
+        raise SystemExit(0)
+
+    def __init__(self, argv):
+        # defaults
+        self.inventory = None
+        self.invfile   = None
+        self.logfile   = None
+        self.headers   = []
+        self.cc_cmd    = ["cc"]
+        self.cfgdir    = "config"
+        self.ctdir     = "content_tests"
+        self.progress  = 1
+        self.recheck   = 0
+        self.debug     = 0
+        self.skip_id   = 0
+        self.new_inv   = 0
+
+        i = 1
+        seen_opts = {}
+        len_logeq = len("--log=")
+        len_cfgeq = len("--cfgdir=")
+        len_ctdeq = len("--ctdir=")
+        position = "inventory"
+        while i < len(argv):
+            opt = argv[i]
+            i += 1
+
+            if opt == "":
+                self.usage("empty argument does not make sense (use '-' for "
+                           "standard output)")
+
+            if opt[0] == "-":
+                if seen_opts.has_key(opt):
+                    self.usage("'%s' specified twice", opt)
+                seen_opts[opt] = 1
+
+                if opt == "-h" or opt == "--help":
+                    self.help()
+                elif opt == "-q" or opt == "--quiet":
+                    self.progress = 0
+                elif opt == "-r" or opt == "--recheck":
+                    self.recheck = 1
+                elif opt == "-d" or opt == "--debug":
+                    self.debug = 1
+                elif opt == "-s" or opt == "--skip-id":
+                    self.skip_id = 1
+
+                elif opt == "-l" or opt == "--log":
+                    if i == len(argv):
+                        self.usage("'%s' requires an argument", opt)
+                    self.logfile = argv[i]
+                    i += 1
+                elif len(opt) >= len_logeq and opt[:len_logeq] == "--log=":
+                    if opt == "--log=":
+                        self.usage("'--log=' requires an argument")
+                    self.logfile = opt[len_logeq:]
+
+                elif opt == "--cfgdir":
+                    if i == len(argv):
+                        self.usage("'%s' requires an argument", opt)
+                    self.cfgdir = argv[i]
+                    i += 1
+                elif len(opt) >= len_cfgeq and opt[:len_cfgeq] == "--cfgdir=":
+                    if opt == "--cfgdir=":
+                        self.usage("'--cfgdir=' requires an argument")
+                    self.cfgdir = opt[len_cfgeq:]
+
+                elif opt == "--ctdir":
+                    if i == len(argv):
+                        self.usage("'%s' requires an argument", opt)
+                    self.ctdir = argv[i]
+                    i += 1
+                elif len(opt) >= len_ctdeq and opt[:len_ctdeq] == "--ctdir=":
+                    if opt == "--ctdir=":
+                        self.usage("'--ctdir=' requires an argument")
+                    self.ctdir = opt[len_ctdeq:]
+
+                elif opt == "-":
+                    if position != "inventory":
+                        self.usage("cannot use standard output for %s",
+                                   position)
+                    # Can't capture sys.stdout yet, instantiation of Logger
+                    # overwrites it.
+                    self.inventory = "-"
+                    self.invfile = "<standard output>"
+                    self.new_inv = 1
+                    if self.logfile is None:
+                        self.logfile = "scan-%d.log" % os.getpid()
+
+                elif opt == "--":
+                    # Everything after this point is the compiler and
+                    # options for the compiler.  Do not attempt to
+                    # interpret them at all.
+                    if i == len(argv):
+                        self.usage("'--' must be followed by compiler command")
+                    if self.inventory is None:
+                        self.usage("inventory file name is required")
+                    if not self.new_inv:
+                        self.usage("compiler command can only be specified "
+                                   "for a new inventory")
+
+                    self.cc_cmd = argv[i:]
+                    break
+
+                else:
+                    self.usage("invalid option '%s'", opt)
+
+            else: # positional argument
+                if position == "inventory":
+                    try:
+                        # It appears to be impossible to get O_CREAT
+                        # without O_TRUNC from the open() builtin.
+                        ifd = os.open(opt, os.O_RDWR|os.O_CREAT, 0666)
+                        st = os.fstat(ifd)
+                        self.inventory = os.fdopen(ifd, "r+b")
+                    except EnvironmentError, e:
+                        sys.stderr.write("%s: %s\n" % (opt, e.strerror))
+                        raise SystemExit(1)
+
+                    if (not stat.S_ISREG(st[stat.ST_MODE]) or
+                        st[stat.ST_SIZE] == 0):
+                        self.new_inv = 1
+
+                    self.invfile = opt
+                    if self.logfile is None:
+                        self.logfile = os.path.splitext(opt)[0] + ".log"
+
+                    position = "header"
+
+                else:
+                    if not self.new_inv:
+                        self.usage("headers to scan can only be specified "
+                                   "for a new inventory")
+                    headers.append(opt)
+
+        # cross-validation
+        if self.recheck and self.new_inv:
+            self.usage("--recheck only makes sense for an existing inventory")
+        if self.skip_id and not self.new_inv:
+            self.usage("--skip-id only makes sense for a new inventory")
+        if self.inventory is None:
+            self.usage("inventory file name is required")
+        if not os.path.isdir(self.cfgdir):
+            self.usage("'%s' is not a directory", self.cfgdir)
+        if not os.path.isdir(self.ctdir):
+            self.usage("'%s' is not a directory", self.ctdir)
+
+def main():
+    args = Args(sys.argv)
+    cfg = Configuration(args)
+    log = Logger(args.logfile, debug=args.debug, progress=args.progress)
     cfg.banner(log)
 
-    md = Metadata(cfg, log)
-    cc = md.probe_compiler(ccmd)
+    inv = Inventory(cfg, log)
+    if args.new_inv:
+        inv.load_args(args)
+    else:
+        inv.load_file(args.inventory)
 
-    md.smoke_test()
-    md.probe_runtime()
-    if headers[0] == "compiler_id":
-        cfg.report(sys.stdout)
-        md.report(sys.stdout)
-        return
+    inv.take_label(args.skip_id)
 
-    datasets = [Dataset(cfg, mode) for mode in md.modes]
+    #if not inv.take_inventory():
+    #    raise SystemExit(1)
 
-    for h in headers:
-        hh0 = datasets[0].get_header(h)
-        for dset in datasets:
-            if hh0.presence != hh0.ABSENT:
-                hh = dset.get_header(h)
-                hh.test(cc, log)
-            if log.error_occurred:
-                raise SystemExit(1)
+    if args.new_inv:
+        if args.inventory == "-": args.inventory = sys.stdout
+        inv.write_file(args.inventory)
+    else:
+        # atomic update goes here
+        pass
 
-    conflict_cache = {}
-    for dset in datasets:
-        dset.test_conflicts(cc, log, conflict_cache)
-        if log.error_occurred:
-            raise SystemExit(1)
-
-    for dset in datasets:
-        sys.stdout.write(str(dset.mode) + "\n")
-        kk = dset.headers.items()
-        try:
-            kk.sort(key=lambda k: hsortkey(k[0]))
-        except (NameError, TypeError):
-            kk = [(hsortkey(k[0]), k[0], k[1]) for k in kk]
-            kk.sort()
-            kk = [(k[1], k[2]) for k in kk]
-        for _, h in kk:
-            if h.presence != h.UNKNOWN:
-                h.output(sys.stdout)
-
-if __name__ == '__main__':
-    main(sys.argv)
+if __name__ == '__main__': main()
