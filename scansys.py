@@ -38,6 +38,24 @@ import string
 import sys
 import time
 
+# suppress all Python warnings, since we deliberately use deprecated
+# things (that were the only option in 2.0)
+try:
+    import warnings
+    warnings.simplefilter("ignore")
+except:
+    pass
+
+# on Windows, attempt to suppress "critical error" dialog boxes
+# (e.g. missing DLLs) which may pop up from subprocesses.
+if sys.platform == 'win32':
+    try:
+        import ctypes
+        # SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX|SEM_NOOPENFILEERRORBOX
+        ctypes.windll.kernel32.SetErrorMode(0x0001|0x0002|0x8000)
+    except:
+        pass
+
 # "True" division only became available in Python 2.2.  Therefore, it is a
 # style violation to use bare / or // anywhere in this program other than
 # via these wrappers.  Note that "from __future__ import division" cannot
@@ -130,12 +148,20 @@ def named_tmpfile(prefix="tmp", suffix="txt"):
                 raise
             # otherwise loop
 
-# The textwrap module was added in Python 2.3, and included all of the
-# features we use here at that time.
+# The textwrap module was added in Python 2.3.
+# break_on_hyphens was added in 2.6 and the constructor is _not_
+# forward compatible.
 try:
     import textwrap
-    _diagnostic_wrapper = textwrap.TextWrapper(width=76,
-                                               subsequent_indent="   ")
+    try:
+        _diagnostic_wrapper = textwrap.TextWrapper(width=76,
+                                                   subsequent_indent="   ",
+                                                   break_long_words=0,
+                                                   break_on_hyphens=0)
+    except TypeError:
+        _diagnostic_wrapper = textwrap.TextWrapper(width=76,
+                                                   subsequent_indent="   ",
+                                                   break_long_words=0)
     def wrap_diagnostic(msg):
         """Line-wrap diagnostic message MSG for output to a standard 80-
            column terminal.  Subsequent lines of the diagnostic are
@@ -265,6 +291,62 @@ def list2shell(argv):
     # Square brackets here required for pre-Python 2.4 compatibility.
     return " ".join([shellquote1(arg) for arg in argv])
 
+# The above quotation scheme is also used for serializing command
+# lines and command line fragments into inventories, so we need to
+# be able to undo it.
+
+if sys.platform == "win32":
+    # The least-effort way to undo quoting for CommandLineToArgvW is to
+    # call CommandLineToArgvW.
+    import ctypes
+    _CommandLineToArgvW = ctypes.windll.shell32.CommandLineToArgvW
+    _CommandLineToArgvW.argtypes = [ctypes.wintypes.LPCWSTR,
+                                    ctypes.POINTER(ctypes.c_int)]
+    _CommandLineToArgvW.restype = ctypes.wintypes.LPWSTR
+
+    def shell2list(cmdline):
+        # Phase 1: undo quoting for CMD.EXE.
+        buf1 = []
+        after_escape = 0
+        for c in cmdline:
+            if after_escape:
+                buf1.append(c)
+                after_escape = 0
+            else:
+                if c == '^':
+                    after_escape = 1
+                else:
+                    buf1.append(c)
+
+        buf1 = "".join(buf1)
+
+        # Phase 2: undo quoting for CommandLineToArgvW.
+        argc = ctypes.c_int(0)
+        argv = _CommandLineToArgvW(buf1, ctypes.byref(argc))
+        return [argv[i].encode("ascii") for i in range(argc.value)]
+
+else:
+    # shlex.split was added in 2.3.
+    # The fallback definition below is not quite right (because the 'posix'
+    # and 'whitespace_split' options were also only added in 2.3) but the
+    # difference only matters in cases that shouldn't come up, we hope.
+    # (For instance, empty arguments will be mishandled.)
+    try:
+        from shlex import split as shell2list
+    except ImportError:
+        from shlex import shlex as _shlex
+        def shell2list(cmdline):
+            lex = _shlex(StringIO.StringIO(cmdline))
+            lex.commenters = ''
+            lex.wordchars = (string.letters + string.digits +
+                             # all ASCII punctuation except '"`\
+                             "!#$%&()*+,-./:;<=>?@[]^_{|}~")
+            result = []
+            while True:
+                token = lex.get_token()
+                if token == "": break
+                result.append(token)
+            return result
 #
 # utility routines that aren't workarounds for old Python
 #
@@ -3838,7 +3920,7 @@ optional arguments:
                         (default: "config")
   --ctdir=DIRECTORY     override location of directory containing content tests
                         (default: "content_tests")
-    """ % (me, me, me))
+""" % (me, me, me))
         raise SystemExit(0)
 
     def __init__(self, argv):
