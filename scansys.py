@@ -327,9 +327,9 @@ if sys.platform == "win32":
     # call CommandLineToArgvW.
     import ctypes
     _CommandLineToArgvW = ctypes.windll.shell32.CommandLineToArgvW
-    _CommandLineToArgvW.argtypes = [ctypes.wintypes.LPCWSTR,
+    _CommandLineToArgvW.argtypes = [ctypes.c_wchar_p,
                                     ctypes.POINTER(ctypes.c_int)]
-    _CommandLineToArgvW.restype = ctypes.wintypes.LPWSTR
+    _CommandLineToArgvW.restype = ctypes.POINTER(ctypes.c_wchar_p)
 
     def shell2list(cmdline):
         # Phase 1: undo quoting for CMD.EXE.
@@ -2157,8 +2157,13 @@ class Metadata:
         elif not self.cc.is_cross_compiler():
             # If we are not cross compiling, we can probably trust
             # os.uname()[2] == `uname -r` to tell us a useful number.
-            version = os.uname()[2]
-            version_assumed = 0
+            try:
+                version = os.uname()[2]
+                version_assumed = 0
+            except AttributeError:
+                import platform
+                version = platform.uname()[2]
+                version_assumed = 0
 
         elif self.rt_version is not None:
             # We have to trust the version in the label.
@@ -2211,12 +2216,12 @@ class Metadata:
         # we use errno.h for this because it's universal, reasonably likely
         # to expose library-identification macros, and doesn't have a ton of
         # other junk in it.
-        (rc, output) = self.test_invoke_basic("#include <errno.h>",
-                                              self.preproc_cmd,
-                                              self.preproc_out,
-                                              self.dump_macros,
-                                              suppress_progress_tick=1,
-                                              want_output=1)
+        (rc, output) = self.cc.test_invoke_basic("#include <errno.h>",
+                                                 self.cc.preproc_cmd,
+                                                 self.cc.preproc_out,
+                                                 self.cc.dump_macros,
+                                                 suppress_progress_tick=1,
+                                                 want_output=1)
         if rc != 0:
             self.log.fatal("failed to dump predefined macros")
 
@@ -2345,8 +2350,14 @@ class Metadata:
         self.log.begin_test("determining default C standard")
         # Some Unix vendor compilers define __STDC__ to 0 to indicate their
         # extended-ISO mode, so don't check its value.
+        # Even worse, MSVC doesn't define __STDC__ at all unless put in
+        # strictly conforming mode.
+        # So instead, we do a little dance with macros
+        # that should only work with an ISO-conformant preprocessor.
         code = [
-            "#ifndef __STDC__",
+            "#define iso_conformant 1",
+            "#define paste(x,y) x##y",
+            "#if !paste(iso,_conformant)",
             "#error \"traditional\"",
             "#endif"
         ]
@@ -2370,7 +2381,7 @@ class Metadata:
             self.log.end_test("failed")
             self.log.fatal("unable to determine default C standard. "
                            "Check configuration for %s in %s."
-                           % (self.compiler_id, self.cfg.compiler_cfg_fname))
+                           % (self.cc_id, self.cfg.compiler_cfg_fname))
         if level == "traditional":
             self.log.end_test("traditional")
             self.log.fatal("Inventory-taking requires an ISO C compiler. "
@@ -2386,7 +2397,7 @@ class Metadata:
             self.log.fatal("Configuration for %s in %s says it does not "
                            "support %s, but according to __STDC_VERSION__ "
                            "that is the default. Please investigate."
-                           % (self.compiler_id, self.compiler_cfg_fname,
+                           % (self.cc_id, self.compiler_cfg_fname,
                               cstd_dflt))
 
 
@@ -2401,7 +2412,7 @@ class Metadata:
             code = "#if 1 "
             for val in version_values:
                 code = code + " && __STDC_VERSION__ != " + val
-                code = code + "\n#error \"wrong version\"\n#endif\n"
+            code = code + "\n#error \"wrong version\"\n#endif\n"
 
             (rc, msg) = self.cc.test_invoke_basic(code,
                                                   self.cc.preproc_cmd,
@@ -3132,7 +3143,7 @@ def header_fmt_overview(h, datasets):
     if conflicts:
         conflicts.sort()
         overview += " (conflict: %s)" % \
-            (s, ",".join([str(m) for m in conflicts]))
+            ",".join([str(m) for m in conflicts])
 
     return overview
 
@@ -3889,7 +3900,7 @@ class Inventory:
                 if rc != 0:
                     self.log.fatal("failed to %s simple test program %s. "
                                    "Check configuration for %s in %s."
-                                   % (action, mode, self.compiler_id,
+                                   % (action, mode, self.metadata.cc_id,
                                       self.cfg.compiler_cfg_fname))
 
                 # This code should also compile without complaint.
@@ -3906,7 +3917,7 @@ class Inventory:
                                    "Ensure configuration for %s in %s "
                                    "suppresses errors for unsupported #pragma "
                                    "directives."
-                                   % (action, mode, self.compiler_id,
+                                   % (action, mode, self.metadata.cc_id,
                                       self.cfg.compiler_cfg_fname))
 
                 # This code should _not_ compile, and we should detect
@@ -3922,7 +3933,7 @@ class Inventory:
                     self.log.fatal(
                         "failed to detect nonexistence of <nonexistent.h>"
                         " (%s %s). Check configuration for %s in %s."
-                        % (mode, action, self.compiler_id,
+                        % (mode, action, self.metadata.cc_id,
                            self.cfg.compiler_cfg_fname))
 
             # We should be able to tell that the error in this code is
@@ -3946,12 +3957,13 @@ class Inventory:
                     else:
                         self.log.fatal("error on unexpected line %s. "
                                        "Check configuration for %s in %s."
-                                       % (m.group(line), self.compiler_id,
+                                       % (m.group(line),
+                                          self.metadata.cc_id,
                                           self.cfg.compiler_cfg_fname))
             else:
                 self.log.fatal("failed to detect error on line 3. "
                                "Check configuration for %s in %s."
-                               % (self.compiler_id, ccs_f,
+                               % (self.metadata.cc_id,
                                   self.cfg.compiler_cfg_fname))
 
         self.log.end_test("ok")
@@ -4010,10 +4022,10 @@ class CompilerSpec:
         """Convert LEVEL (which must be "1989", "1999", or "2011") to
            a pair of arrays of command-line options that select that level
            of standard conformance -- (extended, strict) in that order."""
-        opts = getattr(self, "c"+level)
-        if level == "no":
+        opts = getattr(self, "c"+level).strip()
+        if opts == "no":
             return (None, None)
-        if level == "":
+        if opts == "":
             opts_ext = []
             opts_std = []
         else:
