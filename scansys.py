@@ -176,6 +176,22 @@ try:
            indented for clarity."""
         return _diagnostic_wrapper.fill(msg)
 
+    def wrap_long_list(key, value):
+        """Line-wrap the long list VALUE for output as part of an inventory.
+           KEY is the .ini-file key it is to be associated with."""
+        try:
+            wrapper = textwrap.TextWrapper(width=78,
+                                           initial_indent = key + " = ",
+                                           subsequent_indent = "   ",
+                                           break_long_words=0,
+                                           break_on_hyphens=0)
+        except TypeError:
+            wrapper = textwrap.TextWrapper(width=78,
+                                           initial_indent = key + " = ",
+                                           subsequent_indent = "   ",
+                                           break_long_words=0)
+        return wrapper.wrap(value)
+
 except (ImportError, AttributeError):
     def wrap_diagnostic(msg):
         """As above but using a less sophisticated paragraph-filling
@@ -192,6 +208,9 @@ except (ImportError, AttributeError):
             line.append(word)
         obuf.append(" ".join(line))
         return "\n".join(obuf)
+
+    def wrap_long_list(key, value):
+        raise NotImplementedError
 
 # The hashlib module was added in Python 2.5.
 # Older Python does not appear to provide sha256, and sha1 should be good
@@ -879,7 +898,7 @@ class TestItem:
        incorrectly defined symbols.  Finally, the _meaning_ may be one of
        self.MISSING (if this test fails, the symbol is not defined at all);
        self.INCORRECT (if this test fails, the symbol is defined
-       incorrectly); or self.AMBIGUOUS (if this test fails, the symbol is
+       incorrectly); or self.UNCERTAIN (if this test fails, the symbol is
        either unavailable or incorrect; we can't tell which).
 
        Each test is generated on exactly one line, so that we don't have
@@ -887,7 +906,7 @@ class TestItem:
 
     MISSING   = 'M'
     INCORRECT = 'W'
-    AMBIGUOUS = 'X'
+    UNCERTAIN = 'X'
 
     def __init__(self, infname, std, mod, tag, meaning):
         """Subclasses will need to extend this constructor to save
@@ -1284,7 +1303,7 @@ class TestSpecialDecls(TestComponent):
     def pp_normal(self, k, v):
         (dtype, init) = splitto(v, "=", 2)
         self.items.append(TestDecl(self.infname, self.std, self.mod,
-                                   tag=k, meaning=TestItem.AMBIGUOUS,
+                                   tag=k, meaning=TestItem.UNCERTAIN,
                                    dtype=dtype, init=init))
 
 
@@ -1329,7 +1348,7 @@ class TestFnMacros(TestComponent):
         # Function-like macros can only be tested by calling them in
         # the usual way.
         self.items.append(TestFn(self.infname, self.std, self.mod,
-                                 tag=k, meaning=TestItem.AMBIGUOUS,
+                                 tag=k, meaning=TestItem.UNCERTAIN,
                                  rtype = rtype,
                                  argv  = argdecl,
                                  body  = "%s%s(%s);" % (return_, k, call)))
@@ -1365,7 +1384,7 @@ class TestSpecial(TestComponent):
             tag = items["__tested__"]
             body = items["__body__"]
             tfn = TestFn(self.infname, self.std, self.mod,
-                         tag=tag, meaning=TestItem.AMBIGUOUS,
+                         tag=tag, meaning=TestItem.UNCERTAIN,
                          rtype=rtype, argv=argv, body=body)
             for t in tag.split():
                 self.items.append(tfn)
@@ -1378,11 +1397,11 @@ class TestSpecial(TestComponent):
                     vx = v.split(":", 1)
                     if len(vx) == 2:
                         tfn = TestFn(self.infname, self.std, self.mod,
-                                     tag=k, meaning=TestItem.AMBIGUOUS,
+                                     tag=k, meaning=TestItem.UNCERTAIN,
                                      rtype=vx[0], argv=argv, body=vx[1])
                     else:
                         tfn = TestFn(self.infname, self.std, self.mod,
-                                     tag=k, meaning=TestItem.AMBIGUOUS,
+                                     tag=k, meaning=TestItem.UNCERTAIN,
                                      rtype=rtype, argv=argv, body=v)
                     self.items.append(tfn)
 
@@ -1598,20 +1617,18 @@ class TestProgram:
 class KnownError:
     """A known way in which a header (or headers) can fail to compile
        successfully.  NAME is a mnemonic label for this failure case;
-       HEADERS are the headers it applies to ("*" for potentially all of
-       them); REGEXP is a regular expression that will match error messages
-       indicating this failure mode; DESC is a human-readable description
-       of the problem; CAUTION is true if this problem is not so severe
-       that the header can't be used at all; and THREADS is true if this
-       problem indicates that special "threads" options are required for this
-       header. These correspond precisely to the fields of each stanza of
-       config/errors.ini."""
-    def __init__(self, name, headers, regexp, desc, caution, threads):
+       HEADERS are the headers it applies to ("*" for potentially all
+       of them); REGEXP is a regular expression that will match error
+       messages indicating this failure mode; DESC is a human-readable
+       description of the problem; and THREADS is true if this problem
+       indicates that special "threads" options are required for this
+       header. These correspond precisely to the fields of each stanza
+       of config/errors.ini."""
+    def __init__(self, name, headers, regexp, desc, threads):
         self.name = name
         self.headers = headers
         self.regexp = re.compile(regexp, re.VERBOSE)
         self.desc = desc
-        self.caution = caution
         self.threads = threads
 
     def search(self, msg):
@@ -1620,7 +1637,7 @@ class KnownError:
 
 # Stopgap value used to preserve data structure consistency when we
 # hit a failure mode that isn't coded into config/errors.ini yet.
-UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0, 0)
+UnrecognizedError = KnownError("<unrecognized>", "*", "", "", 0)
 
 class ContentTestResultCluster:
     """Data structure object used by ContentTestResult."""
@@ -1638,56 +1655,54 @@ class ContentTestResult:
 
     def __init__(self, tester, cfg):
         self.missing_items = None
-        self.wrong_items = None
+        self.incorrect_items = None
         self.uncertain_items = None
-        self.badness = 0
 
         missing = {}
-        wrong = {}
+        incorrect = {}
         uncertain = {}
         all_symbols = {}
 
         for std, mods in tester.std_index.items():
             for mod, components in mods.items():
 
-                bad = (std == tester.baseline and
-                       cfg.required_modules.has_key(mod))
-
                 for comp in components:
                     disabled = comp.disabled_items()
                     for item in disabled:
-                        self.badness |= bad
                         if item.meaning == TestItem.INCORRECT:
-                            wrong[item.tag] = 1
+                            incorrect[item.tag] = 1
                         elif item.meaning == TestItem.MISSING:
                             missing[item.tag] = 1
                         else:
-                            assert item.meaning == TestItem.AMBIGUOUS
+                            assert item.meaning == TestItem.UNCERTAIN
                             uncertain[item.tag] = 1
 
-        # A 'missing' item trumps a 'wrong' or 'uncertain' item
+        # A 'missing' item trumps a 'incorrect' or 'uncertain' item
         # with the same tag.
         for tag in missing.keys():
-            if wrong.has_key(tag): del wrong[tag]
+            if incorrect.has_key(tag): del incorrect[tag]
             if uncertain.has_key(tag): del uncertain[tag]
-
-        if tester.all_disabled():
-            self.badness = 2
 
         if missing:
             self.missing_items = ContentTestResultCluster(missing.keys())
-        if wrong:
-            self.wrong_items = ContentTestResultCluster(wrong.keys())
+        if incorrect:
+            self.incorrect_items = ContentTestResultCluster(incorrect.keys())
         if uncertain:
             self.uncertain_items = ContentTestResultCluster(uncertain.keys())
 
-    def output(self, outf):
+    def fmt_missing(self):
         if self.missing_items is not None:
-            outf.write("  $M %s\n" % self.missing_items)
-        if self.wrong_items is not None:
-            outf.write("  $W %s\n" % self.wrong_items)
+            return str(self.missing_items)
+        else: return ""
+    def fmt_incorrect(self):
+        if self.incorrect_items is not None:
+            return str(self.incorrect_items)
+        else: return ""
+    def fmt_uncertain(self):
         if self.uncertain_items is not None:
-            outf.write("  $X %s\n" % self.uncertain_items)
+            return str(self.uncertain_items)
+        else: return ""
+
 
 #
 # Compilation
@@ -2683,9 +2698,9 @@ class Dependency:
        objects are usable as dictionary keys."""
 
     # A dependency may or may not be "present" on a given system.
-    UNKNOWN = '?'
-    ABSENT  = '-'
-    PRESENT = ' '
+    UNKNOWN = "unknown"
+    ABSENT  = "absent"
+    PRESENT = "present"
 
     def __init__(self, name):
         self.what = self.__class__.__name__
@@ -2770,47 +2785,29 @@ class Header(Dependency):
        Information about other headers to try including first is stored
        in the configuration file 'config/prereqs.ini', q.v."""
 
-    # State codes as written to the file.  Some of these are also used
-    # for internal flags.  UNKNOWN, ABSENT, and PRESENT must match the
-    # definitions in Dependency; they are redefined here because of
-    # Python's scoping rules.
-    UNKNOWN    = '?'
-    ABSENT     = '-'
-    BUGGY      = '!'
+    # In addition to being present, absent, or unknown, a header's
+    # high-order state may be buggy, incomplete, or correct.  UNKNOWN,
+    # ABSENT, and PRESENT must match the definitions in Dependency;
+    # they are redefined here because of Python's scoping rules.
+    UNKNOWN    = "unknown"
+    ABSENT     = "absent"
+    PRESENT    = "present"
 
-    PRESENT    = ' '
-    INCOMPLETE = '*'
-    CORRECT    = '+'
+    BUGGY      = "buggy"
+    INCOMPLETE = "incomplete"
+    CORRECT    = "correct"
 
-    PRES_DEP   = '%'
-    INCO_DEP   = '&'
-    CORR_DEP   = '@'
-
-    PRES_CAU   = '~'
-    INCO_CAU   = '^'
-    CORR_CAU   = '='
-
-    # Complete list of valid state codes, for validation on reread.
-    STATES = (UNKNOWN,  ABSENT,     BUGGY,
-              PRESENT,  INCOMPLETE, CORRECT,
-              PRES_DEP, INCO_DEP,   CORR_DEP,
-              PRES_CAU, INCO_CAU,   CORR_CAU)
-
-    # Human readable labels for the states.
-    STATE_LABELS = {
-        UNKNOWN    : "UNKNOWN",
-        ABSENT     : "ABSENT",
-        BUGGY      : "BUGGY",
-        PRESENT    : "PRESENT",
-        INCOMPLETE : "INCOMPLETE",
-        CORRECT    : "CORRECT",
-        PRES_DEP   : "PRESENT (DEPENDENT)",
-        INCO_DEP   : "INCOMPLETE (DEPENDENT)",
-        CORR_DEP   : "CORRECT (DEPENDENT)",
-        PRES_CAU   : "PRESENT (CAUTION)",
-        INCO_CAU   : "INCOMPLETE (CAUTION)",
-        CORR_CAU   : "CORRECT (CAUTION)",
-    }
+    # The set of all high-order states.  The number is the "quality" of the
+    # state (higher is in some sense better).
+    STATES = { UNKNOWN:    0,
+               ABSENT:     1,
+               BUGGY:      2,
+               PRESENT:    3,
+               INCOMPLETE: 4,
+               CORRECT:    5 }
+    STATES_IN_DESCENDING_QUALITY_ORDER = [
+        CORRECT, INCOMPLETE, PRESENT, BUGGY, ABSENT, UNKNOWN
+    ]
 
     def __init__(self, name, cfg, dataset):
         Dependency.__init__(self, name)
@@ -2819,12 +2816,11 @@ class Header(Dependency):
         self.dataset = dataset
 
         # done in Dependency.__init__, preserved here for documentation:
-        #self.presence  = self.UNKNOWN # can be ABSENT, BUGGY, PRESENT
+        #self.presence  = self.UNKNOWN # or ABSENT, PRESENT, BUGGY
 
-        self.contents  = self.UNKNOWN # can be PRESENT, INCOMPLETE, CORRECT
+        self.contents  = self.UNKNOWN # or PRESENT, INCOMPLETE, CORRECT
         self.depends   = None # None=unknown, 0=no, 1=yes
         self.conflict  = None # None=unknown, 0=no, 1=yes
-        self.caution   = 0    # 0=no or unknown, 1=yes, 2=contents only
 
         # done in Dependency.__init__, preserved here for documentation:
         #self.deplist = []
@@ -2833,98 +2829,67 @@ class Header(Dependency):
 
         self.content_results = None
 
+    def state_label(self):
+        """Report the high-level state of this header."""
+        if self.presence != self.PRESENT:
+            return self.presence
+        else:
+            return self.contents
+
+    def fmt_deplist(self):
+        return " ".join(sorthdr([h.name for h in self.deplist]))
+
+    def fmt_errlist(self):
+        errs = [e.name for e in self.errlist]
+        errs.sort()
+        return " ".join(errs)
+
+    def fmt_conflist(self):
+        return " ".join(sorthdr([c.name for c in self.conflist]))
+
     def log_tests(self, log):
-        outf = StringIO.StringIO()
-        outf.write(" presence: " + self.STATE_LABELS[self.presence] + "\n")
-        outf.write(" contents: " + self.STATE_LABELS[self.contents] + "\n")
-        outf.write("  depends: " + repr(self.depends) + "\n")
-        outf.write("  caution: " + repr(self.caution) + "\n")
-        outf.write("  deplist: %s\n"
-                   % " ".join([h.name for h in self.deplist]))
-        outf.write("  errlist: %s\n"
-                   % " ".join([h.name for h in self.errlist]))
+        details = ["  presence: " + self.presence,
+                   "  contents: " + self.contents,
+                   "   depends: " + repr(self.depends),
+                   "   deplist: " + self.fmt_deplist(),
+                   "   errlist: " + self.fmt_errlist()]
 
         if self.content_results is not None:
-            outf.write(" contents:\n")
-            self.content_results.output(outf)
+            details.extend([
+                   "   missing: " + self.content_results.fmt_missing(),
+                   " incorrect: " + self.content_results.fmt_incorrect(),
+                   " uncertain: " + self.content_results.fmt_uncertain()])
 
-        log.log("%s = %s" % (self.name, self.state_label()),
-                outf.getvalue().split("\n"))
+        log.log("%s = %s" % (self.name, self.state_label()), details)
 
     def log_conflicts(self, log):
         log.log("%s = %s" % (self.name, self.state_label()),
                 [" conflict: " + repr(self.conflict),
-                 " conflist: " + " ".join([h.name for h in self.conflist])])
+                 " conflist: " + self.fmt_conflist()])
 
-    def state_code(self):
-        if self.presence != self.PRESENT:
-            # unknown/absent/buggy exclude all other indicators.
-            return self.presence
-        else:
-            assert self.depends is not None
-
-            caution = (self.conflict or self.caution)
-            if self.contents == self.PRESENT:
-                if        caution: return self.PRES_CAU
-                elif self.depends: return self.PRES_DEP
-                else:              return self.PRESENT
-            elif self.contents == self.INCOMPLETE:
-                if        caution: return self.INCO_CAU
-                elif self.depends: return self.INCO_DEP
-                else:              return self.INCOMPLETE
-            else:
-                assert self.contents == self.CORRECT
-                if        caution: return self.CORR_CAU
-                elif self.depends: return self.CORR_DEP
-                else:              return self.CORRECT
-
-    def state_label(self):
-        return self.STATE_LABELS[self.state_code()]
-
-    def output(self, outf):
-        outf.write("%s%s\n" % (self.state_code(), self.name))
-        if len(self.deplist) == 0:
-            pass
-        elif isinstance(self.deplist[0], SpecialDependency):
-            assert len(self.deplist) == 1
-            outf.write("  $S %s\n" % self.deplist[0].name)
-        else:
-            self.output_annlist(outf, 'P', self.deplist)
-        self.output_annlist(outf, 'C', sorthdr(self.conflist))
-        self.output_annlist(outf, 'E', self.errlist)
-        if self.content_results is not None:
-            self.content_results.output(outf)
-
-    def output_annlist(self, outf, tag, lst):
-        if lst:
-            outf.write("  $%s %s\n" %
-                       (tag, " ".join([h.name for h in lst])))
-
-    def extend_errlist(self, errs):
+    def extend_errlist(self, errs, content):
         for e in errs:
             for x in self.errlist:
                 if x.name == e.name:
                     break
             else:
                 self.errlist.append(e)
-                if e.caution:
-                    self.caution = 1
+                if content:
+                    self.contents = self.BUGGY
                 else:
                     self.presence = self.BUGGY
 
-    def record_errors(self, log, msg, ignore_unknown=0):
+    def record_errors(self, log, msg, ignore_unknown=0, content=0):
         errs = self.cfg.is_known_error(msg, self.name)
         if errs is not None:
-            log.debug_progress_note("*** errors detected: %s"
-                                    % " ".join([err.name for err in errs]))
-            self.extend_errlist(errs)
+            self.extend_errlist(errs, content)
         else:
             if ignore_unknown: return
 
             log.error("unrecognized failure mode for <%s>. "
                       "Please investigate and add an entry to %s."
                       % (self.name, self.cfg.errors_fname))
-            self.extend_errlist([UnrecognizedError])
+            self.extend_errlist([UnrecognizedError], content)
 
     def record_conflict(self, other):
         self.conflict = 1
@@ -2957,7 +2922,7 @@ class Header(Dependency):
         self.test_contents(cc, log)
         self.log_tests(log)
 
-        result = self.state_label().lower()
+        result = self.state_label()
         if self.errlist:
             result = result + ": " + " ".join([e.name for e in self.errlist])
 
@@ -3070,14 +3035,14 @@ class Header(Dependency):
                 # and it _still_ didn't go through.
                 log.error("unrecognized failure mode for <%s> (contents tests)."
                          % self.name)
-                self.extend_errlist(0, 0, [UnrecognizedError])
+                self.extend_errlist(0, 0, [UnrecognizedError], content=1)
                 return
 
             # Record any known errors (for instance, a macro might
             # trigger the infamous legacy_type_decls).  Do not record
             # unknown errors; they are probably from the test code,
             # not the header.
-            self.record_errors(log, msg, ignore_unknown=1)
+            self.record_errors(log, msg, ignore_unknown=1, content=1)
 
             # The source file will be the last space-separated token on
             # the first line of 'msg'.
@@ -3114,28 +3079,186 @@ class Header(Dependency):
 
         # If we get here, we just had a successful compilation with at
         # least some items disabled.  Annotate accordingly.
-        result = tester.results(self.cfg)
-        if result.badness == 0:
-            # Only optional items failed the tests.
+        if self.contents == self.UNKNOWN:
             self.contents = self.INCOMPLETE
-        elif result.badness == 1:
-            # Some required items failed the tests.
-            self.contents = self.INCOMPLETE
-            self.caution = 2 # contents-only caution (doesn't inhibit
-                             # conflict tests)
-        else:
-            # _All_ items failed the tests.
-            assert result.badness == 2
-            self.presence = self.BUGGY
-
-        self.content_results = result
+        self.content_results = tester.results(self.cfg)
 
 # These are properly Header class methods, but we can't do that in py2.0.
+def better_state(s1, s2):
+    """Returns -1, 0, or 1 depending on which of the header states S1
+       and S2 is 'better' (closer to 100% correct); same ordering rule
+       as cmp()."""
+    return cmp(Header.STATES[s1], Header.STATES[s2])
+
 def header_fmt_overview(h, datasets):
-    return "stub"
+    """Return an 'overview' entry for the header named H, aggregating
+       information across all the DATASETS.
+
+       An overview entry looks like this:
+           best-case [(problem: modes) [(problem: modes) ...]]
+
+       where 'best-case' is the optimal state label for this header,
+       and each 'problem' is a less-optimal state label which applies
+       in only some modes."""
+    best_case = Header.UNKNOWN
+    failings = {}
+    conflicts = []
+    for dset in datasets:
+        hdr = dset.get_header(h)
+
+        if hdr.conflict == 1:
+            conflicts.append(dset.mode)
+
+        label = hdr.state_label()
+        if not failings.has_key(label):
+            failings[label] = []
+        failings[label].append(dset.mode)
+
+        if better_state(label, best_case) == 1:
+            best_case = label
+
+    overview = best_case
+    for s in Header.STATES_IN_DESCENDING_QUALITY_ORDER:
+        if s == best_case: continue
+        # Absent headers are not tested in all modes, so we can have
+        # UNKNOWNs in there.  Any other occurrence of UNKNOWN is a bug.
+        if s == Header.UNKNOWN and best_case == Header.ABSENT: continue
+        if not failings.has_key(s): continue
+        assert s != Header.UNKNOWN
+        modes = failings[s]
+        modes.sort()
+        overview += " (%s: %s)" % (s, ",".join([str(m) for m in modes]))
+
+    if conflicts:
+        conflicts.sort()
+        overview += " (conflict: %s)" % \
+            (s, ",".join([str(m) for m in conflicts]))
+
+    return overview
+
+def header_fmt_detail(tag, data, all_modes, output):
+    """Subroutine of header_fmt_details and header_fmt_contents.
+       Aggregate one type of detail information and append appropriate
+       information to OUTPUT."""
+    if not data: return
+    for dset in data.keys():
+        modes = data[dset]
+        modes.sort()
+        if "|".join([str(m) for m in modes]) == all_modes:
+            output.extend(wrap_long_list(tag, dset))
+            break
+    else:
+        for (dset, modes) in data.items():
+            modes.sort()
+            for m in modes:
+                output.extend(wrap_long_list("%s.%s" % (tag, m), dset))
 
 def header_fmt_details(h, datasets):
-    return "" #stub
+    """Return a details entry for header H, aggregating information
+       across all the DATASETS.
+
+       If a header is ABSENT, PRESENT, or CORRECT in all modes, and
+       has neither conflicts nor dependencies in any mode, then there
+       are no details to report and we return an empty string.
+       Otherwise, we return a formatted .ini section looking like this:
+
+           [name of header]
+           depends   = a b c
+           conflicts = a b c
+           errors    = tag tag tag
+
+       If any of the above are specific to a mode, then we repeat the
+       statement for each mode it applies to, e.g.
+
+           errors.c1989_cstd = tag tag
+           errors.c2011_cstd = tag tag
+
+       We do not attempt to cluster annotations that are common to some
+       but not all modes."""
+
+    depends   = {}
+    conflicts = {}
+    errors    = {}
+    all_modes = []
+
+    def note(dset, target, datum):
+        if datum == "": return 0
+        if not target.has_key(datum): target[datum] = []
+        target[datum].append(dset.mode)
+        return 1
+
+    for dset in datasets:
+        hdr = dset.get_header(h)
+        if (note(dset, depends,   hdr.fmt_deplist()) or
+            note(dset, conflicts, hdr.fmt_conflist()) or
+            note(dset, errors,    hdr.fmt_errlist())):
+            all_modes.append(dset.mode)
+
+    if not depends and not conflicts and not errors:
+        return ""
+
+    all_modes.sort()
+    all_modes = "|".join([str(m) for m in all_modes])
+
+    output = ["[%s]" % h]
+    header_fmt_detail("depends",   depends,   all_modes, output)
+    header_fmt_detail("conflicts", conflicts, all_modes, output)
+    header_fmt_detail("errors",    errors,    all_modes, output)
+
+    output.append("")
+    output.append("")
+    return "\n".join(output)
+
+def header_fmt_contents(h, datasets):
+    """Return a contents entry for header H, aggregating information
+       across all the DATASETS.  Content information is separated from
+       regular details because it is both verbose and less likely to
+       reflect a *problem* that a human curator should notice before
+       submitting the inventory.
+
+       Contents entries only appear for headers that are INCOMPLETE in
+       at least some modes.  They look like this:
+
+           [contents:name of header]
+           missing   = tag tag tag
+           incorrect = tag tag tag
+           uncertain = tag tag tag
+
+       As for details, we repeat each statement for each mode it
+       applies to."""
+
+    missing   = {}
+    incorrect = {}
+    uncertain = {}
+    all_modes = []
+
+    def note(dset, target, datum):
+        if datum == "": return
+        if not target.has_key(datum): target[datum] = []
+        target[datum].append(dset.mode)
+
+    for dset in datasets:
+        hdr = dset.get_header(h)
+        if hdr.content_results is not None:
+            all_modes.append(dset.mode)
+            note(dset, missing,   hdr.content_results.fmt_missing())
+            note(dset, incorrect, hdr.content_results.fmt_incorrect())
+            note(dset, uncertain, hdr.content_results.fmt_uncertain())
+
+    if not missing and not incorrect and not uncertain:
+        return ""
+
+    all_modes.sort()
+    all_modes = "|".join([str(m) for m in all_modes])
+
+    output = ["[contents:%s]" % h]
+    header_fmt_detail("missing",   missing,   all_modes, output)
+    header_fmt_detail("incorrect", incorrect, all_modes, output)
+    header_fmt_detail("uncertain", uncertain, all_modes, output)
+
+    output.append("")
+    output.append("")
+    return "\n".join(output)
 
 class ConflictMatrix:
     """Data structure used by the conflict tester.  Provides a canonical
@@ -3579,7 +3702,6 @@ class Dataset:
         headers = []
         for h in self.headers.values():
             if h.presence != h.PRESENT: continue
-            if h.caution == 1: continue
             assert h.depends is not None
             headers.append(h)
 
@@ -3713,8 +3835,20 @@ class Inventory:
         self.metadata.write_modes(fp)
 
         if self.datasets:
-            self.write_overview(fp)
-            self.write_details(fp)
+            fp.write("[headers]\n")
+            l = 0
+            for h in self.headers:
+                l = max(l, len(h))
+            for h in self.headers:
+                fp.write("%-*s = %s\n"
+                         % (l, h, header_fmt_overview(h, self.datasets)))
+            fp.write("\n")
+
+            for h in self.headers:
+                fp.write(header_fmt_details(h, self.datasets))
+
+            for h in self.headers:
+                fp.write(header_fmt_contents(h, self.datasets))
 
         # Generation numbers go dead last, because the human auditing the
         # inventory doesn't need to look at them.
@@ -3723,20 +3857,6 @@ class Inventory:
                  "content_v  = %s\n"
                  % (self.cfg.config_hash,
                     self.cfg.content_hash))
-
-    def write_overview(self, fp):
-        fp.write("[headers]\n")
-        l = 0
-        for h in self.headers:
-            l = max(l, len(h))
-        for h in self.headers:
-            fp.write("%-*s = %s\n" % (l, h,
-                                      header_fmt_overview(h, self.datasets)))
-        fp.write("\n")
-
-    def write_details(self, fp):
-        for h in self.headers:
-            fp.write(header_fmt_details(h, self.datasets))
 
     def take_label(self):
         if self.cc is None:
@@ -4056,10 +4176,6 @@ class Configuration:
                 headers = cfg.get(tag, "header").split()
             else:
                 headers = ["*"]
-            if cfg.has_option(tag, "caution"):
-                caution = int(cfg.get(tag, "caution"))
-            else:
-                caution = 0
             if cfg.has_option(tag, "threads"):
                 threads = int(cfg.get(tag, "threads"))
             else:
@@ -4067,7 +4183,7 @@ class Configuration:
             err = KnownError(tag, headers,
                              cfg.get(tag, "regexp"),
                              cfg.get(tag, "desc"),
-                             caution, threads)
+                             threads)
             errors_by_tag[tag] = err
             for h in headers:
                 if errors_by_header.has_key(h):
