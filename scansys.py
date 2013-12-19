@@ -2234,6 +2234,7 @@ class Metadata:
             l = max(l, len(str(mode)))
         for mode in self.modes:
             outf.write("%-*s = %s\n" % (l, mode, list2shell(mode.options)))
+        outf.write("\n")
 
     def read_modes(self, parser):
         """Read in a [modes] section and set up to test all of the named
@@ -3129,6 +3130,13 @@ class Header(Dependency):
 
         self.content_results = result
 
+# These are properly Header class methods, but we can't do that in py2.0.
+def header_fmt_overview(h, datasets):
+    return "stub"
+
+def header_fmt_details(h, datasets):
+    return "" #stub
+
 class ConflictMatrix:
     """Data structure used by the conflict tester.  Provides a canonical
        ordering of the headers, and records which pairs have already been
@@ -3701,37 +3709,34 @@ class Inventory:
         else:
             fp.write("\n")
             "environ   = %s\n\n"
-        fp.write("[generation]\n"
-                 "config_v   = %s\n"
-                 "content_v  = %s\n\n"
-                 % (self.cfg.config_hash,
-                    self.cfg.content_hash))
 
         self.metadata.write_modes(fp)
 
         if self.datasets:
-            fp.write("\n")
             self.write_overview(fp)
             self.write_details(fp)
 
-        def write_overview(fp):
-            pass#stub
+        # Generation numbers go dead last, because the human auditing the
+        # inventory doesn't need to look at them.
+        fp.write("[generation]\n"
+                 "config_v   = %s\n"
+                 "content_v  = %s\n"
+                 % (self.cfg.config_hash,
+                    self.cfg.content_hash))
 
-        def write_details(fp):
-            pass#stub
+    def write_overview(self, fp):
+        fp.write("[headers]\n")
+        l = 0
+        for h in self.headers:
+            l = max(l, len(h))
+        for h in self.headers:
+            fp.write("%-*s = %s\n" % (l, h,
+                                      header_fmt_overview(h, self.datasets)))
+        fp.write("\n")
 
-        # for dset in self.datasets:
-        #     sys.stdout.write(str(dset.mode) + "\n")
-        #     kk = dset.headers.items()
-        #     try:
-        #         kk.sort(key=lambda k: hsortkey(k[0]))
-        #     except (NameError, TypeError):
-        #         kk = [(hsortkey(k[0]), k[0], k[1]) for k in kk]
-        #         kk.sort()
-        #         kk = [(k[1], k[2]) for k in kk]
-        #     for _, h in kk:
-        #         if h.presence != h.UNKNOWN:
-        #             h.output(fp)
+    def write_details(self, fp):
+        for h in self.headers:
+            fp.write(header_fmt_details(h, self.datasets))
 
     def take_label(self):
         if self.cc is None:
@@ -3832,8 +3837,6 @@ class Inventory:
         self.log.end_test("ok")
 
     def take_inventory(self):
-        return#stub
-
         if not self.headers: return
 
         self.datasets = [Dataset(self.cfg, mode)
@@ -4268,6 +4271,7 @@ optional arguments:
                     if position != "inventory":
                         self.usage("cannot use standard output for %s",
                                    position)
+                    position = "header"
                     self.invfile = "-"
                     self.new_inv = 1
                     if self.logfile is None:
