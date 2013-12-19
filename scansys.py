@@ -67,6 +67,14 @@ except SyntaxError:
     def floordiv(n,d): return n / d
 def truediv(n,d): return float(n) / float(d)
 
+# used out of an overabundance of caution; falling back to eval with
+# no globals or locals is probably safe enough
+try:
+    from ast import literal_eval
+except ImportError:
+    def literal_eval(expr):
+        return eval(expr, {'__builtins__':{}}, {})
+
 # It may be necessary to monkey-patch ConfigParser to accept / in an option
 # name and/or : in a section name.  Also test empty values (not to be confused
 # with the absence of a value, i.e. no : or = at all).
@@ -319,6 +327,10 @@ if sys.platform == "win32":
                     buf1.append(c)
 
         buf1 = "".join(buf1)
+        if buf1.find('"') == -1:
+            # no second level of quoting present, so it's safe to just
+            # split on whitespace
+            return buf1.split()
 
         # Phase 2: undo quoting for CommandLineToArgvW.
         argc = ctypes.c_int(0)
@@ -400,6 +412,22 @@ def squishwhite(s):
     """Remove leading and trailing whitespace from S, and collapse each
        segment of internal whitespace within S to a single space."""
     return squishwhite_re.sub(" ", s.strip())
+
+def cfg_maybe_get(parser, section, option):
+    """Wrapper around ConfigParser.get which returns None if either the
+       section or the option doesn't exist."""
+    try:
+        return parser.get(section, option, raw=1)
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        return None
+
+def cfg_maybe_options(parser, section):
+    """Wrapper around ConfigParser.options which returns [] if the section
+       doesn't exist."""
+    try:
+        return parser.options(section)
+    except ConfigParser.NoSectionError:
+        return []
 
 def hsortkey(h):
     """Sort key generator for sorthdr."""
@@ -703,7 +731,7 @@ class Logger:
         sys.stderr.write("\n")
         self.column = 0
         self.error_occurred = 1
-        raise SystemExit(1)
+        sys.exit(1)
 
     def invoke(self, argv):
         """Invoke the command in ARGV, capturing and logging all its
@@ -746,6 +774,10 @@ class Logger:
 
         self.log(msg[0], msg[1:])
         return (rc, msg)
+
+    def report_errors(self, fp):
+        """Print a summary of all the errors that occurred in this run."""
+        pass#stub
 
 #
 # Code generation for decltests (used by Header.test_contents, far below)
@@ -1683,10 +1715,21 @@ class CompilationMode:
 
     def __str__(self):
         l = self.cstd
-        if self.cf is not None: l = l + "_" + self.cf
-        if self.rtstd is not None: l = l + "_" + self.rtstd
-        if self.threads is not None: l = l + "_" + self.threads
+        if self.cf is not None: l = l + "_c" + self.cf
+        if self.rtstd is not None: l = l + "_r" + self.rtstd
+        if self.threads is not None: l = l + "_t" + self.threads
         return l
+
+    def __cmp__(self, other):
+        x = cmp(self.cstd, other.cstd)
+        if x: return x
+        x = cmp(self.cf, other.cf)
+        if x: return x
+        if self.rtstd != 'plat' and other.rtstd == 'plat': return -1
+        if self.rtstd == 'plat' and other.rtstd != 'plat': return 1
+        x = cmp(self.rtstd, other.rtstd)
+        if x: return x
+        return cmp(self.threads, other.threads)
 
 class Compiler:
     """A Compiler instance knows how to invoke a particular compiler
@@ -1841,20 +1884,90 @@ class Metadata:
        and selecting an appropriate set of compilation modes."""
 
     def __init__(self, cfg, log):
-        self.cfg   = cfg
-        self.log   = log
-        self.cc    = None
-        self.modes = [CompilationMode([], "default")]
-        self.good  = 0
+        self.cfg        = cfg
+        self.log        = log
+        self.cc         = None
+        self.cc_id      = None
+        self.cc_version = None
+        self.cc_spec    = None
+        self.rt_id      = None
+        self.rt_version = None
+        self.rt_spec    = None
+        self.modes      = [CompilationMode([], "default")]
 
-    def probe_compiler(self, cmd, cc_env, skip_modes):
-        """Identify the compiler that is invoked by CMD (with environment
-           settings CC_ENV) and instantiate an appropriate Compiler object."""
+    def log_label(self):
+        """Report the identity of the compiler and runtime to the log."""
+        self.log.log("Compiler: %s %s" % (self.cc_id,
+                                          self.cc_version))
+        self.log.log("Runtime: %s %s" % (self.rt_id,
+                                         self.rt_version))
 
+    def write_label(self, outf):
+        """Write out a [label] section to OUTF, describing our compiler and
+           its runtime."""
+        outf.write("[label]\n"
+                   "compiler   = %s\n"
+                   "compiler_v = %s\n"
+                   "runtime    = %s\n"
+                   "runtime_v  = %s\n"
+                   "\n"
+                   % (self.cc_id,
+                      self.cc_version,
+                      self.rt_id,
+                      self.rt_version))
+
+    def read_label(self, parser, cmd):
+        """Read in a [label] section from an existing inventory, verify it
+           agrees with the compiler invoked by CMD, and instantiate an
+           appropriate Compiler object."""
+        self.cc_id      = cfg_maybe_get(parser, "label", "compiler")
+        self.cc_version = cfg_maybe_get(parser, "label", "compiler_v")
+        self.rt_id      = cfg_maybe_get(parser, "label", "runtime")
+        self.rt_version = cfg_maybe_get(parser, "label", "runtime_v")
+
+        # Fall back to probing if there was no [label] at all.
+        if   (self.cc_id      is None and
+              self.cc_version is None and
+              self.rt_id      is None and
+              self.rt_version is None):
+            probe_label(self, cmd)
+            return
+
+        # It is a fatal error if some of the keys are missing, or if
+        # they name things we don't understand.
+        missing = []
+        if self.cc_id is None:      missing.append("compiler")
+        if self.cc_version is None: missing.append("compiler_v")
+        if self.rt_id is None:      missing.append("runtime")
+        if self.rt_version is None: missing.append("runtime_v")
+        if missing:
+            self.log.fatal("invalid [label] in existing inventory - "
+                           "missing settings: " + ", ".join(missing))
+
+        if not self.cfg.compilers.has_key(self.cc_id):
+            self.log.fatal("no configuration known for compiler '%s'"
+                           % self.cc_id)
+        if not self.cfg.runtimes.has_key(self.rt_id):
+            self.log.fatal("no configuration known for runtime '%s'"
+                           % self.rt_id)
+
+        self.cc_spec = self.cfg.compilers[self.cc_id]
+        self.cc = Compiler(cmd, self.cc_spec, self.log)
+        self.confirm_compiler(need_begin_test=1)
+
+        self.rt_spec = self.cfg.runtimes[self.rt_id]
+        self.confirm_runtime(need_begin_test=1)
+
+    def probe_label(self, cmd):
+        """Identify the compiler invoked by CMD, and the C runtime it
+           generates code for.  Instantiate an appropriate Compiler object."""
+        self.probe_compiler(cmd)
+        self.probe_runtime()
+
+    def probe_compiler(self, cmd):
+        """Subroutine of probe_label.  Identify the compiler invoked by CMD,
+           and instantiate an appropriate Compiler object."""
         self.log.begin_test("identifying compiler")
-
-        for k, v in cc_env.items():
-            os.environ[k] = v
 
         # Construct a source file that will fail to compile with
         # exactly one #error directive, identifying the compiler in
@@ -1869,12 +1982,10 @@ class Metadata:
                      for (name, cc) in self.cfg.compilers.items()]
         compilers.sort()
 
-        test1 = None
-        test2 = None
-        test2_o = None
+        test_c = None
         try:
-            test1 = named_tmpfile(prefix="cci", suffix="c")
-            f = open(test1, "w")
+            test_c = named_tmpfile(prefix="cci", suffix="c")
+            f = open(test_c, "w")
             f.write("#if 0\n")
             for (imitated, macro, name) in compilers:
                 f.write("#elif defined %s\n#error %s\n" % (macro, name))
@@ -1883,8 +1994,8 @@ class Metadata:
 
             self.log.progress_tick()
             self.log.log("probing compiler identity:",
-                         universal_readlines(test1))
-            (rc, msg) = self.log.invoke(cmd + [test1])
+                         universal_readlines(test_c))
+            (rc, msg) = self.log.invoke(cmd + [test_c])
             compiler = find_tagged_error(
                 msg, [name for (i, m, name) in compilers])
 
@@ -1896,179 +2007,271 @@ class Metadata:
                                "settings to " +
                                repr(self.cfg.compiler_cfg_fname) + ".")
 
-            # Confirm the identification.
-            cc = self.cfg.compilers[compiler]
-            version_argv = cc.version.split()
-            version_out = cc.version_out
+        finally:
+            if test_c is not None: delete_if_exists(test_c)
 
+        self.cc_id = compiler
+        self.cc_spec = self.cfg.compilers[self.cc_id]
+        self.cc = Compiler(cmd, self.cc_spec, self.log)
+        self.confirm_compiler()
+
+    def confirm_compiler(self, need_begin_test=0):
+        """Subroutine of read_label and probe_label.  Confirm that the
+           C compiler in use has been correctly identified."""
+
+        if need_begin_test:
+            self.log.begin_test("confirming compiler identity")
+
+        version_argv = shell2list(self.cc_spec.version)
+        version_out = self.cc_spec.version_out
+
+        test_c = None
+        test_o = None
+        try:
             for arg in version_argv:
                 if arg.startswith("$."):
-                    test2 = named_tmpfile(prefix="cci", suffix=arg[2:])
-                    f = open(test2, "w")
+                    test_c = named_tmpfile(prefix="cci", suffix=arg[2:])
+                    f = open(test_c, "w")
                     f.write("int dummy;\n")
                     f.close()
-                    test2_o  = subst_filename(test2, version_out)
-                    version_argv = subst_filename(test2, version_argv)
+                    test_o  = subst_filename(test_c, version_out)
+                    version_argv = subst_filename(test_c, version_argv)
                     break
 
             self.log.progress_tick()
-            (rc, msg) = self.log.invoke(cmd + version_argv)
+            (rc, msg) = self.log.invoke(self.cc.base_cmd + version_argv)
             if rc != 0:
                 self.log.fatal("detailed version request failed")
             mm = "\n".join(msg[1:]) # throw away the command line
-            version_re = re.compile(cc.id_regexp, re.VERBOSE|re.DOTALL)
+            version_re = re.compile(self.cc_spec.id_regexp,
+                                    re.VERBOSE|re.DOTALL)
             match = version_re.search(mm)
             if not match:
                 self.log.fatal("version information not as expected: "
-                               "is this really " + compiler + "?")
-
-            try:
-                version = match.group("version")
-            except IndexError:
-                versio1 = match.group("version1")
-                versio2 = match.group("version2")
-                if group_matched(versio1): version = versio1
-                elif group_matched(versio2): version = versio2
-                else:
-                    self.log.fatal("version number not found")
-
-            details = -1
-            try:
-                details = match.group("details")
-            except IndexError:
-                try:
-                    detail1 = match.group("details1")
-                    if group_matched(detail1) and detail1.lower() != compiler:
-                        details = detail1
-                    else:
-                        detail2 = match.group("details2")
-                        if group_matched(detail2) and \
-                                detail2.lower() != compiler:
-                            details = detail2
-                except IndexError:
-                    pass
-
-            if details != -1:
-                ident = "%s %s (%s)" % (compiler, version, details)
-            else:
-                ident = "%s %s" % (compiler, version)
-
+                               "is this really " + self.cc_id + "?")
         finally:
-            if test1   is not None: delete_if_exists(test1)
-            if test2   is not None: delete_if_exists(test2)
-            if test2_o is not None: delete_if_exists(test2_o)
+            if test_c is not None: delete_if_exists(test_c)
+            if test_o is not None: delete_if_exists(test_o)
+
+        try:
+            version = match.group("version")
+        except IndexError:
+            versio1 = match.group("version1")
+            versio2 = match.group("version2")
+            if group_matched(versio1): version = versio1
+            elif group_matched(versio2): version = versio2
+            else:
+                self.log.fatal("version number not found")
+
+        if self.cc_version is None:
+            self.cc_version = version
+
+        elif self.cc_version != version:
+            self.log.fatal("compiler not the expected version: "
+                           "expecting %s %s, found %s"
+                           % (self.cc_id, self.cc_version, version))
+
+        details = None
+        try:
+            details = match.group("details")
+        except IndexError:
+            try:
+                detail1 = match.group("details1")
+                if group_matched(detail1) and detail1.lower() != self.cc_id:
+                    details = detail1
+                else:
+                    detail2 = match.group("details2")
+                    if group_matched(detail2) and \
+                            detail2.lower() != self.cc_id:
+                        details = detail2
+            except IndexError:
+                pass
+
+        if details:
+            ident = "%s %s (%s)" % (self.cc_id, version, details)
+        else:
+            ident = "%s %s" % (self.cc_id, version)
 
         self.log.end_test(ident)
 
-        self.compiler_id = compiler
-        self.compiler_version = version
-        self.compiler_label = ident
-        self.cc = Compiler(cmd, cc, self.log)
-        self.log.log("using generic compilation options: "
-                     + " ".join(self.cc.compile_cmd))
+    def probe_runtime(self):
+        """Subroutine of probe_label.  Identify the C runtime in use."""
 
-        if not skip_modes:
-            self.select_c_standard(self.cc, cc)
-        return self.cc
+        self.log.begin_test("identifying C runtime")
+        idcode = ["#include <errno.h>", "#if 0"]
+        for (name, rtspec) in self.cfg.runtimes.items():
+            idcode.append("#elif " + rtspec.id_expr)
+            idcode.append("#error " + name)
+        idcode.extend(("#else", "#error UNKNOWN", "#endif"))
 
-    def select_c_standard(self, cc, cspec):
-        """Determine the levels of the C standard supported by
-           this compiler."""
-
-        levels = [
-            ("2011", ["201112L"]),
-            ("1999", ["199901L"]),
-            # There are three possible values of __STDC_VERSION__ for C1989.
-            ("1989", ["199409L", "1", "0"])
-        ]
-
-        self.log.begin_test("determining default C standard")
-        # Some Unix vendor compilers define __STDC__ to 0 to indicate their
-        # extended-ISO mode, so don't check its value.
-        code = [
-            "#ifndef __STDC__",
-            "#error \"traditional\"",
-            "#endif"
-        ]
-        for level, version_values in levels:
-            condition = "#if 0"
-            for val in version_values:
-                condition = condition + " || __STDC_VERSION__ == " + val
-            code.append(condition)
-            code.append("#error \"%s\"" % level)
-            code.append("#endif")
-        (rc, msg) = cc.test_invoke_basic("\n".join(code),
-                                         cc.preproc_cmd, cc.preproc_out, [])
-        tags = [level for (level, _) in levels]
-        tags.append("traditional")
-        level = find_tagged_error(msg, tags)
-        if level == "FAIL":
+        (rc, msg) = self.cc.test_invoke("\n".join(idcode), self.modes[0],
+                                        preprocess=1)
+        runtime = find_tagged_error(msg, self.cfg.runtimes.keys())
+        if runtime == "FAIL":
             self.log.fatal("unable to parse compiler output.")
-        if level == "UNKNOWN":
-            self.log.end_test("failed")
-            self.log.fatal("unable to determine default C standard. "
-                           "Check configuration for %s in %s."
-                           % (self.compiler_id, self.cfg.compiler_cfg_fname))
-        if level == "traditional":
-            self.log.end_test("traditional")
-            self.log.fatal("inventory-taking requires an ISO C compiler. "
-                           "This compiler's default mode appears to be "
-                           "pre-standardization ('K&R C'). Is that really so?")
+        if runtime == "UNKNOWN":
+            self.log.error("no configuration available for this C runtime.  "
+                           "Please add appropriate settings to " +
+                           repr(self.cfg.runtimes_cfg_fname) + ".")
+            self.dump_potential_system_id_macros()
+            sys.exit(1)
 
-        cstd_dflt = "C"+level
-        (cstd_dflt_ext, cstd_dflt_std) = cspec.standard_selection_options(level)
-        self.log.end_test(cstd_dflt)
+        self.rt_id = runtime
+        self.rt_spec = self.cfg.runtimes[runtime]
+        self.confirm_runtime()
 
-        if cstd_dflt_ext is None:
-            self.log.fatal("Configuration for %s in %s says it does not "
-                           "support %s, but according to __STDC_VERSION__ "
-                           "that is the default. Please investigate."
-                           % (self.compiler_id, self.compiler_cfg_fname,
-                              cstd_dflt))
+    def confirm_runtime(self, need_begin_test=0):
+        """Subroutine of read_label and probe_label.  Confirm that the
+           C runtime in use has been correctly identified."""
 
+        if need_begin_test:
+            self.log.begin_test("confirming C runtime identity")
 
-        self.log.begin_test("determining highest supported C standard")
-        for level, version_values in levels:
-            (cstd_high_ext, cstd_high_std) = \
-                cspec.standard_selection_options(level)
-            if cstd_high_ext is None:
-                continue
+        idcode = ("#include <errno.h>\n"
+                  "#if !(%s)\n"
+                  "#error \"Runtime misidentified\"\n"
+                  "#endif\n") % self.rt_spec.id_expr
 
-            self.log.log("trying C%s %s" % (level, repr(cstd_high_std)))
-            code = "#if 1 "
-            for val in version_values:
-                code = code + " && __STDC_VERSION__ != " + val
-                code = code + "\n#error \"wrong version\"\n#endif\n"
+        if self.rt_spec.version_detector is not None:
+            # If the runtime version is visible to the preprocessor, it
+            # doesn't matter whether this is a cross-compiler; we can always
+            # validate the version.
+            idcode += self.rt_spec.version_detector
+            version_assumed = 0
 
-            (rc, msg) = cc.test_invoke_basic(code,
-                                             cc.preproc_cmd,
-                                             cc.preproc_out,
-                                             cstd_high_std)
-            if rc == 0:
-                break
+        elif not self.cc.is_cross_compiler():
+            # If we are not cross compiling, we can probably trust
+            # os.uname()[2] == `uname -r` to tell us a useful number.
+            version = os.uname()[2]
+            version_assumed = 0
+
+        elif self.rt_version is not None:
+            # We have to trust the version in the label.
+            version = self.rt_version
+            version_assumed = 1
+
         else:
-            self.log.end_test("failed")
-            self.log.fatal("unable to determine highest supported "
-                           "C standard. "
-                           "Check configuration for %s in %s."
-                           % (self.compiler_id, self.cfg.compiler_cfg_fname))
+            self.log.fatal("Cross compiling to target that does not "
+                           "reveal version of C runtime to preprocessor. "
+                           "Label must be written manually.")
 
-        cstd_high = "C"+level
-        self.log.end_test(cstd_high)
 
-        M = [CompilationMode(cstd_dflt_ext, cstd_dflt, cf="ext")]
-        if cstd_dflt_std != cstd_dflt_ext:
-            M.append(CompilationMode(cstd_dflt_std, cstd_dflt, cf="std"))
-        if cstd_high != cstd_dflt:
-            M.append(CompilationMode(cstd_high_ext, cstd_high, cf="ext"))
-            if cstd_high_std != cstd_high_ext:
-                M.append(CompilationMode(cstd_high_std, cstd_high, cf="std"))
+        (rc, out) = self.cc.test_invoke(idcode, self.modes[0],
+                                        preprocess=1, want_output=1)
+        if rc != 0:
+            self.log.fatal("runtime identity not as expected; "
+                           "is this really %s?" % self.rt_id)
 
+        if self.rt_spec.version_detector is not None:
+            squishre = re.compile("[ \t\r\n\v\f\"\']+")
+            for line in out:
+                line = squishre.sub("", line)
+                if line[:8] == "VERSION=":
+                    version = line[8:]
+                    break
+            else:
+                self.log.fatal("failed to parse version detector output")
+
+        # Do not adjust the version twice (the adjuster may not be idempotent).
+        if not version_assumed:
+            if self.rt_spec.version_adjust is not None:
+                d = {}
+                exec re.sub("(?m)^\s*\|", "", self.rt_spec.version_adjust) \
+                    in globals(), d
+                version = d["version_adjust"](version)
+
+        self.log.end_test("%s %s" % (self.rt_spec.label, version))
+        if self.rt_version is not None and self.rt_version != version:
+            self.log.fatal("runtime not the expected version: "
+                           "expecting %s %s, found %s"
+                           % (self.rtspec.label, self.rt_version, version))
+
+        self.rt_version = version
+
+    def dump_potential_system_id_macros(self):
+        macro_name_extractor = re.compile(
+            r"^#define\s+([A-Za-z_][A-Za-z0-9_]*)\b")
+        not_system_id_macros = re.compile(self.cfg.not_system_id_macros,
+                                          re.VERBOSE)
+        # we use errno.h for this because it's universal, reasonably likely
+        # to expose library-identification macros, and doesn't have a ton of
+        # other junk in it.
+        (rc, output) = self.test_invoke_basic("#include <errno.h>",
+                                              self.preproc_cmd,
+                                              self.preproc_out,
+                                              self.dump_macros,
+                                              suppress_progress_tick=1,
+                                              want_output=1)
+        if rc != 0:
+            self.log.fatal("failed to dump predefined macros")
+
+        macros = []
+        for line in output:
+            m = macro_name_extractor.match(line)
+            if m:
+                name = m.group(1)
+                if not not_system_id_macros.match(name):
+                    macros.append(name)
+        macros.sort()
+        sys.stderr.write("Potential system-identifying macros:\n")
+        for m in macros:
+            sys.stderr.write("  %s\n" % m)
+
+    def log_modes(self):
+        """Report all of the selected modes to the log."""
+        self.log.log("Generic compilation options: "
+                     + " ".join(self.cc.compile_cmd))
+        self.log.log("Test modes:",
+                     ["%s = %s\n" % (mode, list2shell(mode.options))
+                      for mode in self.modes])
+
+    def write_modes(self, outf):
+        """Write out a [modes] section to OUTF, describing all of the
+           compilation modes selected for testing."""
+        outf.write("[modes]\n")
+        l = 0
+        for mode in self.modes:
+            l = max(l, len(str(mode)))
+        for mode in self.modes:
+            outf.write("%-*s = %s\n" % (l, mode, list2shell(mode.options)))
+
+    def read_modes(self, parser):
+        """Read in a [modes] section and set up to test all of the named
+           compilation modes."""
+        modes = cfg_maybe_options(parser, "modes")
+        if modes is None:
+            self.probe_modes()
+
+        if (len(modes) == 1 and modes[0] == "default"
+            and not cfg_maybe_get(parser, "modes", "default")):
+            # no need to recreate the mode we already have at this point
+            return
+
+        M = []
+        for modename in modes:
+            options = shell2list(cfg_maybe_get(parser, "modes", modename))
+            tags = modename.split("_")
+            cstd = tags[0]
+            cf = None
+            rtstd = None
+            threads = None
+            for tag in tags[1:]:
+                if tag[0] == 'c': cf = tag[1:]
+                elif tag[0] == 'r': rtstd = tag[1:]
+                elif tag[0] == 't': threads = tag[1:]
+                else:
+                    self.log.fatal("unparseable mode name '%s'" % modename)
+            M.append(CompilationMode(options,
+                                     cstd=cstd,
+                                     cf=cf,
+                                     rtstd=rtstd,
+                                     threads=threads))
+        M.sort()
         self.modes = M
 
-    def probe_runtime(self, skip_modes):
-        """Probe the C runtime library for its identity and its POSIX
-           conformance, and augment the set of compilation modes accordingly.
+
+    def probe_modes(self):
+        """Select an appropriate set of compilation modes for testing.
 
            The complete matrix of potentially-worthwhile test modes is the
            Cartesian product of all the following column vectors:
@@ -2105,76 +2308,118 @@ class Metadata:
            compilation options") then that column is dropped, leaving 12
            test modes.  Some platforms do not have an "everything" mode, and
            others don't support POSIX meaningfully at all, so those too can
-           get dropped.
+           get dropped."""
 
-           On entry to this code, the "modes" list already holds the result
-           of the "ISO C" x "Conformance" product."""
+        self.probe_c_standards()
+        self.probe_runtime_features()
+        self.probe_thread_options()
+        self.modes.sort()
 
-        self.log.begin_test("identifying C runtime")
-        idcode = ["#include <errno.h>", "#if 0"]
-        for (name, rtspec) in self.cfg.runtimes.items():
-            idcode.append("#elif " + rtspec.id_expr)
-            idcode.append("#error " + name)
-        idcode.extend(("#else", "#error UNKNOWN", "#endif"))
+    def probe_c_standards(self):
+        """Subroutine of probe_modes; detects the levels of the C standard
+           supported by this compiler and runtime."""
 
-        (rc, msg) = self.cc.test_invoke("\n".join(idcode), self.modes[0],
-                                        preprocess=1)
-        runtime = find_tagged_error(msg, self.cfg.runtimes.keys())
-        if runtime == "FAIL":
+        levels = [
+            ("2011", ["201112L"]),
+            ("1999", ["199901L"]),
+            # There are three possible values of __STDC_VERSION__ for C1989.
+            ("1989", ["199409L", "1", "0"])
+        ]
+
+        self.log.begin_test("determining default C standard")
+        # Some Unix vendor compilers define __STDC__ to 0 to indicate their
+        # extended-ISO mode, so don't check its value.
+        code = [
+            "#ifndef __STDC__",
+            "#error \"traditional\"",
+            "#endif"
+        ]
+        for level, version_values in levels:
+            condition = "#if 0"
+            for val in version_values:
+                condition = condition + " || __STDC_VERSION__ == " + val
+            code.append(condition)
+            code.append("#error \"%s\"" % level)
+            code.append("#endif")
+        (rc, msg) = self.cc.test_invoke_basic("\n".join(code),
+                                              self.cc.preproc_cmd,
+                                              self.cc.preproc_out,
+                                              [])
+        tags = [level for (level, _) in levels]
+        tags.append("traditional")
+        level = find_tagged_error(msg, tags)
+        if level == "FAIL":
             self.log.fatal("unable to parse compiler output.")
-        if runtime == "UNKNOWN":
-            self.log.error("no configuration available for this C runtime.  "
-                           "Please add appropriate settings to " +
-                           repr(self.cfg.runtimes_cfg_fname) + ".")
-            self.dump_potential_system_id_macros()
-            raise SystemExit(1)
+        if level == "UNKNOWN":
+            self.log.end_test("failed")
+            self.log.fatal("unable to determine default C standard. "
+                           "Check configuration for %s in %s."
+                           % (self.compiler_id, self.cfg.compiler_cfg_fname))
+        if level == "traditional":
+            self.log.end_test("traditional")
+            self.log.fatal("Inventory-taking requires an ISO C compiler. "
+                           "This compiler's default mode appears to be "
+                           "pre-standardization ('K&R C'). Is that really so?")
 
-        rtspec = self.cfg.runtimes[runtime]
+        cstd_dflt = "C"+level
+        (cstd_dflt_ext, cstd_dflt_std) = \
+            self.cc_spec.standard_selection_options(level)
+        self.log.end_test(cstd_dflt)
 
-        if rtspec.version_detector is None:
-            if self.cc.is_cross_compiler():
-                self.log.fatal("Cross compiling to target that does not reveal "
-                               "version of C runtime to preprocessor.")
+        if cstd_dflt_ext is None:
+            self.log.fatal("Configuration for %s in %s says it does not "
+                           "support %s, but according to __STDC_VERSION__ "
+                           "that is the default. Please investigate."
+                           % (self.compiler_id, self.compiler_cfg_fname,
+                              cstd_dflt))
 
-            # If we are not cross compiling, we can probably trust
-            # os.uname()[2] == `uname -r` to tell us a useful number.
-            version = os.uname()[2]
 
+        self.log.begin_test("determining highest supported C standard")
+        for level, version_values in levels:
+            (cstd_high_ext, cstd_high_std) = \
+                self.cc_spec.standard_selection_options(level)
+            if cstd_high_ext is None:
+                continue
+
+            self.log.log("trying C%s %s" % (level, repr(cstd_high_std)))
+            code = "#if 1 "
+            for val in version_values:
+                code = code + " && __STDC_VERSION__ != " + val
+                code = code + "\n#error \"wrong version\"\n#endif\n"
+
+            (rc, msg) = self.cc.test_invoke_basic(code,
+                                                  self.cc.preproc_cmd,
+                                                  self.cc.preproc_out,
+                                                  cstd_high_std)
+            if rc == 0:
+                break
         else:
-            (rc, out) = self.cc.test_invoke("#include <errno.h>\n" +
-                                            rtspec.version_detector,
-                                            self.modes[0],
-                                            preprocess=1, want_output=1)
-            if rc != 0:
-                self.log.fatal("failed to probe C runtime version")
-            squishre = re.compile("[ \t\r\n\v\f\"\']+")
-            for line in out:
-                line = squishre.sub("", line)
-                if line[:8] == "VERSION=":
-                    version = line[8:]
-                    break
-            else:
-                self.log.fatal("failed to parse version detector output")
+            self.log.end_test("failed")
+            self.log.fatal("unable to determine highest supported "
+                           "C standard. "
+                           "Check configuration for %s in %s."
+                           % (self.cc_id, self.cfg.compiler_cfg_fname))
 
-        if rtspec.version_adjust is not None:
-            d = {}
-            exec re.sub("(?m)^\s*\|", "", rtspec.version_adjust) \
-                in globals(), d
-            version = d["version_adjust"](version)
+        cstd_high = "C"+level
+        self.log.end_test(cstd_high)
 
-        self.rtspec = rtspec
-        self.runtime_id = runtime
-        self.runtime_version = version
-        self.log.end_test("%s %s" % (rtspec.label, version))
+        M = [CompilationMode(cstd_dflt_ext, cstd_dflt, cf="ext")]
+        if cstd_dflt_std != cstd_dflt_ext:
+            M.append(CompilationMode(cstd_dflt_std, cstd_dflt, cf="std"))
+        if cstd_high != cstd_dflt:
+            M.append(CompilationMode(cstd_high_ext, cstd_high, cf="ext"))
+            if cstd_high_std != cstd_high_ext:
+                M.append(CompilationMode(cstd_high_std, cstd_high, cf="std"))
 
-        if skip_modes: return
+        self.modes = M
 
+    def probe_runtime_features(self):
         self.log.begin_test("selecting runtime-feature modes to test")
         xmodes = []
         features = {}
-        if rtspec.max_features_macros is not None:
+        if self.rt_spec.max_features_macros is not None:
             mf_defines = [self.cc.define_opt + x
-                          for x in rtspec.max_features_macros.split()]
+                          for x in self.rt_spec.max_features_macros.split()]
             for x in mf_defines: features[x] = 1
         else:
             mf_defines = None
@@ -2182,7 +2427,7 @@ class Metadata:
         try:
             for mode in self.modes:
                 xmodes.append(mode)
-                xmodes.extend(self.probe_max_posix_level(mode, features))
+                xmodes.extend(self.probe_runtime_for_mode(mode, features))
                 if mf_defines is not None:
                     xmodes.append(mode.augment(mf_defines, rtstd="plat"))
         except NoSuchHeaderError, e:
@@ -2197,34 +2442,8 @@ class Metadata:
             self.log.end_test(", ".join(features))
             self.modes = xmodes
 
-        # There is no point checking for special thread options if the
-        # compiler doesn't have any.
-        if not self.cc.thread_opt:
-            return
-
-        self.log.begin_test("checking for special options for threads")
-        tmodes = []
-        features = {}
-        try:
-            for mode in self.modes:
-                tmodes.append(mode)
-                tmodes.extend(self.probe_special_thread_options(mode, features))
-        except NoSuchHeaderError:
-            # probe_special_thread_options throws a special exception when
-            # <pthread.h> does not exist, in order to short-circuit the loop.
-            self.log.end_test("none needed (pthread.h absent)")
-            return
-
-        if not features:
-            self.log.end_test("none needed")
-        else:
-            features = features.keys()
-            features.sort()
-            self.log.end_test(", ".join(features))
-            self.modes = tmodes
-
-    def probe_max_posix_level(self, mode, features):
-        """Subroutine of probe_runtime; detects the highest supported
+    def probe_runtime_for_mode(self, mode, features):
+        """Subroutine of probe_modes; detects the highest supported
            POSIX compliance level for a particular compiler mode.
 
            Detection of the highest supported POSIX conformance level is
@@ -2375,7 +2594,7 @@ class Metadata:
         features[self.cc.define_opt + c0[0]] = 1
         return [xmodes[c0]]
 
-    def probe_special_thread_options(self, mode, features):
+    def probe_thread_options(self):
         """Detect whether this C runtime makes a distinction between code
            compiled with multithreading support enabled, and not.  This uses
            a really simple heuristic: If <pthread.h> is absent, or does not
@@ -2383,6 +2602,36 @@ class Metadata:
            distinction between "threads" and "no threads".  If it is present
            *and* requires special options, we add (threads off, threads on)
            to the test matrix."""
+
+        # There is no point checking for special thread options if the
+        # compiler doesn't have any.
+        if not self.cc.thread_opt:
+            return
+
+        self.log.begin_test("checking for special options for threads")
+        tmodes = []
+        features = {}
+        try:
+            for mode in self.modes:
+                tmodes.append(mode)
+                tmodes.extend(self.probe_threads_for_mode(mode, features))
+        except NoSuchHeaderError:
+            # probe_special_thread_options throws a special exception when
+            # <pthread.h> does not exist, in order to short-circuit the loop.
+            self.log.end_test("none needed (pthread.h absent)")
+            return
+
+        if not features:
+            self.log.end_test("none needed")
+        else:
+            features = features.keys()
+            features.sort()
+            self.log.end_test(", ".join(features))
+            self.modes = tmodes
+
+    def probe_threads_for_mode(self, mode, features):
+        """Subroutine of probe_thread_options, applying the heuristic
+           described there to a particular compilation mode."""
 
         self.log.log("testing acceptability of <pthread.h> %s" % mode)
         (rc, msg) = self.cc.test_invoke("#include <pthread.h>\n"
@@ -2422,153 +2671,6 @@ class Metadata:
         self.log.error("<pthread.h> failed to compile with and without %s."
                        "Please investigate." % thread_mode.threads)
         return []
-
-    def smoke_test(self):
-        """Perform tests which, if they fail, indicate something horribly
-           wrong with the compiler and/or our usage of it (so there is no
-           point in continuing with the test run).  Either returns
-           successfully, or issues a fatal error."""
-
-        if self.good: return
-
-        self.log.begin_test("testing compiler invocation")
-
-        for mode in self.modes:
-            for preprocess in (1, 0):
-                if preprocess: action = "preprocess"
-                else: action = "compile"
-
-                # This code should compile without complaint.
-                self.log.log("smoke test: %s %s, should succeed"
-                             % (mode, action))
-                (rc, msg) = self.cc.test_invoke("#include <stdarg.h>\n"
-                                                "int dummy;",
-                                                mode, preprocess)
-                if rc != 0:
-                    self.log.fatal("failed to %s simple test program %s. "
-                                   "Check configuration for %s in %s."
-                                   % (action, mode, self.compiler_id,
-                                      self.cfg.compiler_cfg_fname))
-
-                # This code should also compile without complaint.
-                self.log.log("smoke test: %s %s "
-                             "(potentially unsupported pragmas), "
-                             "should succeed"
-                             % (mode, action))
-                (rc, msg) = self.cc.test_invoke("#pragma STDC FENV_ACCESS ON\n"
-                                                "int dummy;",
-                                                mode, preprocess)
-                if rc != 0:
-                    self.log.fatal("failed to %s program containing "
-                                   "C99 #pragma directive %s. "
-                                   "Ensure configuration for %s in %s "
-                                   "suppresses errors for unsupported #pragma "
-                                   "directives."
-                                   % (action, mode, self.compiler_id,
-                                      self.cfg.compiler_cfg_fname))
-
-                # This code should _not_ compile, and we should detect
-                # that this is because a header doesn't exist.
-                self.log.log("smoke test: %s %s, "
-                             "should fail due to nonexistence"
-                             % (mode, action))
-                (rc, msg) = self.cc.test_invoke("#include <nonexistent.h>\n"
-                                                "int dummy;",
-                                                mode, preprocess)
-                if rc == 0 or not self.cc.failure_due_to_nonexistence(
-                    msg, "nonexistent.h"):
-                    self.log.fatal(
-                        "failed to detect nonexistence of <nonexistent.h>"
-                        " (%s %s). Check configuration for %s in %s."
-                        % (mode, action, self.compiler_id,
-                           self.cfg.compiler_cfg_fname))
-
-            # We should be able to tell that the error in this code is
-            # on line 3.  This test only makes sense for compilation.
-            self.log.log("smoke test: error on specific line %s"
-                         % mode)
-            (rc, msg) = self.cc.test_invoke("int main(void)\n"
-                                             "{\n"
-                                             "  not_a_type v;\n"
-                                             "  return 0;\n"
-                                             "}", mode)
-            # The source file will be the last space-separated token on
-            # the first line of 'msg'.
-            srcf = msg[0].split()[-1]
-
-            for line in msg:
-                m = self.cc.errloc_re.search(line)
-                if m and m.group("file") == srcf:
-                    if int(m.group("line")) == 3:
-                        break
-                    else:
-                        self.log.fatal("error on unexpected line %s. "
-                                       "Check configuration for %s in %s."
-                                       % (m.group(line), self.compiler_id,
-                                          self.cfg.compiler_cfg_fname))
-            else:
-                self.log.fatal("failed to detect error on line 3. "
-                               "Check configuration for %s in %s."
-                               % (self.compiler_id, ccs_f,
-                                  self.cfg.compiler_cfg_fname))
-
-        self.log.end_test("ok")
-        self.good = 1
-
-    def dump_potential_system_id_macros(self):
-        macro_name_extractor = re.compile(
-            r"^#define\s+([A-Za-z_][A-Za-z0-9_]*)\b")
-        not_system_id_macros = re.compile(self.cfg.not_system_id_macros,
-                                          re.VERBOSE)
-        # we use errno.h for this because it's universal, reasonably likely
-        # to expose library-identification macros, and doesn't have a ton of
-        # other junk in it.
-        (rc, output) = self.test_invoke_basic("#include <errno.h>",
-                                              self.preproc_cmd,
-                                              self.preproc_out,
-                                              self.dump_macros,
-                                              suppress_progress_tick=1,
-                                              want_output=1)
-        if rc != 0:
-            self.log.fatal("failed to dump predefined macros")
-
-        macros = []
-        for line in output:
-            m = macro_name_extractor.match(line)
-            if m:
-                name = m.group(1)
-                if not not_system_id_macros.match(name):
-                    macros.append(name)
-        macros.sort()
-        sys.stderr.write("Potential system-identifying macros:\n")
-        for m in macros:
-            sys.stderr.write("  %s\n" % m)
-
-    def write_label(self, outf):
-        """Write the [label] section of inventory metadata."""
-        outf.write("[label]\n"
-                   "runtime    = %s\n"
-                   "runtime_v  = %s\n"
-                   "compiler   = %s\n"
-                   "compiler_v = %s\n\n"
-                   % (self.runtime_id,
-                      self.runtime_version,
-                      self.compiler_id,
-                      self.compiler_version))
-
-    def log_modes(self):
-        self.log.log("Test modes:",
-                     ["%s = %s\n" % (mode, list2shell(mode.options))
-                      for mode in self.modes])
-
-    def write_modes(self, outf):
-        """Write the [modes] section of inventory metadata."""
-        outf.write("[modes]\n")
-        l = 0
-        for mode in self.modes:
-            l = max(l, len(str(mode)))
-        for mode in self.modes:
-            outf.write("%-*s = %s\n" % (l, mode, list2shell(mode.options)))
 
 #
 # Headers and high-level analysis
@@ -3493,20 +3595,97 @@ class Inventory:
        out by hand, because Python 2.0's ConfigParser doesn't guarantee any
        particular sort order."""
 
-    def __init__(self, cfg, log):
+    def __init__(self, args, cfg, log):
+        self.args     = args
         self.cfg      = cfg
         self.log      = log
-        self.cc_cmd   = None
+        self.metadata = Metadata(self.cfg, self.log)
+        self.skip_id  = args.skip_id
+        self.recheck  = 0
+        self.recheck_content = 0
+        self.cc_cmd   = args.cc_cmd
         self.cc_env   = {}
         self.cc       = None
-        self.metadata = None
         self.datasets = []
+        if args.headers:
+            self.headers = args.headers
+        else:
+            self.headers = cfg.headers
 
-    def load_args(self, args):
-        self.cc_cmd = args.cc_cmd
+    def fresh_clone(self):
+        """Returns a duplicate of 'self', but with all the information
+           that might've been read from an existing inventory file
+           discarded, except the compiler command and environment."""
+        rv = Inventory(self.args, self.cfg, self.log)
+        rv.recheck = self.recheck
+        rv.recheck_content = self.recheck_content
+        rv.cc_cmd = self.cc_cmd[:]
+        rv.cc_env = self.cc_env.copy()
+        return rv
 
-    def load_file(self, fp):
-        pass
+    def load_file(self, fname):
+        parser = ConfigParser.ConfigParser()
+        try:
+            fp = open(fname, "r")
+            parser.readfp(fp)
+        except EnvironmentError, e:
+            sys.stderr.write("%s: %s\n" % (fname, e.strerror))
+            sys.exit(1)
+        except (ConfigParser.ParsingError,
+                ConfigParser.DuplicateSectionError,
+                ConfigParser.MissingSectionHeaderError), e:
+            sys.stderr.write("%s: unable to parse old inventory:"
+                             "\n%s" % (fname, e))
+            sys.exit(1)
+
+        # The [compiler] section is always honored, even if the rest
+        # of the file is discarded.  This is so you can write a stub
+        # inventory with just a [compiler] section, and then have the
+        # computer fill in the rest of it.
+        cc_cmd = cfg_maybe_get(parser, "compiler", "command")
+        if cc_cmd is not None:
+            self.cc_cmd = shell2list(cc_cmd)
+        cc_env = cfg_maybe_get(parser, "compiler", "environ")
+        if cc_env is not None and cc_env != "":
+            try:
+                cc_env = literal_eval(cc_env)
+                if type(ccenv) != type({}):
+                    raise ValueError
+            except:
+                self.log.fatal("%s: malformed compiler.environ setting"
+                               % fname)
+            self.cc_env = cc_env
+            for k, v in self.cc_env.items():
+                os.environ[k] = v
+
+        # NB load_label automatically falls back to probing if the
+        # label is missing or incomplete.
+        self.metadata.read_label(parser, self.cc_cmd)
+        self.metadata.log_label()
+        self.cc = self.metadata.cc
+
+        if not self.skip_id:
+            self.metadata.read_modes(parser)
+            self.metadata.log_modes()
+
+        # Check the generation numbers.
+        # Warn the user about a mismatch, but not about an absence.
+        config_v = cfg_maybe_get(parser, "generation", "config_v")
+        if config_v != self.cfg.config_hash:
+            if config_v is not None:
+                self.log.progress_note("*** Old inventory generated with "
+                                       "old configuration. Regenerating from "
+                                       "scratch.")
+            self.recheck = 1
+
+        content_v = cfg_maybe_get(parser, "generation", "content_v")
+        if content_v != self.cfg.content_hash:
+            if content_v is not None:
+                self.log.progress_note("*** Old inventory generated with "
+                                       "old content tests. Retesting.")
+            self.recheck_content = 1
+
+        #stub: load inventory
 
     def write_file(self, fp):
         fp.write("# Generated by scansys.py on %s.\n"
@@ -3536,10 +3715,10 @@ class Inventory:
             self.write_details(fp)
 
         def write_overview(fp):
-            pass
+            pass#stub
 
         def write_details(fp):
-            pass
+            pass#stub
 
         # for dset in self.datasets:
         #     sys.stdout.write(str(dset.mode) + "\n")
@@ -3554,24 +3733,113 @@ class Inventory:
         #         if h.presence != h.UNKNOWN:
         #             h.output(fp)
 
+    def take_label(self):
+        if self.cc is None:
+            self.metadata.probe_label(self.cc_cmd)
+            self.metadata.log_label()
+            self.cc = self.metadata.cc
+            if not self.skip_id:
+                self.metadata.probe_modes()
+                self.metadata.log_modes()
 
+    def smoke_test(self):
+        """Perform tests which, if they fail, indicate something horribly
+           wrong with the compiler and/or our usage of it (so there is no
+           point in continuing with the test run).  Either returns
+           successfully, or issues a fatal error."""
 
-    def take_label(self, skip_modes):
-        self.metadata = Metadata(self.cfg, self.log)
-        self.cc = self.metadata.probe_compiler(self.cc_cmd, self.cc_env,
-                                               skip_modes)
-        self.metadata.smoke_test()
-        self.metadata.probe_runtime(skip_modes)
-        self.metadata.log_modes()
+        self.log.begin_test("testing compiler invocation")
 
-    def take_inventory(self, headers):
-        if not headers: return 1
+        for mode in self.metadata.modes:
+            for preprocess in (1, 0):
+                if preprocess: action = "preprocess"
+                else: action = "compile"
 
-        self.metadata.smoke_test()
+                # This code should compile without complaint.
+                self.log.log("smoke test: %s %s, should succeed"
+                             % (mode, action))
+                (rc, msg) = self.cc.test_invoke("#include <stdarg.h>\n"
+                                                "int dummy;",
+                                                mode, preprocess)
+                if rc != 0:
+                    self.log.fatal("failed to %s simple test program %s. "
+                                   "Check configuration for %s in %s."
+                                   % (action, mode, self.compiler_id,
+                                      self.cfg.compiler_cfg_fname))
+
+                # This code should also compile without complaint.
+                self.log.log("smoke test: %s %s "
+                             "(potentially unsupported pragmas), "
+                             "should succeed"
+                             % (mode, action))
+                (rc, msg) = self.cc.test_invoke("#pragma STDC FENV_ACCESS ON\n"
+                                                "int dummy;",
+                                                mode, preprocess)
+                if rc != 0:
+                    self.log.fatal("failed to %s program containing "
+                                   "C99 #pragma directive %s. "
+                                   "Ensure configuration for %s in %s "
+                                   "suppresses errors for unsupported #pragma "
+                                   "directives."
+                                   % (action, mode, self.compiler_id,
+                                      self.cfg.compiler_cfg_fname))
+
+                # This code should _not_ compile, and we should detect
+                # that this is because a header doesn't exist.
+                self.log.log("smoke test: %s %s, "
+                             "should fail due to nonexistence"
+                             % (mode, action))
+                (rc, msg) = self.cc.test_invoke("#include <nonexistent.h>\n"
+                                                "int dummy;",
+                                                mode, preprocess)
+                if rc == 0 or not self.cc.failure_due_to_nonexistence(
+                    msg, "nonexistent.h"):
+                    self.log.fatal(
+                        "failed to detect nonexistence of <nonexistent.h>"
+                        " (%s %s). Check configuration for %s in %s."
+                        % (mode, action, self.compiler_id,
+                           self.cfg.compiler_cfg_fname))
+
+            # We should be able to tell that the error in this code is
+            # on line 3.  This test only makes sense for compilation.
+            self.log.log("smoke test: error on specific line %s"
+                         % mode)
+            (rc, msg) = self.cc.test_invoke("int main(void)\n"
+                                             "{\n"
+                                             "  not_a_type v;\n"
+                                             "  return 0;\n"
+                                             "}", mode)
+            # The source file will be the last space-separated token on
+            # the first line of 'msg'.
+            srcf = msg[0].split()[-1]
+
+            for line in msg:
+                m = self.cc.errloc_re.search(line)
+                if m and m.group("file") == srcf:
+                    if int(m.group("line")) == 3:
+                        break
+                    else:
+                        self.log.fatal("error on unexpected line %s. "
+                                       "Check configuration for %s in %s."
+                                       % (m.group(line), self.compiler_id,
+                                          self.cfg.compiler_cfg_fname))
+            else:
+                self.log.fatal("failed to detect error on line 3. "
+                               "Check configuration for %s in %s."
+                               % (self.compiler_id, ccs_f,
+                                  self.cfg.compiler_cfg_fname))
+
+        self.log.end_test("ok")
+
+    def take_inventory(self):
+        return#stub
+
+        if not self.headers: return
+
         self.datasets = [Dataset(self.cfg, mode)
                          for mode in self.metadata.modes]
 
-        for h in headers:
+        for h in self.headers:
             hh0 = self.datasets[0].get_header(h)
             for dset in self.datasets:
                 if hh0.presence != hh0.ABSENT:
@@ -3579,13 +3847,16 @@ class Inventory:
                     hh.test(self.cc, self.log)
 
         if self.log.error_occurred:
-            return 0
+            return
 
         conflict_cache = {}
         for dset in self.datasets:
             dset.test_conflicts(self.cc, self.log, conflict_cache)
+            if self.log.error_occurred:
+                return
 
-        return not self.log.error_occurred
+    def report_comparison(self, other, fp):
+        pass#stub
 
 #
 # Scanner configuration
@@ -3665,7 +3936,7 @@ class Configuration:
         self.load_compilers(os.path.join(self.cfgdir, "compilers.ini"))
         self.load_runtimes(os.path.join(self.cfgdir, "runtimes.ini"))
         self.load_known_errors(os.path.join(self.cfgdir, "errors.ini"))
-        self.load_headers(os.path.join(self.cfgdir, "headers.ini"), args)
+        self.load_headers(os.path.join(self.cfgdir, "headers.ini"))
         self.load_deps(os.path.join(self.cfgdir, "prereqs.ini"))
 
         self.config_hash = self.config_hasher.hexdigest()
@@ -3714,16 +3985,12 @@ class Configuration:
         self.not_system_id_macros = cfg.get("META", "not_system_id_macros",
                                             raw=1)
 
-    def load_headers(self, fname, args):
+    def load_headers(self, fname):
         """Load the complete set of headers to process.  We do not instantiate
            Header objects at this time, because each Dataset object (of which
            there are potentially several on any given run) needs its own set
            of them."""
         self.add_hash(self.config_hasher, fname)
-
-        if args.headers:
-            self.headers = sorthdr(args.headers)
-            return
 
         cfg = ConfigParser.ConfigParser()
         cfg.read(fname)
@@ -3885,7 +4152,7 @@ class Args:
             "usage: %s [options] inventory [headers] [-- cc [cc-opts...]]\n"
             "Try '%s --help' for more information.\n"
             % (me, me))
-        raise SystemExit(2)
+        sys.exit(2)
 
     def help(self):
         me = os.path.basename(sys.argv[0])
@@ -3921,11 +4188,10 @@ optional arguments:
   --ctdir=DIRECTORY     override location of directory containing content tests
                         (default: "content_tests")
 """ % (me, me, me))
-        raise SystemExit(0)
+        sys.exit(0)
 
     def __init__(self, argv):
         # defaults
-        self.inventory = None
         self.invfile   = None
         self.logfile   = None
         self.headers   = []
@@ -4002,10 +4268,7 @@ optional arguments:
                     if position != "inventory":
                         self.usage("cannot use standard output for %s",
                                    position)
-                    # Can't capture sys.stdout yet, instantiation of Logger
-                    # overwrites it.
-                    self.inventory = "-"
-                    self.invfile = "<standard output>"
+                    self.invfile = "-"
                     self.new_inv = 1
                     if self.logfile is None:
                         self.logfile = "scan-%d.log" % os.getpid()
@@ -4016,7 +4279,7 @@ optional arguments:
                     # interpret them at all.
                     if i == len(argv):
                         self.usage("'--' must be followed by compiler command")
-                    if self.inventory is None:
+                    if self.invfile is None:
                         self.usage("inventory file name is required")
                     if not self.new_inv:
                         self.usage("compiler command can only be specified "
@@ -4031,17 +4294,17 @@ optional arguments:
             else: # positional argument
                 if position == "inventory":
                     try:
-                        # It appears to be impossible to get O_CREAT
-                        # without O_TRUNC from the open() builtin.
-                        ifd = os.open(opt, os.O_RDWR|os.O_CREAT, 0666)
-                        st = os.fstat(ifd)
-                        self.inventory = os.fdopen(ifd, "r+b")
-                    except EnvironmentError, e:
-                        sys.stderr.write("%s: %s\n" % (opt, e.strerror))
-                        raise SystemExit(1)
+                        st = os.lstat(opt)
+                        if not stat.S_ISREG(st[stat.ST_MODE]):
+                            sys.stderr.write("%s: not a regular file\n" % opt)
+                            sys.exit(1)
+                        self.new_inv = st[stat.ST_SIZE] == 0
 
-                    if (not stat.S_ISREG(st[stat.ST_MODE]) or
-                        st[stat.ST_SIZE] == 0):
+                    except EnvironmentError, e:
+                        if e.errno != errno.ENOENT:
+                            sys.stderr.write("%s: %s\n" % (opt, e.strerror))
+                            sys.exit(1)
+
                         self.new_inv = 1
 
                     self.invfile = opt
@@ -4054,19 +4317,22 @@ optional arguments:
                     if not self.new_inv:
                         self.usage("headers to scan can only be specified "
                                    "for a new inventory")
-                    headers.append(opt)
+                    self.headers.append(opt)
 
         # cross-validation
         if self.recheck and self.new_inv:
             self.usage("--recheck only makes sense for an existing inventory")
         if self.skip_id and not self.new_inv:
             self.usage("--skip-id only makes sense for a new inventory")
-        if self.inventory is None:
+        if self.invfile is None:
             self.usage("inventory file name is required")
         if not os.path.isdir(self.cfgdir):
             self.usage("'%s' is not a directory", self.cfgdir)
         if not os.path.isdir(self.ctdir):
             self.usage("'%s' is not a directory", self.ctdir)
+
+        if self.headers:
+            self.headers = sorthdr(self.headers)
 
 def main():
     args = Args(sys.argv)
@@ -4074,22 +4340,39 @@ def main():
     log = Logger(args.logfile, debug=args.debug, progress=args.progress)
     cfg.banner(log)
 
-    inv = Inventory(cfg, log)
-    if args.new_inv:
-        inv.load_args(args)
+    inv = Inventory(args, cfg, log)
+    if not args.new_inv:
+        inv.load_file(args.invfile)
+
+    if args.recheck and not inv.recheck:
+        log.progress_note("*** Complete recheck forced by command line option.")
+        inv.recheck = 1
+        inv.recheck_content = 1
+
+    oinv = None
+    if inv.recheck or inv.recheck_content:
+        oinv = inv
+        inv = inv.fresh_clone()
+
+    inv.take_label()
+    inv.smoke_test()
+    inv.take_inventory()
+
+    if args.new_inv and args.invfile == "-":
+        inv.write_file(sys.stdout)
     else:
-        inv.load_file(args.inventory)
+        tmp = os.path.splitext(args.invfile)[0] + ".tmp"
+        inv.write_file(open(tmp, "w"))
+        delete_if_exists(args.invfile)
+        os.rename(tmp, args.invfile)
 
-    inv.take_label(args.skip_id)
+    if log.error_occurred:
+        log.report_errors(sys.stderr)
+        sys.exit(1)
 
-    #if not inv.take_inventory():
-    #    raise SystemExit(1)
+    if oinv is not None:
+        oinv.report_comparison(inv, sys.stdout)
 
-    if args.new_inv:
-        if args.inventory == "-": args.inventory = sys.stdout
-        inv.write_file(args.inventory)
-    else:
-        # atomic update goes here
-        pass
+    sys.exit(0)
 
 if __name__ == '__main__': main()
