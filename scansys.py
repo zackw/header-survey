@@ -1211,7 +1211,7 @@ class TestConstants(TestComponent):
         # works out how to do the presence test as a side-effect.)
         # 'v' may start with a type in square brackets.
         if v.startswith("["):
-            (t, v) = v.split("]", 1)
+            (t, v) = splitto(v, "]", 2)
             t = t[1:]
             v = v.strip()
         else:
@@ -1748,14 +1748,14 @@ class Compiler:
         self.notfound_re = re.compile(cfg.notfound_re, re.VERBOSE)
         self.errloc_re   = re.compile(cfg.errloc_re, re.VERBOSE)
 
-        self.preproc_cmd = cfg.preproc.split()
+        self.preproc_cmd = shell2list(cfg.preproc)
         self.preproc_out = cfg.preproc_out
-        self.compile_cmd = cfg.compile.split()
+        self.compile_cmd = shell2list(cfg.compile)
         self.compile_out = cfg.compile_out
 
         self.define_opt  = cfg.define
-        self.thread_opt  = cfg.threads.split()
-        self.dump_macros = cfg.dump_macros.split()
+        self.thread_opt  = shell2list(cfg.threads)
+        self.dump_macros = shell2list(cfg.dump_macros)
 
         self._is_cross_compiler = None
 
@@ -2419,7 +2419,7 @@ class Metadata:
         features = {}
         if self.rt_spec.max_features_macros is not None:
             mf_defines = [self.cc.define_opt + x
-                          for x in self.rt_spec.max_features_macros.split()]
+                          for x in shell2list(self.rt_spec.max_features_macros)]
             for x in mf_defines: features[x] = 1
         else:
             mf_defines = None
@@ -3896,14 +3896,14 @@ class CompilerSpec:
         else:
             x = opts.find('|')
             if x == -1:
-                opts_ext = opts.split()
+                opts_ext = shell2list(opts)
                 opts_std = opts_ext[:]
             else:
-                opts_ext = opts[:x].split()
-                opts_std = opts[(x+1):].split()
+                opts_ext = shell2list(opts[:x])
+                opts_std = shell2list(opts[(x+1):])
 
         if self.conform != "":
-            opts_std.extend(self.conform.split())
+            opts_std.extend(shell2list(self.conform))
         return (opts_ext, opts_std)
 
 class RtSpec:
