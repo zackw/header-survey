@@ -1945,7 +1945,7 @@ class Metadata:
               self.cc_version is None and
               self.rt_id      is None and
               self.rt_version is None):
-            probe_label(self, cmd)
+            self.probe_label(cmd)
             return
 
         # It is a fatal error if some of the keys are missing, or if
