@@ -354,7 +354,7 @@ else:
                              # all ASCII punctuation except '"`\
                              "!#$%&()*+,-./:;<=>?@[]^_{|}~")
             result = []
-            while True:
+            while 1:
                 token = lex.get_token()
                 if token == "": break
                 result.append(token)
