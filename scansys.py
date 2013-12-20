@@ -3790,11 +3790,11 @@ class Inventory:
         if cc_env is not None and cc_env != "":
             try:
                 cc_env = literal_eval(cc_env)
-                if type(ccenv) != type({}):
+                if type(cc_env) != type({}):
                     raise ValueError
-            except:
-                self.log.fatal("%s: malformed compiler.environ setting"
-                               % fname)
+            except Exception, e:
+                self.log.fatal("%s: malformed compiler.environ setting: %s"
+                               % (fname, e))
             self.cc_env = cc_env
             for k, v in self.cc_env.items():
                 os.environ[k] = v
