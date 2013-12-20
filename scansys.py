@@ -2204,7 +2204,7 @@ class Metadata:
         if self.rt_version is not None and self.rt_version != version:
             self.log.fatal("runtime not the expected version: "
                            "expecting %s %s, found %s"
-                           % (self.rtspec.label, self.rt_version, version))
+                           % (self.rt_spec.label, self.rt_version, version))
 
         self.rt_version = version
 
