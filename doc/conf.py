@@ -41,19 +41,18 @@ html_show_sourcelink = False
 # currently we have nothing to put in the commented-out directories
 #templates_path   = ['../sphinx/templates']
 html_static_path = ['../sphinx/static']
-#html_theme_path = ['../sphinx/theme']
+html_theme_path = ['../sphinx/theme']
 #html_extra_path = ['../sphinx/extra']
 
 # While this is a draft...
 keep_warnings = True
 todo_include_todos = True
 
-# There will undoubtedly be a custom theme in due course.
-html_theme = 'default'
+html_theme = 'hsv'
 #html_theme_options = {}
 #html_logo = None
 #html_favicon = None
-pygments_style = 'sphinx'
+#pygments_style = 'sphinx'
 
 # Indexing is disabled until we figure out just what should be indexed.
 html_use_index = False
