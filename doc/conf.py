@@ -29,12 +29,14 @@ needs_sphinx = '1.2'
 extensions = [
     'sphinx.ext.todo',
     'doc_comments',
+    'html5_output'
 ]
 
 source_suffix = '.rst'
 master_doc = 'index'
 exclude_patterns = ['*~']
 html_show_sourcelink = False
+html_translator_class = 'html5_output.SmartyPantsHTML5Translator'
 
 # - Things that might get changed later.
 
