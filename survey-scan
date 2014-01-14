@@ -1160,8 +1160,6 @@ class TestFields(TestComponent):
         if typ[:2] == "u_": typ = "union " + typ[2:]
 
         # To test whether a field exists, attempt to take a pointer to it.
-        # To test whether the field has the correct type, attempt to return
-        # that pointer without casting it.
         argv=mkdeclarator(mk_pointer_to(typ), "xx")
         addressop = "&"
         if v.endswith("[]"):
@@ -1175,6 +1173,8 @@ class TestFields(TestComponent):
                                  body="return (void *)%sxx->%s"
                                  % (addressop, field)))
 
+        # To test whether the field has the correct type, attempt to return
+        # that pointer without casting it.
         # If the type is not precisely specified, attempt to set the
         # field to 0 instead of taking a pointer.
         if v == "integral" or v == "arithmetic":

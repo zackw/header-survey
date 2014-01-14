@@ -1,6 +1,8 @@
 Configuration Reference
 =======================
 
+.. _config-file-syntax:
+
 File Syntax
 -----------
 
@@ -36,7 +38,7 @@ over the course of the 2.0 release series, so we will be concrete:
   documentation is **not** available.
 
 * Property names can contain ASCII letters, digits, and the
-  punctuation characters ``.`` ``,`` ``_`` ``/`` and ``$``.
+  punctuation characters ``. , _ - /`` and ``$``.
   Section header names can contain all of the above plus ``:``.
 
 Syntactic Conventions

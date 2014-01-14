@@ -1520,6 +1520,7 @@ class HTML5Translator(BaseTranslator):
         self.permalink_text = self.encode(self.permalink_text)
         self.secnumber_suffix = builder.config.html_secnumber_suffix
         self.param_separator = ''
+        self.first_param = 0
         self._table_row_index = 0
 
     def visit_start_of_file(self, node):

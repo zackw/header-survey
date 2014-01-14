@@ -29,7 +29,8 @@ needs_sphinx = '1.2'
 extensions = [
     'sphinx.ext.todo',
     'doc_comments',
-    'html5_output'
+    'html5_output',
+    'objects',
 ]
 
 source_suffix = '.rst'
@@ -54,7 +55,7 @@ html_theme = 'hsv'
 #html_theme_options = {}
 #html_logo = None
 #html_favicon = None
-#pygments_style = 'sphinx'
+pygments_style = 'colorful'
 
 # Indexing is disabled until we figure out just what should be indexed.
 html_use_index = False

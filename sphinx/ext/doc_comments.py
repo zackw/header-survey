@@ -114,10 +114,3 @@ class ExtractDocCommentDirective(Directive):
 
 def setup(app):
     app.add_directive('extract-doc-comment', ExtractDocCommentDirective)
-
-    # Property names deserve their own object-type.
-    app.add_object_type('prop', 'prop', 'pair: %s; config property')
-
-    # Misc other object types for which there is no good home.
-    app.add_object_type('convention', 'cvn', 'single: %s',
-                        ref_nodeclass=nodes.strong)
