@@ -55,7 +55,7 @@ html_theme = 'hsv'
 #html_theme_options = {}
 #html_logo = None
 #html_favicon = None
-pygments_style = 'colorful'
+pygments_style = 'sphinx.pygments_styles.PyramidStyle'
 
 # Indexing is disabled until we figure out just what should be indexed.
 html_use_index = False

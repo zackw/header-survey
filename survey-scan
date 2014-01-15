@@ -1394,15 +1394,9 @@ class TestSpecial(TestComponent):
                 if len(k) > 5 and k[:2] == "__" and k[-2:] == "__":
                     TestComponent.pp_special_key(self, k, v)
                 else:
-                    vx = v.split(":", 1)
-                    if len(vx) == 2:
-                        tfn = TestFn(self.infname, self.std, self.mod,
-                                     tag=k, meaning=TestItem.UNCERTAIN,
-                                     rtype=vx[0], argv=argv, body=vx[1])
-                    else:
-                        tfn = TestFn(self.infname, self.std, self.mod,
-                                     tag=k, meaning=TestItem.UNCERTAIN,
-                                     rtype=rtype, argv=argv, body=v)
+                    tfn = TestFn(self.infname, self.std, self.mod,
+                                 tag=k, meaning=TestItem.UNCERTAIN,
+                                 rtype=rtype, argv=argv, body=v)
                     self.items.append(tfn)
 
     # We also need to override generate() to handle a single TestFn

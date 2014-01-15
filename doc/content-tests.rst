@@ -42,31 +42,24 @@ replaced with ``.ini``.  (For example, the content tests for
 Here is a simple example which illustrates many of the features of
 content tests.
 
+.. highlight:: ini
 .. literalinclude:: ../content_tests/stddef.ini
-   :language: ini
 
-Symbol Categorization
----------------------
+.. extract-doc-comment:: ../content_tests/CATEGORIES.ini
 
-.. todo:: document :file:`CATEGORIES.ini` here
+.. picking up where the doc comments in CATEGORIES.ini leave off ..
 
-File Structure
---------------
-
-Content test files are organized into sections.  The special
-``[preamble]`` section declares properties of the test itself.  All
-the other sections have structured names which indicate both the kind
-of declaration being tested, and a categorization of the declaration
-by its standard of origin.
-
-.. todo:: finish explaining symbol categorization here
+The :samp:`{symbol-kind}` may be one of the keywords ``types``,
+``fields``, ``constants``, ``globals``, ``functions``, ``fn_macros``,
+``special_decls``, or ``special``.  Each of these is documented
+further below.
 
 :command:`survey-scan` tests the contents of headers by generating C
 programs from the content tests, feeding them to the compiler, and
 observing the errors, if any.  Thus, many properties in a content test
 have values with syntax derived from C syntax.
 
-.. convention:: declarator
+.. convention:: type declarator
 
    Many tests of a header's content are fundamentally about confirming
    that a symbol is declared and has the proper type; to do so,
@@ -77,12 +70,12 @@ have values with syntax derived from C syntax.
    parse, so types in content tests must be annotated as follows:
 
    * If you would declare a variable of type :samp:`{T}` by writing
-     :samp:`{T} val;`, then you can just write :samp:`{T}` in the
-     test: ``int``, ``void *``, etc.
+     :samp:`{T} val;` then you can just write :samp:`{T}` in the
+     test: ``int``, ``void *``, etc.
 
    * But if the name of a variable would have to go somewhere in the
      middle of :samp:`{T}`, then you must put a dollar sign where the
-     variable name should appear: ``int $[2]``, ``void (*$)(void)``,
+     variable name should appear: ``int $[2]``, ``void (*$)(void)``,
      etc.
 
 
@@ -214,7 +207,7 @@ Structure Fields
 The keys of a :samp:`[fields:{category}]` section are fields of a C
 ``struct`` or ``union`` type which should be accessible after this
 header is included.  The value associated with each key may be a
-type :cvn:`declarator` in the syntax described above, in which case the
+:cvn:`type declarator` in the syntax described above, in which case the
 aggregate will be tested for a field of that exact type.  Or, if the
 type is not precisely specified in the relevant standard, you may use
 the keywords :kv:`integral` or :kv:`arithmetic` instead, with the same
@@ -240,10 +233,8 @@ In all cases, :samp:`{field}` may be an identifier or dotted sequence
 of identifiers; the latter allows you to test fields of nested structures.
 
 Here is an example, from :file:`signal.ini`, showing the use of the
-``s_`` prefix, and a typical case where a type declarator must be
-annotated.
-
-.. code-block:: ini
+``s_`` prefix, and a typical case where a :cvn:`type declarator` must be
+annotated::
 
    [fields:x5]
    s_sigaction.sa_handler   = void (*$)(int)
@@ -258,20 +249,244 @@ annotated.
 Constants
 ---------
 
+The keys of a :samp:`[constants:{category}]` section are the names of
+global constants which should be declared by the header under test.
+Constants can be tested in several different ways:
+
+1. If the value is the keyword "``str``", then the constant is
+   required to be a macro that expands to a string literal.
+
+2. If the value contains at least one ``$``, it is treated as an
+   ``#if`` expression which must be true, with each dollar sign
+   replaced by the name of the constant to test. As shorthand, if the
+   value does not contain a ``$`` but does begin with one of the C
+   relational operators, ``==``, ``!=``, ``<``, ``<=``, ``>``, or
+   ``>=``, then it is treated as an ``#if`` expression which must be
+   true, with the name of the constant prepended to the value.
+
+3. If the value does not contain any of the above magic strings, then
+   it is treated as a :cvn:`type declarator`, and we simply test that the
+   named constant can be assigned to a variable of that type. If the
+   value is left blank, it defaults to this test, with type ``int``.
+   Note that the declarator cannot be one of the forms that requires
+   annotation, because ``$`` is reused for expression tests.
+
+4. Tests 2 and 3 can be combined by writing a declarator in square
+   brackets, followed by an ``#if`` expression in either of the
+   recognized forms.
+
+5. If the *name* of the constant (that is, the key of the key-value
+   pair) starts with a dollar sign, then the value is tested verbatim
+   as an ``#if`` expression.  This is useful for testing relationships
+   among constants.
+
+6. In all of the above cases, the value can be prefixed with
+   :samp:`if {condition}:`, which causes the entire test to be wrapped
+   in an ``#if`` testing :samp:`{condition}`; i.e. all tests for this
+   constant will be skipped if :samp:`{condition}` is false.
+   Alternatively, prefixing the test with ``ifdef:`` causes the entire
+   test to be wrapped in :samp:`#ifdef {constant-name}`.  This is
+   useful for constants which are conditionally present.
+
+Here are some examples.  Testing for ``errno`` constants is very easy::
+
+    EDOM =
+    ERANGE =
+    EILSEQ =
+    # ... many more ...
+
+The tests for :file:`limits.h` use ``:`` instead of ``=`` to mark
+values, because of heavy use of relationals at the beginning of the
+value.  Most of the features listed above were added for the sake of
+this header, which is very complicated.
+
+::
+
+    CHAR_BIT: >= 8
+    SCHAR_MAX: [signed char] >= 127
+    UCHAR_MAX: [unsigned char] >= 255U
+    CHAR_MAX: [char] CHAR_MIN == 0 ? ($ == UCHAR_MAX) : ($ == SCHAR_MAX)
+
+    _POSIX_ARG_MAX: >= 4096
+    ARG_MAX: ifdef: >= _POSIX_ARG_MAX
+
+    PAGESIZE: ifdef: >= 1
+    PAGE_SIZE: ifdef: >= 1
+    $PS_eq_P_S: if defined PAGESIZE && defined PAGE_SIZE: PAGESIZE == PAGE_SIZE
+
+:file:`signal.h` defines constants of a function-pointer type, so the
+tests have to work around the unavailability of ``$``-annotated
+declarators::
+
+    [preamble]
+    header = signal.h
+    baseline = c89
+    global = typedef void (*sh_type)(int);
+
+    [constants:c89]
+    SIG_DFL = sh_type
+    SIG_IGN = sh_type
+    SIG_ERR = sh_type
+
+    SIGABRT =
+    SIGFPE  =
+    # ... many more ...
+
+
 Globals
 -------
+
+The keys of a :samp:`[globals:{category}]` section are the names of
+global variables which should be declared by the header under test.
+The value associated with each key must be a  :cvn:`type declarator`;
+the only exception is that if the value is left blank, it defaults to
+``int``, as for constants.
+
 
 Functions
 ---------
 
+The keys of a :samp:`[functions:{category}]` section are the names of
+external functions which should be declared by the header under test.
+The value associated with each key is a :dfn:`function specification`,
+which is similar to a C function prototype, but reformatted for easier
+processing within :command:`survey-scan`.  The general syntax is
+
+    :samp:`{return-type} ":" {argtype} ["," {argtype}]* ["..." {argtype} ["," {argtype}]*]?`
+
+Each :samp:`{type}` is an annotated :cvn:`type declarator`.  If the
+function is variadic, indicate this by putting :samp:`...` at the
+point where the variable arguments begin.  You have to specify at
+least one concrete type after that point, to use in a synthetic
+function call; in many cases these will be arbitrary choices.
+
+Here are some examples, from the tests for :file:`stdio.h`::
+
+    [functions:c89]
+    remove   = int    : const char *
+    rename   = int    : const char *, const char *
+    tmpfile  = FILE * : void
+    fprintf  = int    : FILE *, const char *, ...const char *, double
+    fscanf   = int    : FILE *, const char *, ...char *, double *
+
+
 Function-like Macros
 --------------------
+
+The keys of a :samp:`[fn_macros:{category}]` section are the names of
+function-like macros which should be declared by the header under
+test. The value syntax is exactly the same as for real functions (see
+above); the only difference is in the generated test code, which
+cannot (for instance) assume that it should be possible to take a
+pointer to a function-like macro.
+
 
 Special Declarations
 --------------------
 
+A :samp:`[special_decls:{category}]` section allows you to test the
+ability to make arbitrary file-scope declarations.  This is most
+useful for headers that define type specifiers, type qualifiers, or
+initializer macros.  Each key in a ``[special_decls]`` section is the
+name of a thing to test; unlike all the sections we have described so
+far, this key is *not* used in the generated code.  The value
+associated with the key is a complete declaration, which will be
+emitted nearly verbatim into the generated code.  It must contain
+exactly one dollar sign as a placeholder for the declared object name,
+and must *not* include a trailing semicolon.
+
+Here are some examples, taken from the tests for :file:`complex.h`::
+
+    [special_decls:c99]
+    _Complex = _Complex double $
+    complex  =  complex double $
+
+    [special_decls:c2011]
+    CMPLX = complex double $ = CMPLX(99, 0)
+
+(``_Complex`` is a C1999 language feature, supposed to be available
+even if :file:`complex.h` is not included; ``complex`` is a macro
+(expanding to ``_Complex``) defined by :file:`complex.h`.  We test
+both so we can distinguish the absence of *compiler* support
+for C1999 complex types from a broken :file:`complex.h`.)
+
+
 Special Constructs
 ------------------
+
+A :samp:`[special:{category}]` section allows you to test constructs
+that can only be used in particular contexts inside the body of a
+function.
+
+In the simplest form, each key in a ``[special]`` section is the name
+of a thing to test (like ``[special_decls]``, this name is not used in
+the generated code). The associated value is the body of a C function
+definition, which will be emitted verbatim into the generated code,
+with a semicolon tacked on the end.  For instance, testing
+:file:`assert.h`::
+
+    [special:c89]
+    assert = assert(1 != 0)
+
+By default, the generated function takes no arguments and has no
+return value.  You can change this with special keys:
+
+.. keyval:: __args__ = {argument-list}
+
+   Sets the argument list of all the generated functions for the
+   current ``[special]`` section to :samp:`{argument-list}`.  Do not
+   put parentheses around :samp:`{argument-list}`.
+
+.. keyval:: __rtype__ = {return-type}
+
+   Sets the return type of all the generated functions for the
+   current ``[special]`` section to :samp:`{return-type}`.
+
+Content tests run the compiler with aggressive warnings enabled, so it
+is important not to have unused, uninitialized, or write-only
+variables in the function body; use arguments and a return value
+instead.  For instance, testing :file:`iso646.h`::
+
+    [special:c89]
+    __args__  = int a, int b
+    __rtype__ = int
+
+    and       = return a and b;
+    bitand    = return a bitand b;
+    # ...
+
+A more complicated form allows you to test two or more things that can
+only be used together.
+
+.. keyval:: __body__ = {function-body}
+
+   Use :samp:`{function-body}` as the body of the single test function
+   to be generated for this ``[special]`` section.
+
+.. keyval:: __tested__ = {name1} {name2}...
+
+   This ``[special]`` section tests all of the things listed in the
+   value, simultaneously.
+
+:kv:`__tested__` and :kv:`__body__` must be used together, and may not
+be used in the same ``[special]`` section as the simpler one-item
+tests described above.
+
+For instance, ``va_start`` and ``va_end`` must be used together in a
+variadic function::
+
+    [special:c89]
+    __tested__ = va_start va_arg va_end
+    __args__   = int x, ...
+    __rtype__  = double
+    __body__   =
+      int a; double b;
+      va_list ap;
+      va_start(ap, x);
+      a = va_arg(ap, int);
+      b = va_arg(ap, double);
+      va_end(ap);
+      return a + b;
 
 
 .. .
