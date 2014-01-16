@@ -1,0 +1,662 @@
+/*
+ * main.css
+ * ~~~~~~~~
+ *
+ * Sphinx stylesheet -- custom HSV theme.  Based on basic.css and default.css
+ * from the Sphinx distribution, therefore:
+ *
+ * :copyright: Copyright 2007-2013 by the Sphinx team.
+ *             Copyright 2014 Zack Weinberg.
+ * :license: BSD, see LICENSE for details.
+ *
+ */
+
+nav {
+  background-color:#133f52;
+  color:#ffffff;
+  font-size:90%;
+  line-height:30px;
+  width:100%;
+}
+
+nav h3 {
+  display:none;
+}
+
+nav ul {
+  list-style:none;
+  margin:0;
+  padding:0 0 0 10px;
+}
+
+nav li.right {
+  float:right;
+  margin-right:5px;
+}
+
+aside.sidebar {
+  float:right;
+  font-size:90%;
+  margin-left:-100%;
+  width:230px;
+  padding: 10px 5px 0 10px;
+  box-sizing: border-box;
+}
+
+aside.sidebar ul {
+  color:#ffffff;
+  list-style:none;
+  margin:10px;
+  padding:0;
+}
+
+aside.sidebar ul ul,
+aside.sidebar ul.want-points {
+  list-style:square;
+  margin-left:20px;
+}
+
+aside.sidebar form {
+  margin-top:10px;
+}
+
+aside.sidebar input {
+  border:1px solid #98dbcc;
+  font-family:sans-serif;
+  font-size:1em;
+}
+
+#searchbox input[type="text"] {
+  width:170px;
+}
+
+#searchbox input[type="submit"] {
+  width:30px;
+}
+
+img {
+  border:0;
+}
+
+ul.search {
+  margin:10px 0 0 20px;
+  padding:0;
+}
+
+ul.search li {
+  background-image:url(file.png);
+  background-position:0 7px;
+  background-repeat:no-repeat;
+  padding:5px 0 5px 20px;
+}
+
+ul.search li div.context {
+  color:#888;
+  margin:2px 0 0 30px;
+  text-align:left;
+}
+
+table.contentstable {
+  width:90%;
+}
+
+table.contentstable p.biglink {
+  line-height:150%;
+}
+
+span.linkdescr {
+  font-size:90%;
+  font-style:italic;
+  padding-top:5px;
+}
+
+table.indextable {
+  width:100%;
+}
+
+table.indextable td {
+  text-align:left;
+  vertical-align:top;
+}
+
+table.indextable tr.pcap {
+  height:10px;
+}
+
+table.indextable tr.cap {
+  background-color:#f2f2f2;
+  margin-top:10px;
+}
+
+img.toggler {
+  cursor:pointer;
+  margin-right:3px;
+  margin-top:3px;
+}
+
+a.headerlink {
+  color:#c60f0f;
+  font-size:.8em;
+  padding:0 4px;
+  text-decoration:none;
+  visibility:hidden;
+}
+
+h1:hover > a.headerlink,
+h2:hover > a.headerlink,
+h3:hover > a.headerlink,
+h4:hover > a.headerlink,
+h5:hover > a.headerlink,
+h6:hover > a.headerlink,
+dt:hover > a.headerlink {
+  visibility:visible;
+}
+
+div.body p.caption {
+  text-align:inherit;
+}
+
+.field-list ul {
+  margin:0;
+  padding-left:1em;
+}
+
+.first {
+  margin-top:0 !important;
+}
+
+p.rubric {
+  font-weight:bold;
+  margin-top:30px;
+}
+
+img.align-left,
+.figure.align-left,
+object.align-left {
+  clear:left;
+  float:left;
+  margin-right:1em;
+}
+
+img.align-right,
+.figure.align-right,
+object.align-right {
+  clear:right;
+  float:right;
+  margin-left:1em;
+}
+
+img.align-center,
+.figure.align-center,
+object.align-center {
+  display:block;
+  margin-left:auto;
+  margin-right:auto;
+}
+
+.align-right {
+  text-align:right;
+}
+
+div.sidebar {
+  background-color:#ffe;
+  border:1px solid #ddb;
+  float:right;
+  margin:0 0 .5em 1em;
+  padding:7px 7px 0;
+  width:40%;
+}
+
+div.topic {
+  background-color:#eee;
+  border:1px solid #ccc;
+  margin:10px 0;
+  padding:7px 7px 0;
+}
+
+p.topic-title {
+  font-size:1.1em;
+  font-weight:bold;
+  margin-top:10px;
+}
+
+div.admonition {
+  margin-bottom:10px;
+  margin-top:10px;
+  padding:7px;
+}
+
+div.admonition dl {
+  margin-bottom:0;
+}
+
+p.admonition-title {
+  display:inline;
+  font-weight:bold;
+  margin:0 10px 5px 0;
+}
+
+div.body p.centered {
+  margin-top:25px;
+  text-align:center;
+}
+
+table.docutils {
+  border:0;
+  border-collapse:collapse;
+}
+
+table.docutils td,
+table.docutils th {
+  border-bottom:1px solid #aaa;
+  border-left:0;
+  border-right:0;
+  border-top:0;
+  padding:1px 8px 1px 5px;
+}
+
+th {
+  background-color:#ede;
+  padding-right:5px;
+  text-align:left;
+}
+
+table.citation {
+  border-left:solid 1px gray;
+  margin-left:1px;
+}
+
+table.citation td {
+  border-bottom:none;
+}
+
+ol.arabic {
+  list-style:decimal;
+}
+
+ol.loweralpha {
+  list-style:lower-alpha;
+}
+
+ol.upperalpha {
+  list-style:upper-alpha;
+}
+
+ol.lowerroman {
+  list-style:lower-roman;
+}
+
+ol.upperroman {
+  list-style:upper-roman;
+}
+
+dl {
+  margin-bottom:15px;
+}
+
+dd p {
+  margin-top:0;
+}
+
+dd ul,
+dd table {
+  margin-bottom:10px;
+}
+
+dd {
+  margin-bottom:10px;
+  margin-left:30px;
+  margin-top:3px;
+}
+
+dt:target,
+.highlighted {
+  background-color:#fbe54e;
+}
+
+dl.glossary dt {
+  font-size:1.1em;
+  font-weight:bold;
+}
+
+.field-list p {
+  margin:0;
+}
+
+.versionmodified {
+  font-style:italic;
+}
+
+.system-message {
+  background-color:#fda;
+  border:3px solid red;
+  padding:5px;
+}
+
+.footnote:target {
+  background-color:#ffa;
+}
+
+.line-block {
+  display:block;
+  margin-bottom:1em;
+  margin-top:1em;
+}
+
+.line-block .line-block {
+  margin-bottom:0;
+  margin-left:1.5em;
+  margin-top:0;
+}
+
+.guilabel,
+.menuselection {
+  font-family:sans-serif;
+}
+
+.classifier {
+  font-style:oblique;
+}
+
+abbr,
+acronym {
+  border-bottom:dotted 1px;
+  cursor:help;
+}
+
+pre {
+  background-color:#eeffcc;
+  border:1px solid #ac9;
+  border-left:none;
+  border-right:none;
+  color:#333333;
+  line-height:120%;
+  overflow:auto;
+  overflow-y:hidden;
+  padding:5px;
+}
+
+td.linenos pre {
+  background-color:transparent;
+  border:0;
+  color:#aaa;
+  padding:5px 0;
+}
+
+table.highlighttable {
+  margin-left:.5em;
+}
+
+table.highlighttable td {
+  padding:0 .5em;
+}
+
+tt.descname {
+  background-color:transparent;
+  font-size:1.2em;
+  font-weight:bold;
+}
+
+tt.xref,
+a tt {
+  background-color:transparent;
+  font-weight:bold;
+}
+
+.viewcode-back {
+  float:right;
+  font-family:sans-serif;
+}
+
+div.viewcode-block:target {
+  background-color:#f4debf;
+  border-bottom:1px solid #ac9;
+  border-top:1px solid #ac9;
+  margin:-1px -10px;
+  padding:0 10px;
+}
+
+img.math {
+  vertical-align:middle;
+}
+
+body {
+  background-color:#11303d;
+  color:#000;
+  font-family:sans-serif;
+  font-size:100%;
+  margin:0;
+  padding:0;
+}
+
+main {
+  x-background-color:#1c4e63;
+  float:left;
+  margin: 0 230px 0 0;
+  background-color:#ffffff;
+  color:#000000;
+  padding:0 20px 30px;
+}
+
+header, footer {
+  color:#ffffff;
+  font-size:75%;
+  padding:9px 0;
+  text-align:center;
+  width:100%;
+  clear: both;
+}
+
+header a, footer a {
+  color:#ffffff;
+  text-decoration:underline;
+}
+
+aside.sidebar h3 {
+  color:#ffffff;
+  font-family:'Trebuchet MS', sans-serif;
+  font-size:1.4em;
+  font-weight:normal;
+  margin:0;
+  padding:0;
+}
+
+aside.sidebar h4 {
+  color:#ffffff;
+  font-family:'Trebuchet MS', sans-serif;
+  font-size:1.3em;
+  font-weight:normal;
+  margin:5px 0 0;
+  padding:0;
+}
+
+aside.sidebar p.topless {
+  margin:5px 10px 10px;
+}
+
+aside.sidebar a {
+  color:#98dbcc;
+}
+
+main h1,
+main h2,
+main h3,
+main h4,
+main h5,
+main h6 {
+  background-color:#f2f2f2;
+  border-bottom:1px solid #ccc;
+  color:#20435c;
+  font-family:'Trebuchet MS', sans-serif;
+  font-weight:normal;
+  margin:20px -20px 10px;
+  padding:3px 0 3px 10px;
+}
+
+main h1 {
+  font-size:200%;
+  margin-top:0;
+}
+
+main h2 {
+  font-size:160%;
+}
+
+main h3 {
+  font-size:140%;
+}
+
+main h4 {
+  font-size:120%;
+}
+
+main h5 {
+  font-size:110%;
+}
+
+main h6 {
+  font-size:100%;
+}
+
+a.headerlink:hover {
+  background-color:#c60f0f;
+  color:white;
+}
+
+main p,
+main dd,
+main li {
+  line-height:130%;
+  text-align:justify;
+}
+
+div.note {
+  background-color:#eee;
+  border:1px solid #ccc;
+}
+
+div.seealso {
+  background-color:#ffc;
+  border:1px solid #ff6;
+}
+
+div.warning {
+  background-color:#ffe4e4;
+  border:1px solid #f66;
+}
+
+p.admonition-title:after {
+  content:":";
+}
+
+tt {
+  background-color:#ecf0f3;
+  font-size:.95em;
+  padding:0 1px;
+}
+
+.warning tt {
+  background:#efc2c2;
+}
+
+.note tt {
+  background:#d6d6d6;
+}
+
+nav li,
+div.admonition p.admonition-title + p {
+  display:inline;
+}
+
+aside.sidebar ul ul,
+table.indextable dl,
+table.indextable dd {
+  margin-bottom:0;
+  margin-top:0;
+}
+
+ul.search li a,
+ul.keywordmatches li.goodmatch a,
+p.sidebar-title,
+div.admonition dt {
+  font-weight:bold;
+}
+
+a.biglink,
+.optional {
+  font-size:1.3em;
+}
+
+div.modindex-jumpbox,
+div.genindex-jumpbox {
+  border-bottom:1px solid #ddd;
+  border-top:1px solid #ddd;
+  margin:1em 0;
+  padding:.4em;
+}
+
+main td,
+.align-left {
+  text-align:left;
+}
+
+.align-center,
+main div.math p {
+  text-align:center;
+}
+
+table.field-list td,
+table.field-list th,
+table.footnote td,
+table.footnote th {
+  border:0 !important;
+}
+
+.accelerator,
+a:hover {
+  text-decoration:underline;
+}
+
+tt.descclassname,
+h1 tt,
+h2 tt,
+h3 tt,
+h4 tt,
+h5 tt,
+h6 tt {
+  background-color:transparent;
+}
+
+.viewcode-link,
+span.eqno {
+  float:right;
+}
+
+nav a,
+aside.sidebar h3 a,
+aside.sidebar p {
+  color:#ffffff;
+}
+
+a,
+a:visited {
+  color:#355f7c;
+  text-decoration:none;
+}
+
+div.admonition p,
+div.admonition pre,
+div.admonition ul,
+div.admonition ol {
+  margin-bottom:5px;
+}
+
+@media print {
+  main {
+    margin:0 !important;
+    width:100%;
+  }
+  aside.sidebar, nav, header, footer, #top-link {
+    display:none;
+  }
+}

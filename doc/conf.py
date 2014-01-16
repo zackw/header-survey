@@ -38,6 +38,9 @@ master_doc = 'index'
 exclude_patterns = ['*~']
 html_show_sourcelink = False
 html_translator_class = 'html5_output.SmartyPantsHTML5Translator'
+html_sidebars = {
+    '**': ['searchbox.html', 'globaltoc.html']
+}
 
 # - Things that might get changed later.
 
@@ -55,7 +58,7 @@ html_theme = 'hsv'
 #html_theme_options = {}
 #html_logo = None
 #html_favicon = None
-pygments_style = 'sphinx.pygments_styles.PyramidStyle'
+#pygments_style = 'sphinx.pygments_styles.PyramidStyle'
 
 # Indexing is disabled until we figure out just what should be indexed.
 html_use_index = False
