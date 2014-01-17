@@ -28,9 +28,10 @@ html_short_title = 'C Headers Survey'
 needs_sphinx = '1.2'
 extensions = [
     'sphinx.ext.todo',
-    'doc_comments',
     'html5_output',
+    'doc_comments',
     'objects',
+    'reports',
 ]
 
 source_suffix = '.rst'

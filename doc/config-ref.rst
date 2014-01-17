@@ -52,7 +52,12 @@ description.
 
    All values described as "human-readable text" or a "human-readable
    label" will be interpreted as `reStructuredText`_ when generating
-   this report and documentation.
+   this report and documentation.  ConfigParser preserves newlines in
+   a multi-line value, but it strips leading whitespace from each
+   line; therefore, all such values may (but need not) have a leading
+   ``|`` on each line to preserve indentation.  Remember that this
+   ``|`` must itself be indented at least one space or it will not be
+   treated as part of the multi-line value.
 
 .. convention:: regular expression
 

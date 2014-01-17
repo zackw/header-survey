@@ -1,7 +1,13 @@
 Detailed Results
 ================
 
-.. todo:: Implement.
+.. todo:: Complete.
+
+
+Known Errors
+------------
+
+.. known-errors-report:: ../config/errors.ini
 
 .. .
    Copyright 2014 Zack Weinberg <zackw@panix.com> and other contributors.
