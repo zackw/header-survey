@@ -405,6 +405,31 @@ ol.upperroman {
   list-style: upper-roman;
 }
 
+ul {
+}
+
+ul.hlist {
+  width: 80%;
+  column-width: 6em;
+  -moz-column-width: 6em;
+  -webkit-column-width: 6em;
+}
+
+ul.hlist > li {
+  display: block;
+  line-height: 100%;
+}
+
+ul.hlist-1 {  }
+ul.hlist-2 {  }
+ul.hlist-3 {  }
+ul.hlist-4 {  }
+ul.hlist-5 {  }
+ul.hlist-6 {  }
+ul.hlist-7 {  }
+ul.hlist-8 {  }
+ul.hlist-9 {  }
+
 dl {
   margin-bottom: 15px;
 }

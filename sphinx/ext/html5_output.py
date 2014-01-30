@@ -1895,14 +1895,31 @@ class HTML5Translator(BaseTranslator):
         pass
 
     def visit_hlist(self, node):
-        self.body.append('<table class="hlist"><tr>')
+        # The directive processor split up the list into a bunch of
+        # 'hlistcol' nodes.  Undo this and produce a single <ul> with
+        # appropriate class.  CSS will do the rest.
+        ncols = len(node)
+        self.body.append(self.starttag(node, 'ul',
+                                       CLASS='hlist hlist-%d' % ncols))
+        for col in node:
+            assert isinstance(col, addnodes.hlistcol)
+            assert len(col) == 1
+            assert isinstance(col[0], nodes.bullet_list)
+            for item in col[0]:
+                item.walkabout(self)
+
+        self.body.append('</ul>')
+        # content already processed
+        raise nodes.SkipNode
+
     def depart_hlist(self, node):
-        self.body.append('</tr></table>\n')
+        raise RuntimeError('depart_hlist should never be called')
 
     def visit_hlistcol(self, node):
-        self.body.append('<td>')
+        raise RuntimeError('visit_hlistcol should never be called')
+
     def depart_hlistcol(self, node):
-        self.body.append('</td>')
+        raise RuntimeError('depart_hlistcol should never be called')
 
     def bulk_text_processor(self, text):
         return text
