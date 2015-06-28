@@ -3,7 +3,7 @@
     Based on sphinx 1.2 'basic/layout.html', copyright 2007-2013 by
     the Sphinx team.
     Modifications for header-survey copyright 2014 Zack Weinberg.
-#}
+-#}
 
 {%- set url_root = pathto('', 1) %}
 {%- if url_root == '#' %}{% set url_root = '' %}{% endif %}
@@ -11,7 +11,7 @@
   {%- set titlesuffix = " &mdash; "|safe + docstitle|e %}
 {%- else %}
   {%- set titlesuffix = "" %}
-{%- endif %}
+{%- endif -%}
 
 <!DOCTYPE html>
 <html>
