@@ -2192,7 +2192,11 @@ class Metadata:
                 d = {}
                 exec re.sub("(?m)^\s*\|", "", self.rt_spec.version_adjust) \
                     in globals(), d
-                version = d["version_adjust"](version)
+                try:
+                    version = d["version_adjust"](version)
+                except Exception, e:
+                    self.log.fatal("version adjustment failed on '%s': %s"
+                                   % (version, str(e)))
 
         self.log.end_test("%s %s" % (self.rt_spec.label, version))
         if self.rt_version is not None and self.rt_version != version:
@@ -4140,7 +4144,13 @@ class Configuration:
 
         headers = []
         for _, s in standards:
-            headers.extend(sorthdr(cfg.options(s)))
+            opts = cfg.options(s)
+            hsec = []
+            for o in opts:
+                if o != "DESC" and o != "desc":
+                    hsec.append(o)
+
+            headers.extend(sorthdr(hsec))
             del sections[s]
 
         if sections:
