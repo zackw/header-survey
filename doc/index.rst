@@ -33,10 +33,12 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   results
+   headers
+   opsys
    survey
    config-ref
    content-tests
+   known-errors
 
 .. Indices and tables
 .. ==================

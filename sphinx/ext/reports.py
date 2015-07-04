@@ -20,10 +20,10 @@ from sphinx.util.compat import Directive
 from sphinx.util.nodes import nested_parse_with_titles
 from sphinx.ext.autodoc import AutodocReporter
 
-class KnownErrorsReport(Directive):
-    """Generate a report describing all known errors, and inject it at
-       the current location.  Takes one argument, the name of the
-       config file to read known errors from."""
+class ReportFromConfig(Directive):
+    """Generate some sort of report from a configuration file, and inject
+       it at the current location.  Takes one argument, the name of the
+       config file to read.  Subclasses must override generate_report()."""
 
     required_arguments = 1
 
@@ -31,17 +31,26 @@ class KnownErrorsReport(Directive):
         self.state.document.settings.record_dependencies.add(__file__)
 
         src, srcline = self.state_machine.get_source_and_line()
-        errs_file = os.path.normpath(os.path.join(os.path.dirname(src),
-                                                  self.arguments[0]))
-        self.state.document.settings.record_dependencies.add(errs_file)
+        cfgfile = os.path.normpath(os.path.join(os.path.dirname(src),
+                                                self.arguments[0]))
+        self.state.document.settings.record_dependencies.add(cfgfile)
 
         parser = configparser.RawConfigParser()
         reporter = self.state.document.reporter
         try:
-            parser.read_file(open(errs_file, encoding="utf-8"))
-        except IOError as e:
+            parser.read_file(open(cfgfile, encoding="utf-8"))
+            return self.generate_report(parser, reporter)
+
+        except Exception as e:
             return [reporter.error(e, source=src, line=srcline)]
 
+    def generate_report(self, parser, reporter):
+        raise NotImplementedError
+
+class KnownErrorsReport(ReportFromConfig):
+    """Generate a report describing all known errors."""
+
+    def generate_report(self, parser, reporter):
         result = []
 
         for tag in parser.sections():
@@ -88,5 +97,12 @@ class KnownErrorsReport(Directive):
 
         return result
 
+
+class HeaderReport:
+    required_arguments = 1
+    def run(self):
+        pass
+
 def setup(app):
     app.add_directive("known-errors-report", KnownErrorsReport)
+    app.add_directive("header-report", HeaderReport)

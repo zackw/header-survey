@@ -1,0 +1,163 @@
+#! /usr/bin/python3
+
+# This program has to be run before 'sphinx-build'; its function is to
+# generate a bunch of stub pages that call Sphinx extensions that
+# actually generate the desired documentation.
+
+import configparser
+import glob
+import os
+import re
+import sys
+from collections import namedtuple, defaultdict
+
+def parse_config_file(cdir, cname=None):
+    # n.b. really it's cdir that's an optional argument
+    if cname:
+        fname = os.path.join(cdir, cname)
+    else:
+        fname = cdir
+    with open(fname) as f:
+        parser = configparser.RawConfigParser()
+        parser.read_file(f)
+        return parser
+
+def hsortkey(h):
+    """Sort key for sorting headers.  All one-component pathnames
+       are sorted ahead of all longer pathnames; within a group of
+       multicomponent pathnames with the same leading component,
+       all two-component pathnames are sorted ahead of all longer
+       pathnames; and so on, recursively."""
+    segs = str(h).lower().replace("\\", "/").split("/")
+    key = []
+    for s in segs:
+        key.extend((1, s))
+    key[-2] = 0
+    return tuple(key)
+
+def vsortkey(v):
+    """Sort key for sorting version numbers."""
+    return tuple(int(x) for x in re.split("[^0-9]+", v))
+
+def gen_one_header(hdir, name, label):
+    os.makedirs(os.path.join(hdir, os.path.dirname(name)),
+                exist_ok=True)
+    title = ":file:`{}` — {}".format(name, label)
+    underline = "=" * len(title)
+    with open(os.path.join(hdir, name + ".rst"), "wt") as f:
+        f.write(title)
+        f.write("\n")
+        f.write(underline)
+        f.write("\n\n")
+        f.write(".. header-report: {}\n".format(name))
+
+def gen_headers(odir, cfgdir):
+    hcfg = parse_config_file(cfgdir, "headers.ini")
+
+    leftover_sections = set(hcfg.sections())
+    leftover_sections.remove("standards")
+
+    hdir = os.path.join(odir, "headers")
+
+    with open(os.path.join(odir, "headers.rst"), "wt") as f:
+        f.write("Detailed results by header\n"
+                "==========================\n\n")
+
+        for tag, label in sorted(hcfg["standards"].items(),
+                                 key = lambda kv: kv[1][:2]):
+            if tag not in leftover_sections:
+                f.write(".. error::\n\n"
+                        "   no section for standard '``{}``'\n\n"
+                        .format(tag))
+                continue
+            leftover_sections.remove(tag)
+
+            label = label[4:]
+            f.write(label)
+            f.write("\n")
+            f.write("-" * len(label))
+            f.write("\n\n")
+            f.write(hcfg[tag].get("DESC", ""))
+            f.write("\n\n.. toctree::\n\n")
+            for header, desc in sorted(hcfg[tag].items(),
+                                       key = lambda kv: hsortkey(kv[0])):
+                if header == "DESC" or header == "desc": continue
+                f.write("   headers/{}\n".format(header))
+                gen_one_header(hdir, header, desc)
+
+            f.write("\n")
+
+def read_compiler_names(cfgdir):
+    ccfg = parse_config_file(cfgdir, "compilers.ini")
+    return { section : ccfg[section]["name"]
+             for section in ccfg.sections()
+             if section != "META" and section != "meta" }
+
+RuntimeTag = namedtuple("RuntimeTag", ("label", "category"))
+def read_runtime_tags(cfgdir):
+    rcfg = parse_config_file(cfgdir, "runtimes.ini")
+    return { section : RuntimeTag(rcfg[section]["label"],
+                                  rcfg[section]["category"])
+             for section in rcfg.sections() if section != "META" }
+
+
+OSData = namedtuple("RuntimeTag",
+                    ("compiler", "compiler_v", "runtime", "runtime_v"))
+
+def gen_one_opsys(fname, runtime, runtime_v, compiler, compiler_v):
+    os.makedirs(os.path.dirname(fname), exist_ok=True)
+    with open(fname, "wt") as f:
+        label = "{} {} with {} {}".format(runtime, runtime_v,
+                                          compiler, compiler_v)
+        f.write(label)
+        f.write("\n")
+        f.write("=" * len(label))
+        f.write("\n\n")
+
+def gen_oses(odir, cfgdir, invdir):
+    compiler_names = read_compiler_names(cfgdir)
+    runtime_tags  = read_runtime_tags(cfgdir)
+
+    runtimes_by_category = defaultdict(lambda: defaultdict(list))
+
+    for inv in glob.glob(os.path.join(invdir, "*.ini")):
+        label = parse_config_file(inv)["label"]
+        data = OSData(label["compiler"], label["compiler_v"],
+                      label["runtime"], label["runtime_v"])
+
+        rtag = runtime_tags[data.runtime]
+        runtimes_by_category[rtag.category][rtag.label].append(data)
+
+    with open(os.path.join(odir, "opsys.rst"), "wt") as f:
+        f.write("Detailed results by operating system\n"
+                "====================================\n\n")
+
+        for category, runtimes in sorted(runtimes_by_category.items(),
+                                         key = lambda kv: kv[0]):
+            f.write(category)
+            f.write("\n")
+            f.write("-" * len(category))
+            f.write("\n\n.. toctree::\n\n")
+            for label, versions in sorted(runtimes.items(),
+                                          key = lambda kv: kv[0]):
+                versions.sort(key = lambda v: (vsortkey(v.runtime_v),
+                                               compiler_names[v.compiler],
+                                               vsortkey(v.compiler_v)))
+                for v in versions:
+                    fname = "opsys/{}{}-{}{}".format(v.runtime, v.runtime_v,
+                                                     v.compiler, v.compiler_v)
+
+                    f.write("  {}\n".format(fname))
+                    gen_one_opsys(os.path.join(odir, fname) + ".rst",
+                                  label, v.runtime_v,
+                                  compiler_names[v.compiler], v.compiler_v)
+            f.write("\n")
+
+def main():
+    odir   = sys.argv[1]
+    cfgdir = sys.argv[2]
+    invdir = sys.argv[3]
+    gen_headers(odir, cfgdir)
+    gen_oses(odir, cfgdir, invdir)
+
+main()

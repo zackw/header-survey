@@ -4,5 +4,9 @@
 *.pyc
 *.pyo
 *.o
+/doc/headers/
+/doc/headers.rst
+/doc/opsys/
+/doc/opsys.rst
 /web/
 __pycache__/

@@ -1,11 +1,5 @@
-Detailed Results
-================
-
-.. todo:: Complete.
-
-
-Known Errors
-------------
+Glossary of Known Errors
+------------------------
 
 .. known-errors-report:: ../config/errors.ini
 
